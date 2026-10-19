@@ -48,6 +48,7 @@ pub struct GpuRenderer {
     target: Option<Target>,
     images: BTreeMap<u64, ImageData>,
     adapter_name: String,
+    software: bool,
     /// Rasterizes layers with filters (blur, shadow) exactly like the CPU
     /// backend; the result is drawn as an image.
     cpu: CpuRenderer,
@@ -131,6 +132,7 @@ impl GpuRenderer {
             .map_err(|e| GpuError::NoAdapter(e.to_string()))?;
         let info = adapter.get_info();
         let adapter_name = format!("{} ({:?}, {})", info.name, info.backend, info.driver);
+        let software = info.device_type == wgpu::DeviceType::Cpu;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("oxframe"),
@@ -156,6 +158,7 @@ impl GpuRenderer {
             target: None,
             images: BTreeMap::new(),
             adapter_name,
+            software,
             cpu: CpuRenderer::new(),
             #[cfg(target_arch = "wasm32")]
             canvas: None,
@@ -165,6 +168,12 @@ impl GpuRenderer {
     /// Name of the GPU in use, for logs.
     pub fn adapter_name(&self) -> &str {
         &self.adapter_name
+    }
+
+    /// Whether the adapter emulates a GPU on the CPU (WARP, llvmpipe,
+    /// SwiftShader): correct but slow, and not bit-comparable to hardware.
+    pub fn is_software(&self) -> bool {
+        self.software
     }
 
     fn target(&mut self, width: u32, height: u32) -> &Target {

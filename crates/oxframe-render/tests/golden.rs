@@ -505,6 +505,14 @@ fn cpu_is_deterministic() {
 #[test]
 fn gpu_matches_golden() {
     match oxframe_render::GpuRenderer::new() {
+        // Software adapters (WARP on Windows CI runners) are not what the
+        // goldens are tuned for; OXFRAME_GPU_TESTS=1 runs them anyway.
+        Ok(r) if r.is_software() && std::env::var_os("OXFRAME_GPU_TESTS").is_none() => {
+            eprintln!(
+                "SKIPPED gpu golden test on software adapter {}",
+                r.adapter_name()
+            );
+        }
         Ok(mut r) => {
             eprintln!("GPU: {}", r.adapter_name());
             check("gpu", &mut r);
