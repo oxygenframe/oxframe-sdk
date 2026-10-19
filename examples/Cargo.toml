@@ -1,0 +1,21 @@
+[package]
+name = "oxframe-examples"
+description = "Example scenes; also used by the docs, the playground gallery and acceptance tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+oxframe.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "seek"
+harness = false
+
+[lints]
+workspace = true

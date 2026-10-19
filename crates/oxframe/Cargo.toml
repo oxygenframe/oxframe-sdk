@@ -1,0 +1,43 @@
+[package]
+name = "oxframe"
+description = "Procedural animation in Rust: scenes are coroutines, frames are await points"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe"
+readme = "../../README.md"
+
+[features]
+default = ["gpu"]
+# wasm-bindgen API for running a project in the browser (playground).
+wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
+# vello renderer for `render` and `preview` (falls back to the CPU renderer
+# at runtime when no adapter is available).
+gpu = ["oxframe-render/gpu"]
+
+[dependencies]
+oxframe-core.workspace = true
+oxframe-2d.workspace = true
+oxframe-text.workspace = true
+oxframe-render.workspace = true
+oxframe-protocol.workspace = true
+oxframe-macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+oxframe-preview.workspace = true
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", features = ["OffscreenCanvas"], optional = true }
+console_error_panic_hook = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+oxframe-export.workspace = true
+oxframe-preview = { workspace = true, features = ["server"] }
+
+[lints]
+workspace = true

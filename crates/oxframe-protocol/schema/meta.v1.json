@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oxframe.dev/schema/meta.v1.json",
+  "title": "oxframe scene meta, schema v1",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "markers": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9_-]+$" },
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "eases": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9_-]+$" },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 4,
+        "maxItems": 4
+      }
+    },
+    "tunables": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9_-]+$" },
+      "additionalProperties": { "type": "number" }
+    },
+    "audio": {
+      "type": "object",
+      "required": ["file"],
+      "properties": {
+        "file": { "type": "string" },
+        "offset": { "type": "number" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

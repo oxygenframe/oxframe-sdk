@@ -1,0 +1,21 @@
+[package]
+name = "oxframe-core"
+description = "Signals, tweens and a deterministic single-threaded coroutine executor for oxframe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-core"
+
+[dependencies]
+oxframe-protocol.workspace = true
+kurbo.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+
+[lints]
+workspace = true

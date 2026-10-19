@@ -1,0 +1,24 @@
+[package]
+name = "oxframe-protocol"
+description = "Wire protocol and meta.json schema shared by the oxframe engine, CLI and editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-protocol"
+
+[features]
+# Generates TypeScript bindings (`cargo test -p oxframe-protocol --features ts`).
+ts = ["dep:ts-rs"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs = { workspace = true, optional = true }
+
+[lints]
+workspace = true

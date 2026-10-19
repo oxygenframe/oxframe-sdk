@@ -1,0 +1,21 @@
+[package]
+name = "oxframe-text"
+description = "Text layout and glyph outlines for oxframe (parley + skrifa, embedded fonts)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-text"
+include = ["src/**", "fonts/**", "Cargo.toml"]
+
+[dependencies]
+kurbo.workspace = true
+parley.workspace = true
+skrifa.workspace = true
+
+[lints]
+workspace = true

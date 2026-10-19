@@ -1,0 +1,5 @@
+/target
+/out
+*.png
+!/crates/*/tests/golden/*.png
+/crates/oxframe-protocol/bindings

@@ -1,0 +1,18 @@
+{
+  "eases": {
+    "draw": [
+      0.37,
+      0.0,
+      0.63,
+      1.0
+    ]
+  },
+  "markers": {
+    "dot": 2.6,
+    "draw": 0.6
+  },
+  "tunables": {
+    "dot_seconds": 2.5
+  },
+  "version": 1
+}

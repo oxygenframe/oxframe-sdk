@@ -1,0 +1,39 @@
+[package]
+name = "oxframe-render"
+description = "Renderers for oxframe scenes: tiny-skia on the CPU, vello on the GPU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-render"
+
+[features]
+default = ["cpu"]
+cpu = ["dep:tiny-skia"]
+# GPU backend (vello on wgpu). Off by default so that CI without a GPU and
+# minimal builds do not pull in wgpu.
+gpu = ["dep:vello", "dep:pollster", "dep:wgpu", "dep:web-sys"]
+
+[dependencies]
+oxframe-core.workspace = true
+oxframe-2d.workspace = true
+kurbo.workspace = true
+tiny-skia = { workspace = true, optional = true }
+vello = { workspace = true, optional = true }
+pollster = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+# In the browser: WebGPU backend and rendering into an OffscreenCanvas.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wgpu = { version = "30", default-features = false, features = ["webgpu", "wgsl"], optional = true }
+web-sys = { version = "0.3", features = ["OffscreenCanvas"], optional = true }
+
+[dev-dependencies]
+kurbo.workspace = true
+image.workspace = true

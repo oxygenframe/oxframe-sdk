@@ -1,0 +1,17 @@
+{
+  "eases": {
+    "title_in": [
+      0.33,
+      1.0,
+      0.68,
+      1.0
+    ]
+  },
+  "markers": {
+    "subtitle": 0.8
+  },
+  "tunables": {
+    "title_hold": 1.0
+  },
+  "version": 1
+}

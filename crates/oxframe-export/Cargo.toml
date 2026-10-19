@@ -1,0 +1,18 @@
+[package]
+name = "oxframe-export"
+description = "Video export for oxframe: frames piped into ffmpeg, PNG sequences, audio muxing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-export"
+
+[dependencies]
+oxframe-render.workspace = true
+
+[lints]
+workspace = true

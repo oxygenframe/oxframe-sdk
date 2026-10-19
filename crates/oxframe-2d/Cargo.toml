@@ -1,0 +1,23 @@
+[package]
+name = "oxframe-2d"
+description = "2D scene graph and nodes for oxframe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-2d"
+
+[dependencies]
+oxframe-core.workspace = true
+oxframe-text.workspace = true
+kurbo.workspace = true
+image.workspace = true
+usvg.workspace = true
+taffy.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,29 @@
+[package]
+name = "oxframe-preview"
+description = "Preview protocol session for oxframe: native WebSocket server and in-browser (wasm) API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-preview"
+
+[features]
+default = ["server"]
+# Native WebSocket server (axum). Not available on wasm32.
+server = ["dep:axum", "dep:tokio", "dep:image"]
+
+[dependencies]
+oxframe-protocol.workspace = true
+oxframe-render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+
+[lints]
+workspace = true
