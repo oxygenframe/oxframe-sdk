@@ -99,9 +99,14 @@ fn seek_10k_frames_within_budget() {
     assert_eq!(e.total_frames(), 60 * 60 + 1);
     let best = (0..3).map(|_| simulate_10k(&mut e)).min().unwrap();
     eprintln!("seek 10k frames: {best:?}");
-    // The 100 ms target applies to optimized builds; debug builds only get
-    // a sanity bound.
-    let budget = if cfg!(debug_assertions) { 5_000 } else { 100 };
+    // The 100 ms target applies to optimized builds on a developer machine;
+    // debug builds only get a sanity bound. Shared CI runners are slower, so
+    // CI raises it with OXFRAME_SEEK_BUDGET_MS (the bench job tracks the
+    // real number).
+    let budget = std::env::var("OXFRAME_SEEK_BUDGET_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(if cfg!(debug_assertions) { 5_000 } else { 100 });
     assert!(best <= Duration::from_millis(budget), "seek took {best:?}");
 }
 

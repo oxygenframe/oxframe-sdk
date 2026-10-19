@@ -1,0 +1,5 @@
+# Same bytes on every OS (tests compare text and bundles).
+* text=auto eol=lf
+*.png binary
+*.ttf binary
+*.wasm binary

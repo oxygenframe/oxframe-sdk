@@ -25,6 +25,7 @@ jobs:
       - run: cargo test --workspace
       # Acceptance numbers (seek ≤ 100 ms) are only meaningful optimized.
       - run: cargo test --release -p oxframe-examples --test acceptance
+        env: { OXFRAME_SEEK_BUDGET_MS: "400" }
       - name: wasm32 build
         run: cargo build --target wasm32-unknown-unknown -p oxframe-core -p oxframe-2d -p oxframe-render -p oxframe-protocol -p oxframe
       - name: rustdoc
