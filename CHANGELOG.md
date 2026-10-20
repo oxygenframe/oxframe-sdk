@@ -8,6 +8,9 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## 0.2.6 — 2026-10-20
 
+The first published release after 0.2.1: it also contains everything listed
+under 0.2.2–0.2.5 below, which were not published separately.
+
 No crate changes. Released together with oxframe-cli 0.2.6 (`oxframe mcp`,
 `--json`, and hints on the compile errors agents hit most often).
 
