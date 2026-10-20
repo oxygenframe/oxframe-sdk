@@ -7,6 +7,18 @@ use crate::ease::presets;
 use crate::runtime;
 use crate::{Ease, Lerp, Signal, TIME_EPSILON};
 
+/// A length of time. `f64` means seconds; other types (a theme pace) convert.
+pub trait Seconds {
+    /// Duration in seconds.
+    fn seconds(self) -> f64;
+}
+
+impl Seconds for f64 {
+    fn seconds(self) -> f64 {
+        self
+    }
+}
+
 /// Animates a [`Signal`] towards a target. Created by [`Signal::to`].
 ///
 /// The first poll captures the start value and the task time; every later

@@ -687,6 +687,19 @@ mod tests {
             .inline_meta(BTreeMap::<String, Meta>::new())
     }
 
+    fn tokens(view: View) -> BoxFuture {
+        Box::pin(async move {
+            let _ = view.add(crate::Txt::new().text("Hi").name("title"));
+            let _ = view.add(
+                crate::Rect::new()
+                    .size(80.0)
+                    .fill(crate::Accent)
+                    .name("mark"),
+            );
+            crate::wait_for(0.2).await;
+        })
+    }
+
     fn hold(view: View) -> BoxFuture {
         Box::pin(async move {
             let _ = view.add(
@@ -750,6 +763,30 @@ mod tests {
         let elapsed = started.elapsed().as_secs_f64();
         assert!(checked.storyboard.width > 0);
         assert!(elapsed < 5.0, "check of a 30 s scene took {elapsed:.2} s");
+    }
+
+    #[test]
+    fn theme_recolors_tokens_and_text() {
+        use crate::{Engine, Theme};
+        let sample = |theme: Theme| {
+            let mut engine = Engine::new(project(tokens).theme(theme)).unwrap();
+            let nodes = engine.seek(0).inspect_nodes();
+            let fill = |name: &str| {
+                nodes
+                    .iter()
+                    .find(|n| n.name == name)
+                    .unwrap()
+                    .fill
+                    .to_rgba8()
+            };
+            (fill("title"), fill("mark"))
+        };
+        let dark = sample(Theme::dark());
+        let light = sample(Theme::light());
+        assert_eq!(dark.0, Color::WHITE.to_rgba8());
+        assert_ne!(dark.0, light.0, "text follows the theme");
+        assert_ne!(dark.1, light.1, "Accent follows the theme");
+        assert_eq!(dark.1, Theme::dark().accent.to_rgba8());
     }
 
     #[test]

@@ -47,9 +47,16 @@ commands:
   preview  run the preview server for the editor
              --port <n>          port on 127.0.0.1 (0 = pick a free one; printed on stdout)
   info     print the project timeline as JSON
+
+  --theme <name>     override the project theme: dark, light, midnight, paper, vivid
+  --accent <#hex>    rebuild that theme from one brand color
 ";
 
-pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
+pub(crate) fn run(mut project: Project, args: Vec<String>) -> i32 {
+    let args = match apply_theme_flags(&mut project, args) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e),
+    };
     let mut args = args.into_iter();
     match args.next().as_deref() {
         Some("render") => match RenderArgs::parse(args) {
@@ -66,6 +73,31 @@ pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
         }
         Some(other) => usage_error(&format!("unknown command `{other}`")),
     }
+}
+
+/// `--theme <preset>` and `--accent <#hex>` may appear anywhere. They override
+/// the theme compiled into the project (what `oxframe.toml` `[theme]` forwards).
+fn apply_theme_flags(project: &mut Project, args: Vec<String>) -> Result<Vec<String>, String> {
+    let mut kept = Vec::with_capacity(args.len());
+    let mut args = args.into_iter();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--theme" => {
+                let name = args
+                    .next()
+                    .ok_or_else(|| "--theme needs a name".to_owned())?;
+                project.apply_preset(&name)?;
+            }
+            "--accent" => {
+                let hex = args
+                    .next()
+                    .ok_or_else(|| "--accent needs a #rrggbb color".to_owned())?;
+                project.apply_accent(&hex)?;
+            }
+            _ => kept.push(flag),
+        }
+    }
+    Ok(kept)
 }
 
 pub(crate) fn usage_error(msg: &str) -> i32 {

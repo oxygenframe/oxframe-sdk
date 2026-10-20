@@ -27,6 +27,7 @@ mod graph;
 mod handles;
 mod image;
 mod text;
+mod theme;
 mod trim;
 
 pub use builder::{
@@ -46,3 +47,13 @@ pub use trim::trim;
 pub use oxframe_core::{BlendMode, Color, Gradient, GradientKind, Signal};
 pub use oxframe_text::{Align as TextAlign, Lang, MONO, SANS};
 pub use text::{CodeTheme, RichSpan, span};
+pub use theme::enter as enter_theme;
+pub use theme::{
+    Corner, Ink,
+    Ink::{Accent, Background, Danger, Muted, OnAccent, Success, Surface, Text, Warning},
+    IntoPaint, Len, Motion, Pace,
+    Pace::{Fast, Normal, Slow},
+    Scale, ShadowSpec, Step,
+    Step::{Lg, Md, Sm, Xl, Xs},
+    Theme, TypeRole, TypeScale, TypeStyle,
+};

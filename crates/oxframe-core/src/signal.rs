@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::rc::{Rc, Weak};
 
-use crate::{Lerp, Tween};
+use crate::{Lerp, Seconds, Tween};
 
 /// A reactive value.
 ///
@@ -157,11 +157,13 @@ impl<T: Clone + 'static> Signal<T> {
     }
 
     /// Tweens from the current value to `target` over `duration` seconds.
-    pub fn to(&self, target: T, duration: f64) -> Tween<T>
+    ///
+    /// `f64` is seconds. A theme pace (`Normal`) is a duration too.
+    pub fn to(&self, target: T, duration: impl Seconds) -> Tween<T>
     where
         T: Lerp,
     {
-        Tween::new(self.clone(), target, duration)
+        Tween::new(self.clone(), target, duration.seconds())
     }
 
     fn track(&self) {

@@ -40,7 +40,7 @@ pub use runtime::{
 
 pub use rand;
 pub use signal::Signal;
-pub use tween::Tween;
+pub use tween::{Seconds, Tween};
 
 pub use kurbo::{self, Affine, BezPath, Point, Vec2};
 

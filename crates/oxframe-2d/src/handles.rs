@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use kurbo::{BezPath, Point};
-use oxframe_core::{BlendMode, Color, Gradient, Signal, Vec2};
+use oxframe_core::{BlendMode, Color, Gradient, Signal, Tween, Vec2};
 
 use crate::builder::{
     self, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder, LayoutBuilder,
@@ -86,6 +86,20 @@ impl Node {
     /// Detaches the node from its parent; it stops being drawn.
     pub fn remove(self) {
         with_graph(|g| g.detach(self.0));
+    }
+
+    /// Fades the node in from transparent, over the theme's normal duration
+    /// with its enter easing.
+    pub fn fade_in(self) -> Tween<f64> {
+        let motion = crate::theme::current().motion;
+        self.opacity().set(0.0);
+        self.opacity().to(1.0, motion.normal).ease(motion.enter)
+    }
+
+    /// Fades the node out, over the theme's normal duration with its exit easing.
+    pub fn fade_out(self) -> Tween<f64> {
+        let motion = crate::theme::current().motion;
+        self.opacity().to(0.0, motion.normal).ease(motion.exit)
     }
 
     /// Moves the node under another parent.

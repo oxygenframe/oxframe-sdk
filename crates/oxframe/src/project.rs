@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use oxframe_2d::Theme;
 use oxframe_core::Color;
 use oxframe_protocol::Meta;
 
@@ -15,6 +16,7 @@ pub struct Project {
     pub(crate) size: (u32, u32),
     pub(crate) fps: u32,
     pub(crate) background: Color,
+    pub(crate) theme: Theme,
     pub(crate) seed: u64,
     pub(crate) max_scene_seconds: f64,
     pub(crate) write_meta: bool,
@@ -31,7 +33,8 @@ impl Project {
             scenes: Vec::new(),
             size: (1920, 1080),
             fps: 60,
-            background: Color::from_rgba8(0x14, 0x14, 0x14, 0xff),
+            background: Theme::dark().background,
+            theme: Theme::dark(),
             seed: 0,
             max_scene_seconds: 600.0,
             write_meta: true,
@@ -61,9 +64,35 @@ impl Project {
     }
 
     /// Background color; [`Color::TRANSPARENT`] keeps alpha in webm, ProRes and PNG.
+    ///
+    /// [`theme`](Self::theme) sets this to the theme's background. Call
+    /// `background` after `theme` to override just the page color.
     pub fn background(mut self, color: Color) -> Self {
         self.background = color;
         self
+    }
+
+    /// Design tokens for every node that does not set its own color or size.
+    /// Also sets the background to the theme's background.
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.background = theme.background;
+        self.theme = theme;
+        self
+    }
+
+    pub(crate) fn apply_preset(&mut self, name: &str) -> Result<(), String> {
+        let theme = Theme::preset(name).ok_or_else(|| {
+            format!("unknown theme `{name}` (dark, light, midnight, paper, vivid)")
+        })?;
+        self.background = theme.background;
+        self.theme = theme;
+        Ok(())
+    }
+
+    pub(crate) fn apply_accent(&mut self, hex: &str) -> Result<(), String> {
+        let color = Color::from_hex(hex).ok_or_else(|| format!("bad accent color `{hex}`"))?;
+        self.theme = self.theme.clone().accent(color);
+        Ok(())
     }
 
     /// Seed for scene randomness; part of the deterministic input.

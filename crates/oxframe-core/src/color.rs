@@ -110,6 +110,78 @@ impl Color {
         ]
     }
 
+    /// WCAG contrast ratio against another color (1..=21). Alpha is ignored.
+    pub fn contrast_ratio(self, other: Color) -> f32 {
+        let lum = |c: Color| {
+            let lin = |x: f32| {
+                if x <= 0.040_45 {
+                    x / 12.92
+                } else {
+                    ((x + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
+        };
+        let (a, b) = (lum(self), lum(other));
+        let (hi, lo) = if a > b { (a, b) } else { (b, a) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    /// Relative luminance, 0..=1, used to decide whether a color is light.
+    pub fn luminance(self) -> f32 {
+        let lin = |x: f32| {
+            if x <= 0.040_45 {
+                x / 12.92
+            } else {
+                ((x + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(self.r) + 0.7152 * lin(self.g) + 0.0722 * lin(self.b)
+    }
+
+    /// Mix in OKLab. `t = 0` is `self`, `t = 1` is `other`.
+    pub fn mix(self, other: Color, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        let a = self.to_oklab();
+        let b = other.to_oklab();
+        let m = |i: usize| a[i] + (b[i] - a[i]) * t;
+        Self::from_oklab([m(0), m(1), m(2)], self.a + (other.a - self.a) * t)
+    }
+
+    /// The same hue, lightened or darkened until contrast against `against`
+    /// reaches `min` (WCAG). Already-sufficient colors are returned unchanged.
+    pub fn readable_on(self, against: Color, min: f32) -> Self {
+        if self.contrast_ratio(against) >= min {
+            return self;
+        }
+        let [start, a, b] = self.to_oklab();
+        let lighten = against.luminance() < 0.4;
+        let (mut lo, mut hi) = if lighten { (start, 1.0) } else { (0.0, start) };
+        let fallback = if lighten { Color::WHITE } else { Color::BLACK };
+        let mut best = fallback.with_alpha(self.a);
+        for _ in 0..14 {
+            let mid = (lo + hi) / 2.0;
+            let c = Self::from_oklab([mid, a, b], self.a);
+            if c.contrast_ratio(against) >= min {
+                best = c;
+                if lighten {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            } else if lighten {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        if best.contrast_ratio(against) >= min {
+            best
+        } else {
+            fallback.with_alpha(self.a)
+        }
+    }
+
     /// Converts from OKLab `[L, a, b]`.
     pub fn from_oklab([ll, a, b]: [f32; 3], alpha: f32) -> Self {
         let l = (ll + 0.396_337_78 * a + 0.215_803_76 * b).powi(3);
@@ -180,5 +252,15 @@ mod tests {
             let back = Color::from_oklab(c.to_oklab(), c.a);
             assert_eq!(back.to_rgba8(), c.to_rgba8(), "{hex}");
         }
+    }
+
+    #[test]
+    fn readable_on_reaches_contrast() {
+        let bg = Color::from_rgba8(0x14, 0x14, 0x14, 0xff);
+        let pale = Color::from_hex("#5a7a90").unwrap();
+        assert!(pale.contrast_ratio(bg) < 4.5);
+        let fixed = pale.readable_on(bg, 4.5);
+        assert!(fixed.contrast_ratio(bg) >= 4.5);
+        assert!(Color::WHITE.readable_on(bg, 4.5).contrast_ratio(bg) >= 4.5);
     }
 }

@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.3 — 2026-10-20
+
+### Added
+
+- Themes and design tokens. `Project::theme(Theme::dark().accent(...))` (also
+  `light`, `midnight`, `paper`, `vivid`) supplies colors, type roles
+  (`.display()`, `.h1()`, `.body()`, `.caption()`, `.code()`), spacing
+  (`.padding(Md)`), radii, shadows (`.elevation(Md)`) and motion
+  (`Fast`/`Normal`/`Slow`, `fade_in`). A token is accepted wherever the
+  concrete value is. Text with no fill uses the theme's text color.
+  `.accent(color)` keeps a 4.5:1 contrast. `[theme]` in `oxframe.toml`
+  overrides the compiled theme.
+- `RELEASE.md`: before a release tag, publish the crates, then move
+  oxframe-web's playground pin to that version. The docs version list already
+  follows crates.io; the compile image cannot.
+
+The scene API and the editor protocol are unchanged. Existing explicit colors
+are unchanged. The default theme is the previous dark background and white text.
+
 ## 0.2.2 — 2026-10-20
 
 ### Added
@@ -17,8 +36,6 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   flashes too briefly and a long still with no soundtrack are reported too.
 - `.name("title")` on every node builder. `oxframe check` and `oxframe inspect`
   use it; without a name the node is labeled by the `add` call site.
-
-The scene API and the editor protocol are unchanged.
 
 ## 0.2.1 — 2026-10-20
 

@@ -45,9 +45,11 @@ pub use project::Project;
 pub use scene::{SceneDef, SourceLocation};
 
 pub use oxframe_2d::{
-    Circle, Code, CodeTheme, Direction, Grid, Group, Img, Justify, Layout, LayoutAlign, Line,
-    LineCap, LineJoin, MONO, Node, NodeBuilder, NodeId, Path, Polygon, Rect, RichSpan, SANS,
-    SceneGraph, Star, TextAlign, Txt, View, span,
+    Accent, Background, Circle, Code, CodeTheme, Danger, Direction, Fast, Grid, Group, Img, Ink,
+    Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
+    NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Polygon, Rect, RichSpan, SANS, SceneGraph,
+    Slow, Sm, Star, Step, Success, Surface, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs,
+    span,
 };
 pub use oxframe_core::{
     Affine, BezPath, BlendMode, BoxFuture, Color, CubicBezier, Ease, Executor, Gradient,
@@ -68,10 +70,12 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        BezPath, BlendMode, Circle, Code, CodeTheme, Color, Direction, Ease, Gradient, Grid, Group,
-        Img, Justify, Layout, LayoutAlign, Lerp, Line, LineCap, LineJoin, MONO, Node, NodeBuilder,
-        Path, Point, Polygon, Project, Rect, RichSpan, SANS, Signal, Star, TextAlign, Txt, Vec2,
-        View, all, all_vec, color, ease, next_frame, presets, random, random_range, sequence, span,
-        spawn, tune, wait_for, wait_until,
+        Accent, Background, BezPath, BlendMode, Circle, Code, CodeTheme, Color, Danger, Direction,
+        Ease, Fast, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg, Line,
+        LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, OnAccent, Path,
+        Point, Polygon, Project, Rect, RichSpan, SANS, Signal, Slow, Sm, Star, Step, Success,
+        Surface, Text, TextAlign, Theme, Txt, Vec2, View, Warning, Xl, Xs, all, all_vec, color,
+        ease, next_frame, presets, random, random_range, sequence, span, spawn, tune, wait_for,
+        wait_until,
     };
 }

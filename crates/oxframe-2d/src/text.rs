@@ -5,6 +5,8 @@ use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Point, Vec2};
 use oxframe_core::{Color, Lerp};
+
+use crate::theme::IntoPaint;
 use oxframe_text::{Lang, TextLayout, TextSpan, TextStyle, Token};
 
 /// A run of text with its own look; unset fields use the node's style.
@@ -32,9 +34,9 @@ impl RichSpan {
             ..Default::default()
         }
     }
-    /// Text color.
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = Some(c);
+    /// Text color: a [`Color`] or a theme role such as `Warning`.
+    pub fn color(mut self, c: impl IntoPaint) -> Self {
+        self.color = Some(c.into_paint());
         self
     }
     /// Font weight, 100..=900.

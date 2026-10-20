@@ -23,6 +23,7 @@ pub mod quicksort;
 pub mod shapes;
 pub mod showcase;
 pub mod text;
+pub mod theme;
 pub mod typography;
 
 /// Builds an example project.
@@ -42,6 +43,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("effects", effects::project),
         ("shapes", shapes::project),
         ("typography", typography::project),
+        ("theme", theme::project),
         ("learn_01_hello", learn_01_hello::project),
         ("learn_02_together", learn_02_together::project),
         ("learn_03_shapes", learn_03_shapes::project),

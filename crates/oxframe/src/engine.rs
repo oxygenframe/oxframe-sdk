@@ -75,6 +75,7 @@ impl MetaSection {
 struct SceneRun {
     graph: Rc<SceneGraph>,
     exec: Executor,
+    theme: oxframe_2d::Theme,
 }
 
 impl SceneRun {
@@ -89,12 +90,16 @@ impl SceneRun {
                 scene_seed(project.seed, def.name),
                 fut,
             ),
+            theme: project.theme.clone(),
         }
     }
 
     fn step(&mut self) -> bool {
-        let Self { graph, exec } = self;
-        graph.enter(|| exec.step())
+        let theme = self.theme.clone();
+        oxframe_2d::enter_theme(&theme, || {
+            let Self { graph, exec, .. } = self;
+            graph.enter(|| exec.step())
+        })
     }
 
     /// Index of the last computed frame, if any.

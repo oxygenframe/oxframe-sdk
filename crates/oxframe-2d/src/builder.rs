@@ -9,6 +9,7 @@ use crate::handles::{
 };
 use crate::image::ImageSource;
 use crate::text::{CodeTheme, RichSpan};
+use crate::theme::{self, Corner, IntoPaint, Len, Step, TypeRole};
 
 /// Initial values shared by every node; set through [`NodeBuilder`] methods.
 #[doc(hidden)]
@@ -21,6 +22,9 @@ pub struct BaseProps {
     pub scale: Vec2,
     pub opacity: f64,
     pub fill: Color,
+    /// Set when `fill` was chosen explicitly. Text leaves this false and
+    /// takes the theme's text color at build time.
+    pub fill_explicit: bool,
     pub stroke: Color,
     pub line_width: f64,
     pub start: f64,
@@ -57,6 +61,7 @@ impl Default for BaseProps {
             scale: Vec2::new(1.0, 1.0),
             opacity: 1.0,
             fill: Color::TRANSPARENT,
+            fill_explicit: false,
             stroke: Color::TRANSPARENT,
             line_width: 0.0,
             start: 0.0,
@@ -151,14 +156,18 @@ pub trait NodeBuilder: Sized + 'static {
         self.base().opacity = v;
         self
     }
-    /// Fill color. Default: transparent.
-    fn fill(mut self, v: Color) -> Self {
-        self.base().fill = v;
+    /// Fill color: a [`Color`](oxframe_core::Color) or a theme role such as `Accent`.
+    /// Default: transparent, except text, which uses the theme's text color.
+    fn fill(mut self, v: impl IntoPaint) -> Self {
+        let b = self.base();
+        b.fill = v.into_paint();
+        b.fill_explicit = true;
         self
     }
-    /// Outline color; also set `line_width`. Default: transparent.
-    fn stroke(mut self, v: Color) -> Self {
-        self.base().stroke = v;
+    /// Outline color; also set `line_width`. A theme role works the same as a color.
+    /// Default: transparent.
+    fn stroke(mut self, v: impl IntoPaint) -> Self {
+        self.base().stroke = v.into_paint();
         self
     }
     /// Outline width in pixels. Default: 0 (no outline).
@@ -215,13 +224,19 @@ pub trait NodeBuilder: Sized + 'static {
         self
     }
     /// Drop shadow under the node and its children.
-    fn shadow(mut self, color: Color, blur: f64, offset: impl Into<Vec2>) -> Self {
+    fn shadow(mut self, color: impl IntoPaint, blur: f64, offset: impl Into<Vec2>) -> Self {
         let b = self.base();
-        (b.shadow_color, b.shadow_blur, b.shadow_offset) = (color, blur, offset.into());
+        (b.shadow_color, b.shadow_blur, b.shadow_offset) =
+            (color.into_paint(), blur, offset.into());
         self
     }
+    /// The theme's shadow for this step (`Xs` and `Sm` are the small one, `Xl` the large).
+    fn elevation(self, step: Step) -> Self {
+        let s = theme::current().shadow(step);
+        self.shadow(s.color, s.blur, s.offset)
+    }
     /// A shadow without offset.
-    fn glow(self, color: Color, blur: f64) -> Self {
+    fn glow(self, color: impl IntoPaint, blur: f64) -> Self {
         self.shadow(color, blur, Vec2::ZERO)
     }
     /// Clip children to this node's outline (or box).
@@ -259,9 +274,9 @@ pub trait NodeBuilder: Sized + 'static {
         self.base().basis = Some(v);
         self
     }
-    /// Inside a `Layout`: space around this node.
-    fn margin(mut self, v: f64) -> Self {
-        self.base().margin = v;
+    /// Inside a `Layout`: space around this node, in pixels or a theme step (`.margin(Md)`).
+    fn margin(mut self, v: impl Len) -> Self {
+        self.base().margin = v.px();
         self
     }
     /// Inside a `Layout`: overrides the layout's cross-axis alignment.
@@ -370,14 +385,21 @@ impl NodeBuilder for GroupBuilder {
 
 // ------------------------------------------------------------------- Rect
 
-builder!(RectBuilder => Rect, kind "Rect", defaults { fill: Color::WHITE },
+builder!(RectBuilder => Rect, kind "Rect", defaults { fill: Color::WHITE, fill_explicit: true },
     fields { width: f64 = 100.0, height: f64 = 100.0, radius: f64 = 0.0 });
 setters!(RectBuilder {
     width: f64,
-    height: f64,
-    /// Corner radius; clamped to half of the shorter side when drawn.
-    radius: f64
+    height: f64
 });
+
+impl RectBuilder {
+    /// Corner radius, in pixels or a theme step (`.radius(Md)`).
+    /// Clamped to half of the shorter side when drawn.
+    pub fn radius(mut self, v: impl Corner) -> Self {
+        self.radius = v.radius();
+        self
+    }
+}
 
 impl RectBuilder {
     /// Sets width and height.
@@ -403,7 +425,7 @@ impl NodeBuilder for RectBuilder {
 
 // ----------------------------------------------------------------- Circle
 
-builder!(CircleBuilder => Circle, kind "Circle", defaults { fill: Color::WHITE },
+builder!(CircleBuilder => Circle, kind "Circle", defaults { fill: Color::WHITE, fill_explicit: true },
     fields { size: f64 = 100.0, start_angle: f64 = 0.0, end_angle: f64 = 360.0, pie: bool = false });
 setters!(CircleBuilder {
     /// Diameter.
@@ -432,7 +454,7 @@ impl NodeBuilder for CircleBuilder {
 
 // ---------------------------------------------------------------- Polygon
 
-builder!(PolygonBuilder => Polygon, kind "Polygon", defaults { fill: Color::WHITE },
+builder!(PolygonBuilder => Polygon, kind "Polygon", defaults { fill: Color::WHITE, fill_explicit: true },
     fields { sides: f64 = 6.0, size: f64 = 100.0 });
 setters!(PolygonBuilder {
     /// Number of sides (rounded; animatable as a number).
@@ -456,7 +478,7 @@ impl NodeBuilder for PolygonBuilder {
 
 // ------------------------------------------------------------------- Star
 
-builder!(StarBuilder => Star, kind "Star", defaults { fill: Color::WHITE },
+builder!(StarBuilder => Star, kind "Star", defaults { fill: Color::WHITE, fill_explicit: true },
     fields { points: f64 = 5.0, size: f64 = 100.0, inner: f64 = 0.45 });
 setters!(StarBuilder {
     points: f64,
@@ -482,7 +504,7 @@ impl NodeBuilder for StarBuilder {
 
 // ------------------------------------------------------------------- Path
 
-builder!(PathBuilder => Path, kind "Path", defaults { fill: Color::WHITE },
+builder!(PathBuilder => Path, kind "Path", defaults { fill: Color::WHITE, fill_explicit: true },
     fields { data: BezPath = BezPath::new() });
 setters!(PathBuilder { data: BezPath });
 
@@ -606,12 +628,47 @@ impl TxtBuilder {
         self.style.max_width = Some(v);
         self
     }
+    /// Largest title from the theme.
+    pub fn display(self) -> Self {
+        self.role(TypeRole::Display)
+    }
+    /// Page title from the theme.
+    pub fn h1(self) -> Self {
+        self.role(TypeRole::H1)
+    }
+    /// Section title from the theme.
+    pub fn h2(self) -> Self {
+        self.role(TypeRole::H2)
+    }
+    /// Running text from the theme.
+    pub fn body(self) -> Self {
+        self.role(TypeRole::Body)
+    }
+    /// Secondary text from the theme.
+    pub fn caption(self) -> Self {
+        self.role(TypeRole::Caption)
+    }
+    /// Monospace text from the theme.
+    pub fn code(self) -> Self {
+        self.family(crate::MONO).role(TypeRole::Code)
+    }
+
+    fn role(mut self, role: TypeRole) -> Self {
+        let r = theme::current().role(role);
+        self.style.size = r.size;
+        self.style.weight = r.weight;
+        self.style.line_height = r.line_height;
+        self
+    }
 }
 
 impl NodeBuilder for TxtBuilder {
     type Handle = Txt;
     base_accessor!();
-    fn build(self, g: &SceneGraph, parent: NodeId) -> Txt {
+    fn build(mut self, g: &SceneGraph, parent: NodeId) -> Txt {
+        if !self.base.fill_explicit {
+            self.base.fill = theme::current().text;
+        }
         let k = Self::KIND;
         let kind = NodeKind::Txt {
             text: sig(g, k, "text", self.text),
@@ -630,7 +687,7 @@ impl NodeBuilder for TxtBuilder {
 
 builder!(CodeBuilder => Code, kind "Code", defaults {},
     fields { code: String = String::new(), lang: oxframe_text::Lang = oxframe_text::Lang::Rust,
-             theme: CodeTheme = CodeTheme::dark(), style: TextStyle = TextStyle {
+             theme: CodeTheme = CodeTheme::dark(), theme_set: bool = false, style: TextStyle = TextStyle {
                  family: oxframe_text::MONO.to_owned(), size: 32.0, line_height: 1.45, ..TextStyle::default()
              }, focus: Vec2 = Vec2::ZERO, dim: f64 = 0.3 });
 
@@ -646,9 +703,11 @@ impl CodeBuilder {
         self.lang = oxframe_text::Lang::parse(name);
         self
     }
-    /// Syntax highlighting colors.
+    /// Syntax highlighting colors. Without this, a light project theme uses
+    /// [`CodeTheme::light`] and a dark one uses [`CodeTheme::dark`].
     pub fn theme(mut self, t: CodeTheme) -> Self {
         self.theme = t;
+        self.theme_set = true;
         self
     }
     /// Font size in pixels.
@@ -678,10 +737,17 @@ impl NodeBuilder for CodeBuilder {
     base_accessor!();
     fn build(self, g: &SceneGraph, parent: NodeId) -> Code {
         let k = Self::KIND;
+        let theme = if self.theme_set {
+            self.theme
+        } else if theme::current().is_light() {
+            CodeTheme::light()
+        } else {
+            CodeTheme::dark()
+        };
         let kind = NodeKind::Code {
             code: sig(g, k, "code", self.code),
             lang: self.lang,
-            theme: self.theme,
+            theme,
             font_size: sig(g, k, "font_size", self.style.size),
             style: self.style,
             focus: sig(g, k, "focus", self.focus),
@@ -773,11 +839,26 @@ builder!(
 setters!(LayoutBuilder {
     direction: Direction,
     align: LayoutAlign,
-    justify: Justify,
-    gap: f64,
-    padding: f64,
-    radius: f64
+    justify: Justify
 });
+
+impl LayoutBuilder {
+    /// Space between children, in pixels or a theme step (`.gap(Sm)`).
+    pub fn gap(mut self, v: impl Len) -> Self {
+        self.gap = v.px();
+        self
+    }
+    /// Space inside the edges, in pixels or a theme step (`.padding(Md)`).
+    pub fn padding(mut self, v: impl Len) -> Self {
+        self.padding = v.px();
+        self
+    }
+    /// Corner radius, in pixels or a theme step.
+    pub fn radius(mut self, v: impl Corner) -> Self {
+        self.radius = v.radius();
+        self
+    }
+}
 
 impl LayoutBuilder {
     /// Wrap children onto several lines when they do not fit.
