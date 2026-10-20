@@ -41,15 +41,15 @@ pub mod wasm;
 
 pub use adapter::PreviewAdapter;
 pub use engine::{Engine, EngineError, MetaSection};
-pub use project::Project;
+pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
 
 pub use oxframe_2d::{
-    Accent, Background, Circle, Code, CodeTheme, Danger, Direction, Fast, Grid, Group, Img, Ink,
-    Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
-    NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Polygon, Rect, RichSpan, SANS, SceneGraph,
-    Slow, Sm, Star, Step, Success, Surface, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs,
-    span,
+    Accent, Background, Circle, Code, CodeTheme, Danger, Direction, Edge, Fast, Grid, Group, Img,
+    Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
+    NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent, Polygon, Rect, RichSpan, SANS,
+    SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign,
+    Theme, Txt, View, Warning, Xl, Xs, pct, span,
 };
 pub use oxframe_core::{
     Affine, BezPath, BlendMode, BoxFuture, Color, CubicBezier, Ease, Executor, Gradient,
@@ -70,12 +70,12 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        Accent, Background, BezPath, BlendMode, Circle, Code, CodeTheme, Color, Danger, Direction,
-        Ease, Fast, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg, Line,
-        LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, OnAccent, Path,
-        Point, Polygon, Project, Rect, RichSpan, SANS, Signal, Slow, Sm, Star, Step, Success,
-        Surface, Text, TextAlign, Theme, Txt, Vec2, View, Warning, Xl, Xs, all, all_vec, color,
-        ease, next_frame, presets, random, random_range, sequence, span, spawn, tune, wait_for,
-        wait_until,
+        Accent, Aspect, Background, BezPath, BlendMode, Circle, Code, CodeTheme, Color, Danger,
+        Direction, Ease, Edge, Fast, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign,
+        Lerp, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
+        OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
+        Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, Txt, Vec2, View,
+        Warning, Xl, Xs, all, all_vec, color, ease, next_frame, pct, presets, random, random_range,
+        sequence, span, spawn, tune, wait_for, wait_until,
     };
 }

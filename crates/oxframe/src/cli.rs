@@ -9,7 +9,7 @@ use oxframe_render::{CpuRenderer, Renderer};
 
 use oxframe_core::FrameSource;
 
-use crate::{Engine, PreviewAdapter, Project};
+use crate::{Aspect, Engine, PreviewAdapter, Project};
 
 pub(crate) const EXIT_OK: i32 = 0;
 pub(crate) const EXIT_ERROR: i32 = 1;
@@ -27,6 +27,7 @@ commands:
              --at <seconds>      only this frame, as PNG (repeatable); with one --at and
                                  --out file.png writes that file, else out/snapshots/
              --size <w>x<h>      output size (default: project size)
+             --aspect <shape>    16:9, 9:16, 1:1, or all (every Project::aspects format)
              --cpu               use the CPU renderer (tiny-skia) instead of the GPU
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
              --no-audio          do not mux the project's soundtrack
@@ -105,7 +106,7 @@ pub(crate) fn usage_error(msg: &str) -> i32 {
     EXIT_ENV
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct RenderArgs {
     out: Option<PathBuf>,
     format: Option<Format>,
@@ -114,9 +115,17 @@ struct RenderArgs {
     /// Single frames to write as PNG (seconds); see `snapshot`.
     at: Vec<f64>,
     size: Option<(u32, u32)>,
+    /// One shape, or every shape the project declares (`all`).
+    aspect: Option<AspectPick>,
     cpu: bool,
     ffmpeg: Option<PathBuf>,
     no_audio: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AspectPick {
+    One(Aspect),
+    All,
 }
 
 impl RenderArgs {
@@ -162,6 +171,17 @@ impl RenderArgs {
                         .ok_or_else(|| format!("bad size `{v}`, expected WxH"))?;
                     a.size = Some((w, h));
                 }
+                "--aspect" => {
+                    let v = value()?;
+                    a.aspect =
+                        Some(if v == "all" {
+                            AspectPick::All
+                        } else {
+                            AspectPick::One(Aspect::parse(&v).ok_or_else(|| {
+                                format!("bad aspect `{v}` (16:9, 9:16, 1:1, or all)")
+                            })?)
+                        });
+                }
                 "--cpu" => a.cpu = true,
                 "--gpu" => a.cpu = false,
                 "--ffmpeg" => a.ffmpeg = Some(value()?.into()),
@@ -190,6 +210,84 @@ fn render(project: Project, args: RenderArgs) -> i32 {
     if !args.at.is_empty() {
         return snapshot(project, &args);
     }
+    if let Some(jobs) = expand_aspects(&project, &args) {
+        if jobs.len() == 1 {
+            let mut project = project;
+            project.size = jobs[0].1;
+            return render_video(project, args);
+        }
+        let format = args
+            .format
+            .or_else(|| args.out.as_deref().map(Format::from_path))
+            .unwrap_or(Format::Mp4);
+        for (aspect, size) in jobs {
+            let mut sized = project.clone();
+            sized.size = size;
+            let mut job = args.clone();
+            job.aspect = None;
+            job.out = Some(with_tag(
+                output_path(&project, &args, format),
+                &aspect.label().replace(':', "x"),
+            ));
+            let code = render_video(sized, job);
+            if code != EXIT_OK {
+                return code;
+            }
+        }
+        return EXIT_OK;
+    }
+    render_video(project, args)
+}
+
+fn expand_aspects(project: &Project, args: &RenderArgs) -> Option<Vec<(Aspect, (u32, u32))>> {
+    if args.size.is_some() {
+        return None;
+    }
+    let pick = args.aspect?;
+    let aspects = match pick {
+        AspectPick::One(aspect) => vec![aspect],
+        AspectPick::All => {
+            if project.aspects.is_empty() {
+                vec![Aspect::Landscape, Aspect::Portrait, Aspect::Square]
+            } else {
+                project.aspects.clone()
+            }
+        }
+    };
+    Some(
+        aspects
+            .into_iter()
+            .map(|aspect| {
+                let size = aspect.frame(project.size);
+                (aspect, size)
+            })
+            .collect(),
+    )
+}
+
+fn output_path(project: &Project, args: &RenderArgs, format: Format) -> PathBuf {
+    args.out.clone().unwrap_or_else(|| {
+        let base = PathBuf::from("out").join(project.name());
+        match format {
+            Format::Png => base,
+            f => base.with_extension(f.extension()),
+        }
+    })
+}
+
+fn with_tag(path: PathBuf, tag: &str) -> PathBuf {
+    let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("out");
+    let tagged = match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+            format!("{stem}-{tag}.{ext}")
+        }
+        None => format!("{name}-{tag}"),
+    };
+    path.with_file_name(tagged)
+}
+
+fn render_video(project: Project, args: RenderArgs) -> i32 {
     let format = args
         .format
         .or_else(|| args.out.as_deref().map(Format::from_path))

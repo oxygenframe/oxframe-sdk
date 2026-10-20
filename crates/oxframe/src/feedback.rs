@@ -62,7 +62,15 @@ pub struct Checked {
 ///
 /// If the project has no scenes or a meta file is invalid.
 pub fn report(project: Project, opts: &Options) -> Result<Report, EngineError> {
-    Ok(pass(&mut Engine::new(project)?, opts, false)?.0)
+    let mut issues = Vec::new();
+    let mut duration = 0.0_f64;
+    for (label, project) in variants(project) {
+        let mut report = pass(&mut Engine::new(project)?, opts, false)?.0;
+        stamp(&mut report.issues, label);
+        duration = duration.max(report.duration);
+        issues.append(&mut report.issues);
+    }
+    Ok(Report { duration, issues })
 }
 
 /// Samples, lints and draws the storyboard (CPU, storyboard resolution).
@@ -71,28 +79,69 @@ pub fn report(project: Project, opts: &Options) -> Result<Report, EngineError> {
 ///
 /// If the project has no scenes or a meta file is invalid.
 pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
-    let mut engine = Engine::new(project)?;
-    let (report, cells) = pass(&mut engine, opts, true)?;
-    let storyboard = compose(&cells, engine.project().background);
-    let frames = if opts.full_frames {
-        let size = engine.size();
-        let mut cpu = CpuRenderer::new();
-        cells
-            .iter()
-            .map(|(t, marker, _)| {
+    let mut issues = Vec::new();
+    let mut duration = 0.0_f64;
+    let mut storyboard = None;
+    let mut frames = Vec::new();
+    let jobs = variants(project);
+    let multi = jobs.len() > 1;
+    for (label, project) in jobs {
+        let mut engine = Engine::new(project)?;
+        let (mut report, cells) = pass(&mut engine, opts, true)?;
+        stamp(&mut report.issues, label);
+        duration = duration.max(report.duration);
+        issues.append(&mut report.issues);
+        let board = compose(&cells, engine.project().background);
+        if multi {
+            let tag = label.unwrap_or("frame").replace(':', "x");
+            frames.push((format!("storyboard-{tag}.png"), board.clone()));
+        }
+        if storyboard.is_none() {
+            storyboard = Some(board);
+        }
+        if opts.full_frames {
+            let size = engine.size();
+            let mut cpu = CpuRenderer::new();
+            let prefix = label
+                .map(|l| format!("{}/", l.replace(':', "x")))
+                .unwrap_or_default();
+            for (t, marker, _) in &cells {
                 let frame = frame_at(*t, engine.fps(), engine.total_frames());
-                let name = frame_file(*t, marker.as_deref());
-                (name, engine.render(frame, &mut cpu, size))
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+                let name = format!("{prefix}{}", frame_file(*t, marker.as_deref()));
+                frames.push((name, engine.render(frame, &mut cpu, size)));
+            }
+        }
+    }
     Ok(Checked {
-        report,
-        storyboard,
+        report: Report { duration, issues },
+        storyboard: storyboard.expect("at least one variant"),
         frames,
     })
+}
+
+/// One project per declared aspect. No aspects means the project's own size.
+fn variants(project: Project) -> Vec<(Option<&'static str>, Project)> {
+    if project.aspects.is_empty() {
+        return vec![(None, project)];
+    }
+    project
+        .aspects
+        .clone()
+        .into_iter()
+        .map(|aspect| {
+            let mut sized = project.clone();
+            sized.size = aspect.frame(project.size);
+            (Some(aspect.label()), sized)
+        })
+        .collect()
+}
+
+fn stamp(issues: &mut [Issue], aspect: Option<&str>) {
+    if let Some(aspect) = aspect {
+        for issue in issues {
+            issue.aspect = Some(aspect.to_owned());
+        }
+    }
 }
 
 /// JSON tree of the scene at `seconds` (global time).
@@ -647,8 +696,13 @@ fn format_issue(issue: &Issue) -> String {
         .as_deref()
         .map(|s| format!(" ({s})"))
         .unwrap_or_default();
+    let aspect = issue
+        .aspect
+        .as_deref()
+        .map(|a| format!(" [{a}]"))
+        .unwrap_or_default();
     format!(
-        "{} {} {:.2}..{:.2} {}{where_}: {}",
+        "{} {} {:.2}..{:.2} {}{where_}: {}{aspect}",
         match issue.severity {
             Severity::Error => "error",
             Severity::Warning => "warning",
@@ -730,6 +784,37 @@ mod tests {
             let r = view.add(crate::Rect::new().size(80.0).fill(Color::WHITE).name("box"));
             r.x().to(200.0, 30.0).await;
         })
+    }
+
+    #[test]
+    fn check_runs_every_declared_aspect() {
+        fn wide(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    crate::Rect::new()
+                        .size(40.0)
+                        .x(700.0)
+                        .fill(Color::WHITE)
+                        .name("side"),
+                );
+                crate::wait_for(0.5).await;
+            })
+        }
+        let report = report(
+            project(wide).aspects([crate::Aspect::Landscape, crate::Aspect::Portrait]),
+            &Options::default(),
+        )
+        .unwrap();
+        let portrait = report
+            .issues
+            .iter()
+            .any(|i| i.rule == "out_of_frame" && i.aspect.as_deref() == Some("9:16"));
+        let landscape = report
+            .issues
+            .iter()
+            .any(|i| i.rule == "out_of_frame" && i.aspect.as_deref() == Some("16:9"));
+        assert!(portrait, "{:?}", report.issues);
+        assert!(!landscape, "{:?}", report.issues);
     }
 
     #[test]

@@ -1321,7 +1321,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "console_error_panic_hook",
  "oxframe-2d",
@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-2d"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "image",
  "kurbo",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-core"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "kurbo",
  "oxframe-protocol",
@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-examples"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "criterion",
  "oxframe",
@@ -1372,14 +1372,14 @@ dependencies = [
 
 [[package]]
 name = "oxframe-export"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "oxframe-core",
 ]
 
 [[package]]
 name = "oxframe-macros"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1388,7 +1388,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-preview"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "axum",
  "image",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-protocol"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -1410,7 +1410,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-render"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "image",
  "kurbo",
@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "oxframe-text"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "kurbo",
  "parley",

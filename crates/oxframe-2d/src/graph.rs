@@ -217,6 +217,10 @@ pub struct NodeData {
     pub basis: Signal<Option<f64>>,
     pub margin: Signal<f64>,
     pub align_self: Signal<Option<LayoutAlign>>,
+    /// Recomputed every frame. `None` means `x` and `y` are used as they are.
+    pub place: Option<crate::place::Place>,
+    /// Position after [`place`](Self::place) is resolved. Draw uses this.
+    pub placed: Cell<(f64, f64)>,
 }
 
 impl NodeData {
@@ -225,7 +229,8 @@ impl NodeData {
     pub fn local_transform(&self, offset: Vec2, size: (f64, f64)) -> Affine {
         let s = self.scale.get();
         let a = self.anchor.get();
-        Affine::translate(offset + Vec2::new(self.x.get(), self.y.get()))
+        let (x, y) = self.placed.get();
+        Affine::translate(offset + Vec2::new(x, y))
             * Affine::rotate(self.rotation.get().to_radians())
             * Affine::scale_non_uniform(s.x, s.y)
             * Affine::translate((-a.x * size.0 / 2.0, -a.y * size.1 / 2.0))
@@ -532,6 +537,8 @@ impl SceneGraph {
             basis: Signal::new(base.basis).with_name(sig("basis")),
             margin: Signal::new(base.margin).with_name(sig("margin")),
             align_self: Signal::new(base.align_self).with_name(sig("align_self")),
+            place: base.place,
+            placed: Cell::new((base.x, base.y)),
             kind,
         });
         if let Some(p) = parent {
@@ -556,12 +563,23 @@ impl SceneGraph {
 
     /// Size of a node's box in its own (unscaled) coordinates.
     pub fn measure(&self, id: NodeId) -> (f64, f64) {
+        self.resolve_places();
         let nodes = self.nodes.borrow();
         measure(&nodes, id)
     }
 
+    pub(crate) fn set_place(&self, id: NodeId, place: crate::place::Place) {
+        self.nodes.borrow_mut()[id.0 as usize].place = Some(place);
+    }
+
+    fn resolve_places(&self) {
+        let nodes = self.nodes.borrow();
+        crate::place::resolve(&nodes, (f64::from(self.size.0), f64::from(self.size.1)));
+    }
+
     /// Flattened, paint-ordered list of everything to draw.
     pub fn draw_list(&self) -> Vec<DrawItem> {
+        self.resolve_places();
         let nodes = self.nodes.borrow();
         let mut out = Vec::new();
         visit(&nodes, Self::ROOT, Affine::IDENTITY, None, None, &mut out);
@@ -824,7 +842,7 @@ fn text_info(n: &NodeData) -> (Option<String>, f64) {
     (Some(body), overflow)
 }
 
-fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
+pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
     let n = &nodes[id.0 as usize];
     match &n.kind {
         NodeKind::Rect { width, height, .. } => (width.get(), height.get()),

@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.4 — 2026-10-20
+
+### Added
+
+- Relative placement. `.next_to(other, Side::Bottom)`, `.align_to(other, Edge::Top)`,
+  `.to_edge(Edge::Top)` and `.center_in(other)` are recomputed every frame, so a
+  node follows a neighbor that moves or resizes. The gap in `next_to` is the
+  theme's `Md` step. `to_edge` pins to the safe area; a portrait frame leaves
+  room for a vertical video's status bar and buttons.
+- `.width(pct(80))` and `.height(pct(50))`: a fraction of the frame, or of the
+  parent when that parent has a fixed size.
+- `view.safe_area()` and `view.is_portrait()`.
+- `Project::aspects([Landscape, Portrait, Square])`. `check` lints every
+  declared format. `render --aspect 9:16` exports one; `--aspect all` exports
+  each, with the shape in the file name.
+
+The scene API and the editor protocol are unchanged. A project that does not
+declare aspects renders and checks at its own size, as before.
+
 ## 0.2.3 — 2026-10-20
 
 ### Added

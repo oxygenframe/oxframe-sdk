@@ -23,6 +23,51 @@ pub struct Project {
     pub(crate) meta_dir: Option<PathBuf>,
     pub(crate) audio: Option<String>,
     pub(crate) inline_meta: Option<BTreeMap<String, Meta>>,
+    /// Formats `check` renders, and `render --aspect all` exports.
+    pub(crate) aspects: Vec<Aspect>,
+}
+
+/// A frame shape. The project's longer side stays the long side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aspect {
+    /// 16:9.
+    Landscape,
+    /// 9:16.
+    Portrait,
+    /// 1:1.
+    Square,
+}
+
+impl Aspect {
+    /// `16:9`, `9:16` or `1:1`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Landscape => "16:9",
+            Self::Portrait => "9:16",
+            Self::Square => "1:1",
+        }
+    }
+
+    /// Parses `16:9`, `9:16`, `1:1`, or the names `landscape`, `portrait`, `square`.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "16:9" | "landscape" => Some(Self::Landscape),
+            "9:16" | "portrait" => Some(Self::Portrait),
+            "1:1" | "square" => Some(Self::Square),
+            _ => None,
+        }
+    }
+
+    /// Pixel size for this shape, using the longer side of `base`.
+    pub fn frame(self, base: (u32, u32)) -> (u32, u32) {
+        let long = base.0.max(base.1).max(1);
+        let short = (f64::from(long) * 9.0 / 16.0).round().max(1.0) as u32;
+        match self {
+            Self::Landscape => (long, short),
+            Self::Portrait => (short, long),
+            Self::Square => (short, short),
+        }
+    }
 }
 
 impl Project {
@@ -42,7 +87,17 @@ impl Project {
             audio: None,
             // No file system in the browser: metas live in memory there.
             inline_meta: cfg!(target_arch = "wasm32").then(BTreeMap::new),
+            aspects: Vec::new(),
         }
+    }
+
+    /// Formats to check, and to export with `render --aspect all`.
+    ///
+    /// The project's longer side is the long side of each format: a
+    /// 1920×1080 project becomes 1920×1080, 1080×1920 and 1080×1080.
+    pub fn aspects(mut self, aspects: impl IntoIterator<Item = Aspect>) -> Self {
+        self.aspects = aspects.into_iter().collect();
+        self
     }
 
     /// Appends a scene; scenes play in the order they are added.

@@ -8,6 +8,7 @@ use crate::handles::{
     Circle, Code, Grid, Group, Img, Layout, Line, Path, Polygon, Rect, Star, Txt,
 };
 use crate::image::ImageSource;
+use crate::place::{self, Axis, Edge, Place, Side, Span};
 use crate::text::{CodeTheme, RichSpan};
 use crate::theme::{self, Corner, IntoPaint, Len, Step, TypeRole};
 
@@ -49,6 +50,8 @@ pub struct BaseProps {
     pub margin: f64,
     pub align_self: Option<LayoutAlign>,
     pub children: Vec<ChildBuilder>,
+    /// Resolved every frame. Set by `next_to`, `align_to`, `to_edge`, `center_in`.
+    pub place: Option<Place>,
 }
 
 impl Default for BaseProps {
@@ -86,6 +89,7 @@ impl Default for BaseProps {
             margin: 0.0,
             align_self: None,
             children: Vec::new(),
+            place: None,
         }
     }
 }
@@ -284,6 +288,28 @@ pub trait NodeBuilder: Sized + 'static {
         self.base().align_self = Some(v);
         self
     }
+    /// Sits just outside `other`, on `side`. The gap is the theme's `Md`
+    /// step. Recomputed every frame, so this node follows `other`.
+    fn next_to(mut self, other: impl Into<crate::Node>, side: Side) -> Self {
+        self.base().place = Some(Place::next_to(other.into().id(), side));
+        self
+    }
+    /// Lines this node's `edge` up with the same edge of `other`.
+    fn align_to(mut self, other: impl Into<crate::Node>, edge: Edge) -> Self {
+        self.base().place = Some(Place::align_to(other.into().id(), edge));
+        self
+    }
+    /// Pins one edge to the safe area (not the raw frame edge). The other
+    /// axis stays at `x` or `y`.
+    fn to_edge(mut self, edge: Edge) -> Self {
+        self.base().place = Some(Place::to_edge(edge));
+        self
+    }
+    /// Same center as `other`. Pass the view to center in the frame.
+    fn center_in(mut self, other: impl Into<crate::Node>) -> Self {
+        self.base().place = Some(Place::center_in(other.into().id()));
+        self
+    }
     /// Adds a child created together with this node. Use `Node::add` when
     /// you need the child's handle.
     fn child<C: NodeBuilder>(mut self, child: C) -> Self {
@@ -386,25 +412,28 @@ impl NodeBuilder for GroupBuilder {
 // ------------------------------------------------------------------- Rect
 
 builder!(RectBuilder => Rect, kind "Rect", defaults { fill: Color::WHITE, fill_explicit: true },
-    fields { width: f64 = 100.0, height: f64 = 100.0, radius: f64 = 0.0 });
-setters!(RectBuilder {
-    width: f64,
-    height: f64
-});
+    fields { width: Span = Span::Px(100.0), height: Span = Span::Px(100.0), radius: f64 = 0.0 });
 
 impl RectBuilder {
+    /// Width in pixels, or [`pct`](crate::pct)`(80)` for a fraction of the frame.
+    pub fn width(mut self, v: impl Into<Span>) -> Self {
+        self.width = v.into();
+        self
+    }
+    /// Height in pixels, or a percentage of the frame.
+    pub fn height(mut self, v: impl Into<Span>) -> Self {
+        self.height = v.into();
+        self
+    }
     /// Corner radius, in pixels or a theme step (`.radius(Md)`).
     /// Clamped to half of the shorter side when drawn.
     pub fn radius(mut self, v: impl Corner) -> Self {
         self.radius = v.radius();
         self
     }
-}
-
-impl RectBuilder {
-    /// Sets width and height.
+    /// Sets width and height to the same pixel size.
     pub fn size(mut self, v: f64) -> Self {
-        (self.width, self.height) = (v, v);
+        (self.width, self.height) = (Span::Px(v), Span::Px(v));
         self
     }
 }
@@ -414,9 +443,10 @@ impl NodeBuilder for RectBuilder {
     base_accessor!();
     fn build(self, g: &SceneGraph, parent: NodeId) -> Rect {
         let k = Self::KIND;
+        let n = g.next_id();
         let kind = NodeKind::Rect {
-            width: sig(g, k, "width", self.width),
-            height: sig(g, k, "height", self.height),
+            width: place::span_signal(g, parent, Axis::X, self.width, format!("{k}#{n}.width")),
+            height: place::span_signal(g, parent, Axis::Y, self.height, format!("{k}#{n}.height")),
             radius: sig(g, k, "radius", self.radius),
         };
         Rect::from_id(insert(g, parent, kind, self.base))
@@ -835,7 +865,7 @@ builder!(
     fields { direction: Direction = Direction::Row, align: LayoutAlign = LayoutAlign::Center,
              justify: Justify = Justify::Center, wrap: bool = false, columns: Option<u16> = None,
              gap: f64 = 0.0, padding: f64 = 0.0,
-             width: Option<f64> = None, height: Option<f64> = None, radius: f64 = 0.0 });
+             width: Option<Span> = None, height: Option<Span> = None, radius: f64 = 0.0 });
 setters!(LayoutBuilder {
     direction: Direction,
     align: LayoutAlign,
@@ -879,14 +909,14 @@ impl LayoutBuilder {
     pub fn column(self) -> Self {
         self.direction(Direction::Column)
     }
-    /// Fixed width (otherwise sized to content).
-    pub fn width(mut self, v: f64) -> Self {
-        self.width = Some(v);
+    /// Fixed width in pixels or [`pct`](crate::pct)`(80)` (otherwise sized to content).
+    pub fn width(mut self, v: impl Into<Span>) -> Self {
+        self.width = Some(v.into());
         self
     }
-    /// Fixed height (otherwise sized to content).
-    pub fn height(mut self, v: f64) -> Self {
-        self.height = Some(v);
+    /// Fixed height in pixels or a percentage (otherwise sized to content).
+    pub fn height(mut self, v: impl Into<Span>) -> Self {
+        self.height = Some(v.into());
         self
     }
 }
@@ -904,8 +934,20 @@ impl NodeBuilder for LayoutBuilder {
             columns: self.columns,
             gap: sig(g, k, "gap", self.gap),
             padding: sig(g, k, "padding", self.padding),
-            width: sig(g, k, "width", self.width),
-            height: sig(g, k, "height", self.height),
+            width: place::span_option(
+                g,
+                parent,
+                Axis::X,
+                self.width,
+                format!("{k}#{}.width", g.next_id()),
+            ),
+            height: place::span_option(
+                g,
+                parent,
+                Axis::Y,
+                self.height,
+                format!("{k}#{}.height", g.next_id()),
+            ),
             radius: sig(g, k, "radius", self.radius),
         };
         Layout::from_id(insert(g, parent, kind, self.base))

@@ -9,6 +9,7 @@ use crate::builder::{
 };
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
+use crate::place::{Edge, Place, SafeArea, Side};
 use crate::text::RichSpan;
 
 /// Untyped node handle with the properties every node has.
@@ -94,6 +95,34 @@ impl Node {
         let motion = crate::theme::current().motion;
         self.opacity().set(0.0);
         self.opacity().to(1.0, motion.normal).ease(motion.enter)
+    }
+
+    /// Sits just outside `other`. The gap is the theme's `Md` step, and the
+    /// position is recomputed every frame.
+    pub fn next_to(self, other: impl Into<Node>, side: Side) -> Self {
+        let other = other.into();
+        with_graph(|g| g.set_place(self.0, Place::next_to(other.id(), side)));
+        self
+    }
+
+    /// Lines this node's `edge` up with the same edge of `other`.
+    pub fn align_to(self, other: impl Into<Node>, edge: Edge) -> Self {
+        let other = other.into();
+        with_graph(|g| g.set_place(self.0, Place::align_to(other.id(), edge)));
+        self
+    }
+
+    /// Pins one edge to the safe area. The other axis is left as it is.
+    pub fn to_edge(self, edge: Edge) -> Self {
+        with_graph(|g| g.set_place(self.0, Place::to_edge(edge)));
+        self
+    }
+
+    /// Same center as `other`.
+    pub fn center_in(self, other: impl Into<Node>) -> Self {
+        let other = other.into();
+        with_graph(|g| g.set_place(self.0, Place::center_in(other.id())));
+        self
     }
 
     /// Fades the node out, over the theme's normal duration with its exit easing.
@@ -294,6 +323,20 @@ impl View {
     /// Frame size in pixels.
     pub fn size(self) -> (u32, u32) {
         with_graph(|g| g.size())
+    }
+
+    /// True when the frame is taller than it is wide.
+    pub fn is_portrait(self) -> bool {
+        let (w, h) = self.size();
+        h > w
+    }
+
+    /// The rectangle [`Node::to_edge`](crate::Node::to_edge) pins to, in scene
+    /// coordinates. A portrait frame leaves room for a vertical video's
+    /// status bar and buttons.
+    pub fn safe_area(self) -> SafeArea {
+        let (w, h) = self.size();
+        SafeArea::for_frame(f64::from(w), f64::from(h))
     }
 }
 

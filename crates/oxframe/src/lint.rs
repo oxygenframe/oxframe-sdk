@@ -29,6 +29,9 @@ pub struct Issue {
     pub source: Option<String>,
     /// What to change.
     pub hint: String,
+    /// Frame shape this was found in, when the project declares several.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspect: Option<String>,
 }
 
 /// Thresholds for [`lint`]. See `[check]` in `oxframe.toml`.
@@ -557,6 +560,7 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                     hint: format!(
                         "Nothing changes for {dur:.1} s. Shorten the pause or add motion."
                     ),
+                    aspect: None,
                 });
             }
             start = s.time;
@@ -573,6 +577,7 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
             node: "scene".into(),
             source: None,
             hint: format!("Nothing changes for {dur:.1} s. Shorten the pause or add motion."),
+            aspect: None,
         });
     }
     issues
@@ -592,6 +597,7 @@ fn issue(
         node: node.name.clone(),
         source: node.source.clone(),
         hint: hint.into(),
+        aspect: None,
     }
 }
 

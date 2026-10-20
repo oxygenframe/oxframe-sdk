@@ -20,6 +20,7 @@ pub mod learn_10_random;
 pub mod morph;
 pub mod particles;
 pub mod quicksort;
+pub mod relative;
 pub mod shapes;
 pub mod showcase;
 pub mod text;
@@ -44,6 +45,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("shapes", shapes::project),
         ("typography", typography::project),
         ("theme", theme::project),
+        ("relative", relative::project),
         ("learn_01_hello", learn_01_hello::project),
         ("learn_02_together", learn_02_together::project),
         ("learn_03_shapes", learn_03_shapes::project),

@@ -26,6 +26,7 @@ mod flex;
 mod graph;
 mod handles;
 mod image;
+mod place;
 mod text;
 mod theme;
 mod trim;
@@ -42,6 +43,7 @@ pub use handles::{
     Circle, Code, Grid, Group, Img, Layout, Line, Node, Path, Polygon, Rect, Star, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
+pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use trim::trim;
 
 pub use oxframe_core::{BlendMode, Color, Gradient, GradientKind, Signal};
