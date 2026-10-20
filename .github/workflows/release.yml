@@ -13,6 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with: { toolchain: "1.97.1", targets: wasm32-unknown-unknown }
+      - name: CHANGELOG.md has a section for this version
+        run: grep -q "^## ${GITHUB_REF_NAME#v}\( \|$\)" CHANGELOG.md
+      - name: Tag matches the workspace version
+        run: grep -q "^version = \"${GITHUB_REF_NAME#v}\"" Cargo.toml
       - run: cargo test --workspace --locked
       # `--workspace` publishes in dependency order and skips publish = false.
       - name: Publish crates
@@ -38,5 +42,11 @@ jobs:
         if: vars.PUBLISH_NPM == 'true'
         working-directory: npm
         env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
-      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+      # Release notes are the version's CHANGELOG.md section.
+      - name: GitHub release
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## " v "( |$)" {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
+          gh release create "$GITHUB_REF_NAME" --notes-file notes.md
         env: { GH_TOKEN: "${{ github.token }}" }

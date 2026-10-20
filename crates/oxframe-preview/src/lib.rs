@@ -1,5 +1,10 @@
 //! Preview protocol for oxframe.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! [`Session`] implements the editor protocol (`oxframe-protocol`) on top of
 //! any [`PreviewEngine`] and is independent of the transport:
 //!
@@ -12,11 +17,11 @@
 
 use std::collections::VecDeque;
 
+use oxframe_core::{FrameSource, Image};
 use oxframe_protocol::{
     Command, ErrorKind, Event, FrameFormat, FrameHeader, MarkerInfo, Meta, NodeInfo,
     PROTOCOL_VERSION, SceneInfo, SignalValue,
 };
-use oxframe_render::Image;
 
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 pub mod server;
@@ -49,16 +54,11 @@ pub enum MetaEdit {
     },
 }
 
-/// What the preview needs from an engine. Implemented by `oxframe::Engine`.
-pub trait PreviewEngine {
+/// What the preview needs from an engine, on top of drawing frames
+/// ([`FrameSource`]). Implemented by `oxframe::PreviewAdapter`.
+pub trait PreviewEngine: FrameSource {
     /// Version string sent in `Ready`.
     fn engine_version(&self) -> String;
-    /// Frames per second.
-    fn fps(&self) -> u32;
-    /// Project size in pixels.
-    fn size(&self) -> (u32, u32);
-    /// Project length in frames.
-    fn total_frames(&self) -> u32;
     /// Scenes with their first frame and length.
     fn scenes(&self) -> Vec<SceneInfo>;
     /// Markers of all scenes.
@@ -66,8 +66,6 @@ pub trait PreviewEngine {
     /// Meta of every scene (sent on `Ready` so the editor knows eases and
     /// tunables).
     fn metas(&self) -> Vec<(String, Meta)>;
-    /// Draws `frame` at `size` pixels.
-    fn render(&mut self, frame: u32, size: (u32, u32)) -> Image;
     /// Applies an edit, re-simulates, persists the meta; returns changed
     /// metas as `(scene, meta)`.
     ///
@@ -452,10 +450,7 @@ mod tests {
         markers: Vec<MarkerInfo>,
     }
 
-    impl PreviewEngine for Fake {
-        fn engine_version(&self) -> String {
-            "test".into()
-        }
+    impl FrameSource for Fake {
         fn fps(&self) -> u32 {
             10
         }
@@ -464,6 +459,20 @@ mod tests {
         }
         fn total_frames(&self) -> u32 {
             20
+        }
+        fn render(&mut self, frame: u32, size: (u32, u32)) -> Image {
+            self.renders += 1;
+            Image {
+                width: size.0,
+                height: size.1,
+                data: vec![frame as u8; (size.0 * size.1 * 4) as usize],
+            }
+        }
+    }
+
+    impl PreviewEngine for Fake {
+        fn engine_version(&self) -> String {
+            "test".into()
         }
         fn scenes(&self) -> Vec<SceneInfo> {
             vec![SceneInfo {
@@ -477,14 +486,6 @@ mod tests {
         }
         fn metas(&self) -> Vec<(String, Meta)> {
             vec![("a".into(), Meta::default())]
-        }
-        fn render(&mut self, frame: u32, size: (u32, u32)) -> Image {
-            self.renders += 1;
-            Image {
-                width: size.0,
-                height: size.1,
-                data: vec![frame as u8; (size.0 * size.1 * 4) as usize],
-            }
         }
         fn edit(&mut self, edit: MetaEdit) -> Result<Vec<(String, Meta)>, String> {
             match edit {

@@ -1357,6 +1357,7 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "oxframe-protocol",
+ "png",
  "rand 0.10.3",
  "rand_chacha 0.10.0",
 ]
@@ -1373,7 +1374,7 @@ dependencies = [
 name = "oxframe-export"
 version = "0.1.0"
 dependencies = [
- "oxframe-render",
+ "oxframe-core",
 ]
 
 [[package]]
@@ -1391,8 +1392,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "image",
+ "oxframe-core",
  "oxframe-protocol",
- "oxframe-render",
  "serde",
  "serde_json",
  "tokio",

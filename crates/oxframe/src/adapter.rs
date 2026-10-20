@@ -2,10 +2,10 @@
 //! and the in-browser (wasm) engine.
 
 use oxframe_2d::NodeId;
-use oxframe_core::Point;
+use oxframe_core::{FrameSource, Image, Point};
 use oxframe_preview::{MetaEdit, PreviewEngine};
 use oxframe_protocol::{MarkerInfo, Meta, NodeInfo, SceneInfo, SignalValue};
-use oxframe_render::{Image, Renderer};
+use oxframe_render::Renderer;
 
 use crate::Engine;
 use crate::engine::MetaSection;
@@ -28,11 +28,7 @@ impl PreviewAdapter {
     }
 }
 
-impl PreviewEngine for PreviewAdapter {
-    fn engine_version(&self) -> String {
-        env!("CARGO_PKG_VERSION").to_owned()
-    }
-
+impl FrameSource for PreviewAdapter {
     fn fps(&self) -> u32 {
         self.engine.fps()
     }
@@ -45,6 +41,16 @@ impl PreviewEngine for PreviewAdapter {
         self.engine.total_frames()
     }
 
+    fn render(&mut self, frame: u32, size: (u32, u32)) -> Image {
+        self.engine.render(frame, self.renderer.as_mut(), size)
+    }
+}
+
+impl PreviewEngine for PreviewAdapter {
+    fn engine_version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_owned()
+    }
+
     fn scenes(&self) -> Vec<SceneInfo> {
         self.engine.scenes()
     }
@@ -55,10 +61,6 @@ impl PreviewEngine for PreviewAdapter {
 
     fn metas(&self) -> Vec<(String, Meta)> {
         self.engine.metas()
-    }
-
-    fn render(&mut self, frame: u32, size: (u32, u32)) -> Image {
-        self.engine.render(frame, self.renderer.as_mut(), size)
     }
 
     fn edit(&mut self, edit: MetaEdit) -> Result<Vec<(String, Meta)>, String> {

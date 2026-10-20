@@ -1,5 +1,10 @@
 //! Renderers turn a [`SceneGraph`] into an RGBA image.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! [`CpuRenderer`] (tiny-skia) is the reference backend and the `--cpu`
 //! mode for machines without a GPU; `GpuRenderer` (vello, feature `gpu`) is
 //! the fast path. Both consume the same [`oxframe_2d::DrawItem`] list and pass
@@ -10,6 +15,7 @@
 use kurbo::Affine;
 use oxframe_2d::SceneGraph;
 use oxframe_core::Color;
+pub use oxframe_core::Image;
 
 #[cfg(feature = "cpu")]
 mod blur;
@@ -22,23 +28,6 @@ pub use cpu::CpuRenderer;
 mod gpu;
 #[cfg(feature = "gpu")]
 pub use gpu::{GpuError, GpuRenderer};
-
-/// 8-bit sRGB RGBA, straight alpha, row-major, no padding.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Image {
-    /// Width in pixels.
-    pub width: u32,
-    /// Height in pixels.
-    pub height: u32,
-    /// `width * height * 4` bytes.
-    pub data: Vec<u8>,
-}
-
-impl std::fmt::Debug for Image {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Image({}x{})", self.width, self.height)
-    }
-}
 
 /// Size and background of one render call.
 #[derive(Debug, Clone, Copy)]

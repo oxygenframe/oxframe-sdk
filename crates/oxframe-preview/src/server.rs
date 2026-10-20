@@ -17,8 +17,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use image::ExtendedColorType;
 use image::codecs::jpeg::JpegEncoder;
+use oxframe_core::Image;
 use oxframe_protocol::{Command, FrameFormat};
-use oxframe_render::Image;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::{Encoder, Output, PreviewEngine, Session};

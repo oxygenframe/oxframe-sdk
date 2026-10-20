@@ -1,5 +1,10 @@
 //! 2D scene graph of oxframe.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! Scene code creates nodes with builders (`Rect::new().width(100.0)`) and
 //! adds them with [`Node::add`] (`view.add(..)`), which returns a `Copy`
 //! handle whose zero-argument methods of the same names return

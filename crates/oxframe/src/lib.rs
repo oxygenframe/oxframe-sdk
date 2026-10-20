@@ -1,5 +1,10 @@
 //! # oxframe
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! Procedural animation modelled after Motion Canvas: a scene is an
 //! `async fn`, and every `.await` on an animation is a frame boundary.
 //!

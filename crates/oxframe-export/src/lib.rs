@@ -1,6 +1,11 @@
 //! Video export: raw RGBA frames are piped into `ffmpeg` (no intermediate
 //! files) from a writer thread, so encoding overlaps with rendering.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! `ffmpeg` is looked up in `PATH` (or an explicit path); if it is missing,
 //! [`ExportError::FfmpegNotFound`] carries installation instructions.
 
@@ -13,7 +18,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread::JoinHandle;
 
-use oxframe_render::Image;
+pub use oxframe_core::Image;
 
 /// Output format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

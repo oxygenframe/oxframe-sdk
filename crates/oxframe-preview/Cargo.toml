@@ -18,7 +18,7 @@ server = ["dep:axum", "dep:tokio", "dep:image"]
 
 [dependencies]
 oxframe-protocol.workspace = true
-oxframe-render.workspace = true
+oxframe-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 axum = { workspace = true, optional = true }

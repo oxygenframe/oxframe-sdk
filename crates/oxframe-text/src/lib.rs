@@ -1,5 +1,10 @@
 //! Text for oxframe: layout with `parley`, glyph outlines with `skrifa`.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! Text becomes a [`BezPath`], so it renders identically on every backend
 //! and can be morphed and trimmed like any other path.
 //!

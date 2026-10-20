@@ -444,23 +444,6 @@ impl Renderer for CpuRenderer {
     }
 }
 
-impl Image {
-    /// Encodes the image as PNG.
-    pub fn encode_png(&self) -> Vec<u8> {
-        let mut pixmap = Pixmap::new(self.width, self.height).expect("valid size");
-        for (dst, src) in pixmap
-            .pixels_mut()
-            .iter_mut()
-            .zip(self.data.chunks_exact(4))
-        {
-            *dst = tiny_skia::ColorU8::from_rgba(src[0], src[1], src[2], src[3]).premultiply();
-        }
-        pixmap
-            .encode_png()
-            .expect("PNG encoding of an in-memory pixmap")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use oxframe_2d::{NodeBuilder, Rect, View};

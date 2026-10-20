@@ -16,6 +16,7 @@ oxframe-protocol.workspace = true
 kurbo.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+png = "0.18"
 
 [lints]
 workspace = true

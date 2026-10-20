@@ -1,6 +1,11 @@
 //! Core of oxframe: signals, tweens, easing and a deterministic,
 //! single-threaded coroutine executor.
 //!
+//! > **Status:** oxframe is under very active development. The API is not stable yet and
+//! > may change from version to version. Pin the exact version in your Cargo.toml and check
+//! > the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md)
+//! > before upgrading.
+//!
 //! An animation is an `async fn`; every `.await` on a [`Tween`],
 //! [`wait_for`] or [`next_frame`] is a frame boundary. One poll of the root
 //! future is exactly one frame, with a fixed `dt = 1 / fps`.
@@ -11,6 +16,7 @@ mod color;
 mod ease;
 mod executor;
 mod flow;
+mod frame;
 mod lerp;
 mod paint;
 mod path;
@@ -25,6 +31,7 @@ pub use executor::Executor;
 pub use flow::{
     All, BoxFuture, JoinHandle, all, all_vec, next_frame, sequence, spawn, wait_for, wait_until,
 };
+pub use frame::{FrameSource, Image};
 pub use lerp::{Lerp, Transform};
 pub use paint::{BlendMode, Gradient, GradientKind};
 pub use runtime::{

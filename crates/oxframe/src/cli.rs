@@ -7,7 +7,9 @@ use std::time::Instant;
 use oxframe_export::{Audio, ExportOptions, Exporter, Format};
 use oxframe_render::{CpuRenderer, Renderer};
 
-use crate::{Engine, Project};
+use oxframe_core::FrameSource;
+
+use crate::{Engine, PreviewAdapter, Project};
 
 pub(crate) const EXIT_OK: i32 = 0;
 pub(crate) const EXIT_ERROR: i32 = 1;
@@ -158,7 +160,7 @@ fn render(project: Project, args: RenderArgs) -> i32 {
         return EXIT_ENV;
     }
 
-    let mut engine = match Engine::new(project) {
+    let engine = match Engine::new(project) {
         Ok(e) => e,
         Err(e) => {
             eprintln!("error: {e}");
@@ -213,7 +215,9 @@ fn render(project: Project, args: RenderArgs) -> i32 {
             return EXIT_ENV;
         }
     };
-    let (mut renderer, backend) = make_renderer(args.cpu);
+    let (renderer, backend) = make_renderer(args.cpu);
+    // From here on frames come through the generic `FrameSource`.
+    let mut source = PreviewAdapter::new(engine, renderer);
     eprintln!(
         "rendering {} frames at {}x{} @ {fps} fps with {backend} → {}",
         frames.len(),
@@ -228,7 +232,7 @@ fn render(project: Project, args: RenderArgs) -> i32 {
     let (mut t_render, mut t_queue) = (0.0, 0.0);
     for (n, frame) in frames.enumerate() {
         let t0 = Instant::now();
-        let image = engine.render(frame, renderer.as_mut(), size);
+        let image = source.render(frame, size);
         let t1 = Instant::now();
         t_render += (t1 - t0).as_secs_f64();
         let pushed = exporter.push(image);
@@ -284,7 +288,7 @@ fn info(project: Project) -> i32 {
 /// files `<project>-<time>.png` go into `--out` (default `out/snapshots`).
 fn snapshot(project: Project, args: &RenderArgs) -> i32 {
     let name = project.name().to_owned();
-    let mut engine = match Engine::new(project) {
+    let engine = match Engine::new(project) {
         Ok(e) => e,
         Err(e) => {
             eprintln!("error: {e}");
@@ -323,8 +327,9 @@ fn snapshot(project: Project, args: &RenderArgs) -> i32 {
         return EXIT_ENV;
     }
     let size = args.size.unwrap_or(engine.size());
-    let (mut renderer, _) = make_renderer(args.cpu);
-    let last = engine.total_frames().saturating_sub(1);
+    let (renderer, _) = make_renderer(args.cpu);
+    let mut source = PreviewAdapter::new(engine, renderer);
+    let last = source.total_frames().saturating_sub(1);
     for &t in &args.at {
         let frame = (offset + (t.max(0.0) * fps).round() as u32).min(last);
         let path = match &dir {
@@ -334,8 +339,7 @@ fn snapshot(project: Project, args: &RenderArgs) -> i32 {
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             let _ = std::fs::create_dir_all(parent);
         }
-        let image = engine.render(frame, renderer.as_mut(), size);
-        if let Err(e) = std::fs::write(&path, image.encode_png()) {
+        if let Err(e) = std::fs::write(&path, source.render(frame, size).encode_png()) {
             eprintln!("error: cannot write {}: {e}", path.display());
             return EXIT_ENV;
         }
