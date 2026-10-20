@@ -26,6 +26,9 @@ cargo clippy --target wasm32-unknown-unknown -p oxframe --features wasm -- -D wa
 step "CLI: tests, and a new project built and previewed on this SDK"
 (cd "$cli" && cargo test && OXFRAME_SDK_PATH="$sdk" cargo test --test e2e -- --ignored)
 
+step "Site claims match the recorded measurements"
+(cd "$web/apps/site" && bun scripts/check-claims.ts)
+
 step "Site and compile service on this SDK (examples, docs, sandbox template, e2e)"
 (cd "$web" && OXFRAME_SDK_PATH="$sdk" bun run verify)
 

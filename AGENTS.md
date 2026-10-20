@@ -9,8 +9,10 @@ All crates and `oxframe-cli` share one version (see CHANGELOG.md).
    docs, the compile service's sandbox template, e2e) against this
    checkout, and builds the container images on it with podman (or
    docker): the compile service's image is run with no network and must
-   build a real scene. CI alone cannot catch an API change that breaks the
-   other two repositories or the images.
+   build a real scene. It also checks that the marketing pages quote only
+   the timings in `oxframe-web/apps/site/src/lib/measurements.json`. CI
+   alone cannot catch an API change that breaks the other two repositories
+   or the images.
 2. Bump `[workspace.package] version` and the internal dependency versions,
    add the CHANGELOG.md section (breaking changes with "before → after").
 3. Commit, tag `vX.Y.Z`, push the tag: the release workflow publishes to
