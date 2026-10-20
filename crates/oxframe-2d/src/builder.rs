@@ -800,6 +800,11 @@ impl NodeBuilder for CodeBuilder {
         };
         let kind = NodeKind::Code {
             code: sig(g, k, "code", self.code),
+            edit_from: sig(g, k, "edit_from", String::new()),
+            edit_to: sig(g, k, "edit_to", String::new()),
+            editing: sig(g, k, "editing", false),
+            edit_t: sig(g, k, "edit_t", 0.0),
+            edit_flash: sig(g, k, "edit_flash", false),
             lang: self.lang,
             theme,
             font_size: sig(g, k, "font_size", self.style.size),

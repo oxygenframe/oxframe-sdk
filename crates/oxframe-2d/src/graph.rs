@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath, Point, Shape, Vec2};
 use oxframe_core::{BlendMode, Color, Gradient, Signal};
 use oxframe_text::{Lang, TextStyle};
 
-use crate::text::{CodeTheme, RichSpan, Styled};
+use crate::text::{CodeTheme, DiffFrame, RichSpan, Styled};
 
 use crate::draw::{DrawItem, Layer, LineCap, LineJoin, Primitive, Shadow};
 use crate::flex::{FlexBox, FlexMap};
@@ -118,6 +118,16 @@ pub enum NodeKind {
     },
     Code {
         code: Signal<String>,
+        /// Source a running diff started from. Ignored unless `editing` is set.
+        edit_from: Signal<String>,
+        /// Source a running diff is going to.
+        edit_to: Signal<String>,
+        /// A diff tween is in progress.
+        editing: Signal<bool>,
+        /// Progress of the diff, 0 = `edit_from`, 1 = `edit_to`.
+        edit_t: Signal<f64>,
+        /// Flash a background behind text the diff inserts.
+        edit_flash: Signal<bool>,
         lang: Lang,
         theme: CodeTheme,
         font_size: Signal<f64>,
@@ -284,6 +294,11 @@ impl NodeData {
             }
             NodeKind::Code {
                 code,
+                edit_from,
+                edit_to,
+                editing,
+                edit_t,
+                edit_flash,
                 lang,
                 theme,
                 font_size,
@@ -295,6 +310,22 @@ impl NodeData {
                     size: font_size.get().max(0.1),
                     ..style.clone()
                 };
+                if editing.get() {
+                    let (frame, _) = crate::text::layout_diff(
+                        &edit_from.get(),
+                        &edit_to.get(),
+                        *lang,
+                        crate::text::DiffView {
+                            theme,
+                            style: &style,
+                            focus: focus.get(),
+                            dim: dim.get(),
+                            t: edit_t.get(),
+                            flash: edit_flash.get(),
+                        },
+                    );
+                    return Some(TextDraw::Diff(frame));
+                }
                 Some(TextDraw::Styled(crate::text::code(
                     &code.get(),
                     *lang,
@@ -452,6 +483,8 @@ pub(crate) enum TextDraw {
         glyphs: Vec<(BezPath, f64)>,
         size: (f64, f64),
     },
+    /// A code diff, glyphs in a top-left layout box.
+    Diff(DiffFrame),
 }
 
 /// Arena of nodes for one scene run. Node 0 is the view (root).
@@ -886,6 +919,7 @@ fn text_info(n: &NodeData) -> (Option<String>, f64) {
     let overflow = match (max_width, n.text_draw()) {
         (Some(max), Some(TextDraw::Styled(s))) => (s.layout.width - max).max(0.0),
         (Some(max), Some(TextDraw::Morph { size, .. })) => (size.0 - max).max(0.0),
+        (Some(max), Some(TextDraw::Diff(frame))) => (frame.size.0 - max).max(0.0),
         _ => 0.0,
     };
     (Some(body), overflow)
@@ -904,6 +938,7 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         NodeKind::Txt { .. } | NodeKind::Code { .. } => match n.text_draw() {
             Some(TextDraw::Styled(s)) => (s.layout.width, s.layout.height),
             Some(TextDraw::Morph { size, .. }) => size,
+            Some(TextDraw::Diff(frame)) => frame.size,
             None => (0.0, 0.0),
         },
         NodeKind::Path { .. } | NodeKind::Line { .. } => {

@@ -41,8 +41,8 @@ pub use graph::{
     Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph,
 };
 pub use handles::{
-    Camera, Circle, Code, Grid, Group, Img, Layout, Line, Node, Path, Polygon, Rect,
-    SLIDE_DISTANCE, Star, Txt, View,
+    Camera, Circle, Code, CodeText, CodeTween, Grid, Group, Img, Layout, Line, Node, Path, Polygon,
+    Rect, SLIDE_DISTANCE, Star, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};

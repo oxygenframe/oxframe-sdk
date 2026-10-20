@@ -6,6 +6,39 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.5.0 — 2026-10-20
+
+Code edits itself (ROADMAP task 2). `Txt` still types its text out.
+
+### Added
+
+- `code.code().to(next, seconds)` diffs the two sources. Tokens that stay
+  slide to their new places, deleted tokens fade and collapse, new tokens
+  fade in. Lines below the edit shift. Highlighting stays on the six
+  languages and is taken from each side, not from a half-typed string.
+- `insert(line, col, text, seconds)`, `remove(((line, col), (line, col)), seconds)`
+  and `replace(range, text, seconds)`. Lines are 1-based, columns are
+  0-based characters, and the range is half-open. `.flash()` on that tween
+  lights the inserted text for a moment.
+- A focus on lines that move rides with them and lands on their new numbers
+  when the tween ends.
+- Example `code_steps`: a function written in a few edits.
+
+### Breaking
+
+- `code.code()` is no longer a `Signal<String>`. `.get()`, `.set()` and
+  `.bind()` still work. `.to()` is a diff, not a typewriter:
+
+  ```rust
+  // before — `code()` was a Signal<String>, and `.to()` typed the text
+  let src: Signal<String> = code.code();
+  src.to(next, 1.0).await;
+
+  // after — `.to()` slides tokens; `.get()` / `.set()` / `.bind()` remain
+  code.code().to(next, 1.0).await;
+  code.insert(2, 0, "    let y = x * 2;\n", 0.6).flash().await;
+  ```
+
 ## 0.4.0 — 2026-10-20
 
 ### Added

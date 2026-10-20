@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use kurbo::{Affine, BezPath, ParamCurve, ParamCurveDeriv, PathSeg, Point, Vec2};
+use kurbo::{Affine, BezPath, ParamCurve, ParamCurveDeriv, PathSeg, Point, Shape, Vec2};
 use oxframe_core::{BlendMode, Color, Gradient};
 
 use crate::graph::{NodeData, NodeId, NodeKind, TextDraw};
@@ -325,6 +325,30 @@ pub(crate) fn primitives(n: &NodeData, size: (f64, f64), opacity: f64) -> Vec<Pr
                 for (path, alpha) in glyphs {
                     if let Some(paint) = fill_paint(n, opacity * alpha) {
                         out.push(Primitive::Fill { path, paint });
+                    }
+                }
+            }
+            Some(TextDraw::Diff(frame)) => {
+                let center = Affine::translate((-frame.size.0 / 2.0, -frame.size.1 / 2.0));
+                for flash in &frame.flashes {
+                    if let Some(c) = faded(flash.color, opacity) {
+                        out.push(Primitive::Fill {
+                            path: center * flash.rect.to_path(0.1),
+                            paint: Paint::Solid(c),
+                        });
+                    }
+                }
+                let count = frame.glyphs.len() as f64;
+                let (a, b) = (
+                    (start.clamp(0.0, 1.0) * count).floor() as usize,
+                    (end.clamp(0.0, 1.0) * count).ceil() as usize,
+                );
+                for glyph in frame.glyphs.iter().take(b).skip(a) {
+                    if let Some(c) = faded(glyph.color, opacity) {
+                        out.push(Primitive::Fill {
+                            path: center * glyph.path.clone(),
+                            paint: Paint::Solid(c),
+                        });
                     }
                 }
             }

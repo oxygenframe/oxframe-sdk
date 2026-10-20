@@ -1,7 +1,11 @@
 use std::ops::Deref;
 
 use kurbo::{BezPath, Point};
-use oxframe_core::{BlendMode, Color, Gradient, Seconds, Signal, Tween, Vec2, all};
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use oxframe_core::{BlendMode, Color, Ease, Gradient, Seconds, Signal, Tween, Vec2, all};
 
 use crate::builder::{
     self, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
@@ -366,7 +370,6 @@ impl Camera {
 kind_signal!(Line::Line { points: Vec<Vec2>, arrow_size: f64 });
 kind_signal!(Txt::Txt { text: String, spans: Vec<RichSpan>, font_size: f64, weight: f64 });
 kind_signal!(Code::Code {
-    code: String,
     font_size: f64,
     /// Focused lines as (first, last), 1-based; (0, 0) = all.
     focus: Vec2,
@@ -399,7 +402,44 @@ impl Txt {
 }
 
 impl Code {
+    /// The source.
+    ///
+    /// `.to(next, seconds)` diffs the two versions: tokens that stay slide
+    /// to their new places, deleted tokens fade and collapse, new tokens
+    /// fade in. `Txt` types its text out; code does not. `.get()`, `.set()`
+    /// and `.bind()` still replace the source with no animation, and `.set`
+    /// cancels a diff that is already running.
+    pub fn code(self) -> CodeText {
+        with_graph(|g| match &g.node(self.id()).kind {
+            NodeKind::Code {
+                code,
+                edit_from,
+                edit_to,
+                editing,
+                edit_t,
+                edit_flash,
+                focus,
+                lang,
+                ..
+            } => CodeText {
+                code: code.clone(),
+                edit_from: edit_from.clone(),
+                edit_to: edit_to.clone(),
+                editing: editing.clone(),
+                edit_t: edit_t.clone(),
+                edit_flash: edit_flash.clone(),
+                focus: focus.clone(),
+                lang: *lang,
+            },
+            _ => unreachable!("handle does not point to a Code"),
+        })
+    }
+
     /// Moves the focus to lines `first..=last` over `duration`.
+    ///
+    /// Lines are 1-based. While a diff is running, a focus that sits on
+    /// lines which shift rides with those lines, and lands on their new
+    /// numbers when the diff ends.
     pub fn focus_lines(
         self,
         first: usize,
@@ -408,6 +448,197 @@ impl Code {
     ) -> oxframe_core::Tween<Vec2> {
         self.focus()
             .to(Vec2::new(first as f64, last as f64), duration)
+    }
+
+    /// Inserts `text` at `line` (1-based) and `col` (0-based characters).
+    ///
+    /// # Panics
+    ///
+    /// If the line or column is outside the current source. The line just
+    /// after the last one, column 0, is the end of the source.
+    pub fn insert(
+        self,
+        line: usize,
+        col: usize,
+        text: impl Into<String>,
+        duration: impl Seconds,
+    ) -> CodeTween {
+        let text = text.into();
+        let src = self.code().get();
+        let next = oxframe_text::insert_at(&src, line, col, &text)
+            .unwrap_or_else(|e| panic!("code.insert: {e}"));
+        self.code().to(next, duration)
+    }
+
+    /// Removes the half-open range `((start_line, start_col), (end_line, end_col))`.
+    ///
+    /// Lines are 1-based, columns are 0-based characters. `((5, 0), (6, 0))`
+    /// removes line 5.
+    ///
+    /// # Panics
+    ///
+    /// If a point is outside the source, or the end is before the start.
+    pub fn remove(
+        self,
+        range: ((usize, usize), (usize, usize)),
+        duration: impl Seconds,
+    ) -> CodeTween {
+        self.rewrite(range, String::new(), duration, "code.remove")
+    }
+
+    /// Replaces the half-open range with `text`. See [`remove`](Self::remove)
+    /// for how the range is counted.
+    ///
+    /// # Panics
+    ///
+    /// If a point is outside the source, or the end is before the start.
+    pub fn replace(
+        self,
+        range: ((usize, usize), (usize, usize)),
+        text: impl Into<String>,
+        duration: impl Seconds,
+    ) -> CodeTween {
+        self.rewrite(range, text.into(), duration, "code.replace")
+    }
+
+    fn rewrite(
+        self,
+        ((l0, c0), (l1, c1)): ((usize, usize), (usize, usize)),
+        text: String,
+        duration: impl Seconds,
+        what: &str,
+    ) -> CodeTween {
+        let src = self.code().get();
+        let next = oxframe_text::replace_range(
+            &src,
+            oxframe_text::Loc { line: l0, col: c0 },
+            oxframe_text::Loc { line: l1, col: c1 },
+            &text,
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        self.code().to(next, duration)
+    }
+}
+
+/// The source of a [`Code`] node.
+///
+/// Dereferences to the underlying [`Signal`], so `.get()` reads it.
+/// [`.to()`](CodeText::to) runs a diff tween instead of the typewriter
+/// [`Signal::to`](Signal::to) uses for plain strings.
+#[derive(Clone)]
+pub struct CodeText {
+    code: Signal<String>,
+    edit_from: Signal<String>,
+    edit_to: Signal<String>,
+    editing: Signal<bool>,
+    edit_t: Signal<f64>,
+    edit_flash: Signal<bool>,
+    focus: Signal<Vec2>,
+    lang: oxframe_text::Lang,
+}
+
+impl std::ops::Deref for CodeText {
+    type Target = Signal<String>;
+    fn deref(&self) -> &Signal<String> {
+        &self.code
+    }
+}
+
+impl CodeText {
+    /// Replaces the source immediately and cancels a running diff.
+    pub fn set(&self, value: impl Into<String>) {
+        self.editing.set(false);
+        self.code.set(value.into());
+    }
+
+    /// Makes the source follow `f`, and cancels a running diff.
+    pub fn bind(&self, f: impl Fn() -> String + 'static) {
+        self.editing.set(false);
+        self.code.bind(f);
+    }
+
+    /// Diffs the current source into `target` over `duration`.
+    pub fn to(&self, target: impl Into<String>, duration: impl Seconds) -> CodeTween {
+        let target = target.into();
+        let from = self.code.get();
+        self.edit_from.set(from.clone());
+        self.edit_to.set(target.clone());
+        self.edit_flash.set(false);
+        self.editing.set(true);
+        self.edit_t.set(0.0);
+        CodeTween {
+            tween: self.edit_t.to(1.0, duration),
+            code: self.code.clone(),
+            editing: self.editing.clone(),
+            edit_flash: self.edit_flash.clone(),
+            focus: self.focus.clone(),
+            lang: self.lang,
+            from,
+            target,
+            finished: false,
+        }
+    }
+}
+
+/// Diff tween returned by [`CodeText::to`], [`Code::insert`], [`Code::remove`]
+/// and [`Code::replace`].
+#[must_use = "a tween does nothing unless awaited"]
+pub struct CodeTween {
+    tween: Tween<f64>,
+    code: Signal<String>,
+    editing: Signal<bool>,
+    edit_flash: Signal<bool>,
+    focus: Signal<Vec2>,
+    lang: oxframe_text::Lang,
+    from: String,
+    target: String,
+    finished: bool,
+}
+
+impl CodeTween {
+    /// Easing curve. The default is [`presets::DEFAULT`](oxframe_core::presets::DEFAULT).
+    pub fn ease(mut self, ease: impl Ease + 'static) -> Self {
+        self.tween = self.tween.ease(ease);
+        self
+    }
+
+    /// Changes the length. `f64` is seconds; a theme pace is a duration too.
+    pub fn duration(mut self, duration: impl Seconds) -> Self {
+        self.tween = self.tween.duration(duration);
+        self
+    }
+
+    /// Flashes a background behind text that this edit inserts.
+    pub fn flash(self) -> Self {
+        self.edit_flash.set(true);
+        self
+    }
+}
+
+impl Future for CodeTween {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+        let this = self.get_mut();
+        if Pin::new(&mut this.tween).poll(cx).is_pending() {
+            return Poll::Pending;
+        }
+        if !this.finished {
+            this.finished = true;
+            let focus = this.focus.get();
+            let (a, b) = (focus.x.round() as i64, focus.y.round() as i64);
+            if a > 0 || b > 0 {
+                let diff = oxframe_text::diff_code(&this.from, &this.target, this.lang);
+                if let Some((n0, n1)) =
+                    oxframe_text::map_focus(&diff, a.max(0) as usize, b.max(0) as usize)
+                {
+                    this.focus.set(Vec2::new(n0 as f64, n1 as f64));
+                }
+            }
+            this.code.set(this.target.clone());
+            this.editing.set(false);
+        }
+        Poll::Ready(())
     }
 }
 kind_signal!(Img::Img {
@@ -602,6 +833,21 @@ mod tests {
         });
         let slow = crate::theme::current().motion.slow;
         assert_eq!(frames, expected + (slow * 60.0).round() as u32 + 30);
+    }
+
+    #[test]
+    fn a_diff_lands_on_the_new_source_and_moves_the_focus() {
+        play(|view| {
+            let code = view.add(Code::new().code("a\nkeep\n").focus(2, 2));
+            Box::pin(async move {
+                code.insert(1, 0, "NEW\n", 0.2).flash().await;
+                assert_eq!(code.code().get(), "NEW\na\nkeep\n");
+                let f = code.focus().get();
+                assert_eq!((f.x.round() as i32, f.y.round() as i32), (3, 3));
+                code.replace(((3, 0), (3, 4)), "stay", 0.0).await;
+                assert_eq!(code.code().get(), "NEW\na\nstay\n");
+            })
+        });
     }
 
     #[test]

@@ -15,8 +15,13 @@
 #![warn(missing_docs)]
 
 mod code;
+mod diff;
 
 pub use code::{Lang, Token, highlight};
+pub use diff::{
+    CodeDiff, EditError, LineEdit, Loc, Piece, PieceEdit, code_lines, diff_code, insert_at,
+    line_pieces, map_focus, remove_range, replace_range,
+};
 
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};

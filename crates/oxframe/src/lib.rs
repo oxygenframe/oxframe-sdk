@@ -45,11 +45,11 @@ pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
 
 pub use oxframe_2d::{
-    Accent, Background, Camera, Circle, Code, CodeTheme, Danger, Direction, Edge, Fast, Grid,
-    Group, Img, Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion,
-    Muted, Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent, Polygon, Rect,
-    RichSpan, SANS, SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Text,
-    TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
+    Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Danger, Direction,
+    Edge, Fast, Grid, Group, Img, Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin,
+    MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent,
+    Polygon, Rect, RichSpan, SANS, SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success,
+    Surface, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
 };
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,

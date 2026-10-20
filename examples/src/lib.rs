@@ -5,6 +5,7 @@
 pub mod benchmark;
 pub mod camera;
 pub mod chart;
+pub mod code_steps;
 pub mod components;
 pub mod effects;
 pub mod intro;
@@ -37,6 +38,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
     vec![
         ("intro", intro::project),
         ("camera", camera::project),
+        ("code_steps", code_steps::project),
         ("text", text::project),
         ("morph", morph::project),
         ("layout", layout::project),
