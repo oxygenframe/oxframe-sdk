@@ -10,7 +10,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with: { toolchain: "1.97.1", targets: wasm32-unknown-unknown }
       - name: CHANGELOG.md has a section for this version
@@ -35,7 +35,7 @@ jobs:
            "repository":"https://github.com/oxygenframe/oxframe-sdk","exports":{".":"./src/index.ts"}}
           JSON
           printf 'export * from "./generated/Command";\nexport * from "./generated/Event";\n' > npm/src/index.ts
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: vars.PUBLISH_NPM == 'true'
         with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
       - run: npm publish --provenance --access public
