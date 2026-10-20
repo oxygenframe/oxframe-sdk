@@ -6,6 +6,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.1 — 2026-10-20
+
+### Fixed
+
+- The browser engine (`oxframe` with the `wasm` feature, used by the
+  playground) did not compile in 0.2.0. CI now builds it.
+
 ## 0.2.0 — 2026-10-20
 
 ### Changed

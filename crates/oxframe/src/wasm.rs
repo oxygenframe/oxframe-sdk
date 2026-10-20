@@ -14,6 +14,7 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 
+use oxframe_core::FrameSource;
 use oxframe_preview::{Output, PreviewEngine, Session, rgba_encoder};
 #[cfg(feature = "gpu")]
 use oxframe_protocol::FrameFormat;

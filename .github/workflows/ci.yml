@@ -30,6 +30,9 @@ jobs:
         env: { OXFRAME_SEEK_BUDGET_MS: "400" }
       - name: wasm32 build
         run: cargo build --target wasm32-unknown-unknown -p oxframe-core -p oxframe-2d -p oxframe-render -p oxframe-protocol -p oxframe
+      # The browser engine (playground) is only compiled with the `wasm` feature.
+      - name: wasm32 build of the browser engine
+        run: cargo clippy --target wasm32-unknown-unknown -p oxframe --features wasm -- -D warnings
       - name: rustdoc
         run: cargo doc --workspace --no-deps
         env:
