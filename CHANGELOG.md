@@ -6,6 +6,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.6 — 2026-10-20
+
+No crate changes. Released together with oxframe-cli 0.2.6 (`oxframe mcp`,
+`--json`, and hints on the compile errors agents hit most often).
+
+The scene API and the editor protocol are unchanged.
+
 ## 0.2.5 — 2026-10-20
 
 ### Added
