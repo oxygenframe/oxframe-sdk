@@ -70,9 +70,17 @@ impl Node {
     }
 
     /// Adds a child node; children are positioned relative to the parent.
+    ///
+    /// The call site is stored on the node (`oxframe check` and `oxframe
+    /// inspect` print it). `.name("title")` overrides the automatic label.
     #[allow(clippy::should_implement_trait)] // `view.add(..)` mirrors Motion Canvas
+    #[track_caller]
     pub fn add<B: NodeBuilder>(self, child: B) -> B::Handle {
-        builder::add(self.0, child)
+        let loc = std::panic::Location::caller();
+        let prev = crate::graph::push_add_at(loc.file(), loc.line());
+        let handle = builder::add(self.0, child);
+        crate::graph::pop_add_at(prev);
+        handle
     }
 
     /// Detaches the node from its parent; it stops being drawn.
@@ -297,6 +305,28 @@ mod tests {
         let graph = SceneGraph::new(400, 400);
         graph.enter(|| f(View::current()));
         graph
+    }
+
+    #[test]
+    fn add_records_its_call_site_and_scene_bounds() {
+        let g = scene(|view| {
+            view.add(Rect::new().size(100.0).name("box"));
+            view.add(Rect::new().size(10.0).x(100.0));
+        });
+        let nodes = g.inspect_nodes();
+        let named = nodes.iter().find(|n| n.name == "box").unwrap();
+        assert_eq!(named.kind, "Rect");
+        assert!(named.source.as_ref().unwrap().contains("handles.rs:"));
+        assert!(
+            (named.bounds[0] + 50.0).abs() < 1e-6 && (named.bounds[2] - 50.0).abs() < 1e-6,
+            "{:?}",
+            named.bounds
+        );
+        let auto = nodes
+            .iter()
+            .find(|n| n.name != "box" && n.name != "view")
+            .unwrap();
+        assert_eq!(auto.name, auto.source.clone().unwrap());
     }
 
     #[test]

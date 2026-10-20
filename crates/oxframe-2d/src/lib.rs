@@ -34,7 +34,9 @@ pub use builder::{
     LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder, TxtBuilder,
 };
 pub use draw::{DrawItem, Layer, LineCap, LineJoin, Paint, Primitive, Shadow, StrokeStyle};
-pub use graph::{Direction, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph};
+pub use graph::{
+    Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph,
+};
 pub use handles::{
     Circle, Code, Grid, Group, Img, Layout, Line, Node, Path, Polygon, Rect, Star, Txt, View,
 };

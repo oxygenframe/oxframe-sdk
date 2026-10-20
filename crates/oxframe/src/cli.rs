@@ -30,6 +30,20 @@ commands:
              --cpu               use the CPU renderer (tiny-skia) instead of the GPU
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
              --no-audio          do not mux the project's soundtrack
+  check    write out/check/storyboard.png and report.json (CPU, exits 1 on errors)
+             --out <dir>         output directory (default: out/check)
+             --frames            also write each storyboard frame at full size
+             --interval <s>      seconds between storyboard frames, plus every marker
+             --safe-inset <px>   safe area; 0 disables that warning
+             --min-contrast <n>  WCAG ratio for text (default 4.5)
+             --min-motion <s>    large moves shorter than this are too_fast
+             --max-still <s>     pause with nothing changing (needs no soundtrack)
+             --chars-per-second <n>
+             --min-chars <n>     too_fast ignores shorter text
+             --cell-width <px>   storyboard cell width (default 320)
+  inspect  print the scene tree at a time as JSON
+             --at <seconds>      required
+             --scene <name>      --at is measured from the start of this scene
   preview  run the preview server for the editor
              --port <n>          port on 127.0.0.1 (0 = pick a free one; printed on stdout)
   info     print the project timeline as JSON
@@ -42,6 +56,8 @@ pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
             Ok(a) => render(project, a),
             Err(e) => usage_error(&e),
         },
+        Some("check") => crate::feedback::command_check(project, args),
+        Some("inspect") => crate::feedback::command_inspect(project, args),
         Some("preview") => crate::preview::run(project, args.collect()),
         Some("info") => info(project),
         Some("-h" | "--help" | "help") | None => {

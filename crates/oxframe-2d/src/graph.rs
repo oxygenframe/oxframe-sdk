@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Point, Shape, Vec2};
@@ -172,6 +172,8 @@ impl NodeKind {
 pub struct NodeData {
     pub id: NodeId,
     pub name: Option<String>,
+    /// `file:line` of the `add` call that created the node, when known.
+    pub source: Option<String>,
     pub parent: Option<NodeId>,
     pub children: Vec<NodeId>,
     pub kind: NodeKind,
@@ -498,6 +500,7 @@ impl SceneGraph {
         nodes.push(NodeData {
             id,
             name: base.name,
+            source: current_add_at().map(|(file, line)| source_label(file, line)),
             parent,
             children: Vec::new(),
             x: Signal::new(base.x).with_name(sig("x")),
@@ -652,6 +655,173 @@ impl SceneGraph {
         }
         out
     }
+
+    /// One record per attached node, in tree order, with scene-space bounds.
+    ///
+    /// `order` is paint order (0 is the back). Nodes that are not drawn
+    /// (fully transparent) get `u32::MAX`.
+    pub fn inspect_nodes(&self) -> Vec<InspectNode> {
+        let list = self.draw_list();
+        let mut drawn: Vec<Option<(Affine, u32)>> = vec![None; self.len()];
+        let mut order = 0u32;
+        for item in &list {
+            let slot = &mut drawn[item.node.0 as usize];
+            if slot.is_none() {
+                *slot = Some((item.transform, order));
+                order += 1;
+            }
+        }
+        let nodes = self.nodes.borrow();
+        let mut out = Vec::new();
+        let mut stack = vec![Self::ROOT];
+        while let Some(id) = stack.pop() {
+            let n = &nodes[id.0 as usize];
+            stack.extend(n.children.iter().rev());
+            let (w, h) = measure(&nodes, id);
+            let (tf, order) = drawn[id.0 as usize]
+                .unwrap_or_else(|| (transform_without_layout(&nodes, id), u32::MAX));
+            let (text, text_overflow) = text_info(n);
+            out.push(InspectNode {
+                id: id.0,
+                parent: n.parent.map(|p| p.0),
+                kind: n.kind.name(),
+                name: n.name.clone().unwrap_or_else(|| {
+                    n.source
+                        .clone()
+                        .unwrap_or_else(|| format!("{}#{}", n.kind.name(), id.0))
+                }),
+                source: n.source.clone(),
+                bounds: aabb(tf, w, h),
+                opacity: n.opacity.get().clamp(0.0, 1.0),
+                order,
+                text,
+                fill: n.fill.get(),
+                text_overflow,
+                parent_kind: n.parent.map(|p| nodes[p.0 as usize].kind.name()),
+            });
+        }
+        out
+    }
+}
+
+/// A node as `oxframe inspect` and the visual linter see it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InspectNode {
+    /// Node index.
+    pub id: u32,
+    /// Parent index; `None` for the root.
+    pub parent: Option<u32>,
+    /// Node type, e.g. `"Rect"`.
+    pub kind: &'static str,
+    /// `.name(..)`, or the `add` call site, or `Kind#id`.
+    pub name: String,
+    /// `file:line` of the `add` call, when it was recorded.
+    pub source: Option<String>,
+    /// Axis-aligned bounds in scene coordinates: min x, min y, max x, max y.
+    /// The origin is the center of the frame, y points down.
+    pub bounds: [f64; 4],
+    /// 0 (invisible) to 1.
+    pub opacity: f64,
+    /// Paint order among drawn nodes; `u32::MAX` if the node is not drawn.
+    pub order: u32,
+    /// Text of a `Txt` or `Code` node.
+    pub text: Option<String>,
+    /// Fill color.
+    pub fill: Color,
+    /// How many pixels the text is wider than its `max_width` (0 if it fits
+    /// or `max_width` is unset).
+    pub text_overflow: f64,
+    /// Type of the parent, if any.
+    pub parent_kind: Option<&'static str>,
+}
+
+thread_local! {
+    static ADD_AT: Cell<Option<(&'static str, u32)>> = const { Cell::new(None) };
+}
+
+pub(crate) fn push_add_at(file: &'static str, line: u32) -> Option<(&'static str, u32)> {
+    ADD_AT.with(|c| c.replace(Some((file, line))))
+}
+
+pub(crate) fn pop_add_at(prev: Option<(&'static str, u32)>) {
+    ADD_AT.with(|c| c.set(prev));
+}
+
+fn current_add_at() -> Option<(&'static str, u32)> {
+    ADD_AT.with(|c| c.get())
+}
+
+/// `src/main.rs:42` rather than an absolute build path.
+fn source_label(file: &str, line: u32) -> String {
+    let file = file.replace('\\', "/");
+    let rel = file
+        .rfind("/src/")
+        .map_or(file.as_str(), |i| &file[i + 1..]);
+    format!("{rel}:{line}")
+}
+
+fn aabb(tf: Affine, w: f64, h: f64) -> [f64; 4] {
+    let pts = [
+        (-w / 2.0, -h / 2.0),
+        (w / 2.0, -h / 2.0),
+        (w / 2.0, h / 2.0),
+        (-w / 2.0, h / 2.0),
+    ];
+    let mut b = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    for (x, y) in pts {
+        let p = tf * Point::new(x, y);
+        b[0] = b[0].min(p.x);
+        b[1] = b[1].min(p.y);
+        b[2] = b[2].max(p.x);
+        b[3] = b[3].max(p.y);
+    }
+    b
+}
+
+fn transform_without_layout(nodes: &[NodeData], id: NodeId) -> Affine {
+    let mut chain = Vec::new();
+    let mut cur = Some(id);
+    while let Some(c) = cur {
+        chain.push(c);
+        cur = nodes.get(c.0 as usize).and_then(|n| n.parent);
+    }
+    let mut tf = Affine::IDENTITY;
+    for c in chain.into_iter().rev() {
+        let Some(n) = nodes.get(c.0 as usize) else {
+            break;
+        };
+        tf *= n.local_transform(Vec2::ZERO, measure(nodes, c));
+    }
+    tf
+}
+
+fn text_info(n: &NodeData) -> (Option<String>, f64) {
+    let (body, max_width) = match &n.kind {
+        NodeKind::Txt {
+            text, spans, style, ..
+        } => {
+            let spans = spans.get();
+            let body = if spans.is_empty() {
+                text.get()
+            } else {
+                spans.into_iter().map(|s| s.text).collect()
+            };
+            (body, style.max_width)
+        }
+        NodeKind::Code { code, style, .. } => (code.get(), style.max_width),
+        _ => return (None, 0.0),
+    };
+    let overflow = match (max_width, n.text_draw()) {
+        (Some(max), Some(TextDraw::Styled(s))) => (s.layout.width - max).max(0.0),
+        (Some(max), Some(TextDraw::Morph { size, .. })) => (size.0 - max).max(0.0),
+        _ => 0.0,
+    };
+    (Some(body), overflow)
 }
 
 fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {

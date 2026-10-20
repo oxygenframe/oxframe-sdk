@@ -108,7 +108,8 @@ pub trait NodeBuilder: Sized + 'static {
     #[doc(hidden)]
     fn build(self, graph: &SceneGraph, parent: NodeId) -> Self::Handle;
 
-    /// Name shown in the editor's node tree.
+    /// Name shown in the editor and in `oxframe check` / `oxframe inspect`.
+    /// Without it, the node is labeled by the `add` call site (`src/main.rs:42`).
     fn name(mut self, v: impl Into<String>) -> Self {
         self.base().name = Some(v.into());
         self

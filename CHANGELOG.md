@@ -6,6 +6,20 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.2 — 2026-10-20
+
+### Added
+
+- `check` and `inspect` subcommands on the project binary (what `oxframe check`
+  and `oxframe inspect` run). `check` samples the scene on the CPU, writes a
+  storyboard and a JSON report, and fails when a node stays outside the frame,
+  text overlaps or overflows, or text contrast is below WCAG 4.5:1. Text that
+  flashes too briefly and a long still with no soundtrack are reported too.
+- `.name("title")` on every node builder. `oxframe check` and `oxframe inspect`
+  use it; without a name the node is labeled by the `add` call site.
+
+The scene API and the editor protocol are unchanged.
+
 ## 0.2.1 — 2026-10-20
 
 ### Fixed

@@ -6,6 +6,29 @@ use std::time::{Duration, Instant};
 use oxframe::Engine;
 use oxframe::render::{CpuRenderer, Image};
 
+#[test]
+fn gallery_has_no_check_errors() {
+    use std::collections::BTreeMap;
+    let mut bad = Vec::new();
+    for (name, make) in oxframe_examples::all() {
+        let project = make()
+            .write_meta(false)
+            .inline_meta(BTreeMap::<String, oxframe::protocol::Meta>::new());
+        let report = oxframe::feedback::report(project, &oxframe::feedback::Options::default())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let errors: Vec<_> = report
+            .issues
+            .iter()
+            .filter(|i| i.severity == oxframe::lint::Severity::Error)
+            .map(|i| format!("{name} {} {:.2}..{:.2} {}: {}", i.rule, i.time[0], i.time[1], i.node, i.hint))
+            .collect();
+        if !errors.is_empty() {
+            bad.extend(errors);
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
 fn engine(project: oxframe::Project) -> Engine {
     Engine::new(project.write_meta(false)).expect("engine")
 }
