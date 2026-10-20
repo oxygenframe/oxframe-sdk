@@ -1,7 +1,7 @@
 //! Quicksort, step by step: the code with a moving focus, synced to bars that compare, swap and settle.
 //!
 //! A tour of most of oxframe in one scene: highlighted `Code` with focus,
-//! hundreds of coordinated tweens (`all`, `sequence`), seeded random data,
+//! hundreds of coordinated tweens (`all`, `stagger`), seeded random data,
 //! `tune!` values you can drag in the inspector (bar count, speed), named
 //! eases, markers, glow, gradients and text morphing.
 //!

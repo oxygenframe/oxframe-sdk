@@ -1,7 +1,7 @@
 //! Lesson 2 — One after another, or all at once.
 //!
 //! Each `.await` waits, so animations written one after another play in
-//! order. `all((..))` plays several at the same time; `sequence` starts them
+//! order. `all((..))` plays several at the same time; `stagger` starts them
 //! with a small delay between each.
 
 use oxframe::prelude::*;
