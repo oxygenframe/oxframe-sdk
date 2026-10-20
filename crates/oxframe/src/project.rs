@@ -135,6 +135,8 @@ impl Project {
         self
     }
 
+    // `oxframe.toml` [theme] overrides, applied by the native CLI only.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn apply_preset(&mut self, name: &str) -> Result<(), String> {
         let theme = Theme::preset(name).ok_or_else(|| {
             format!("unknown theme `{name}` (dark, light, midnight, paper, vivid)")
@@ -144,6 +146,8 @@ impl Project {
         Ok(())
     }
 
+    // `oxframe.toml` [theme] overrides, applied by the native CLI only.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn apply_accent(&mut self, hex: &str) -> Result<(), String> {
         let color = Color::from_hex(hex).ok_or_else(|| format!("bad accent color `{hex}`"))?;
         self.theme = self.theme.clone().accent(color);
