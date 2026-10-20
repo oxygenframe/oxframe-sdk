@@ -54,12 +54,14 @@ pub use oxframe_2d::{
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
 };
+#[allow(deprecated)]
+pub use oxframe_core::all_vec;
 pub use oxframe_core::{
     Affine, BezPath, BlendMode, BoxFuture, Color, CubicBezier, Ease, Executor, Gradient,
-    JoinHandle, Lerp, Point, Signal, Transform, Tween, Vec2, all, all_vec, bounce_in,
-    bounce_in_out, bounce_out, dt, ease_named, elastic_in, elastic_in_out, elastic_out, fps, frame,
-    next_frame, now, presets, random, random_range, sequence, spawn, time, tunable, wait_for,
-    wait_until, with_rng,
+    JoinHandle, Lerp, Point, Signal, Transform, Tween, Vec2, all, any, bounce_in, bounce_in_out,
+    bounce_out, dt, ease_named, elastic_in, elastic_in_out, elastic_out, fps, frame, loop_while,
+    next_frame, now, presets, random, random_range, repeat, sequence, spawn, stagger, time,
+    tunable, wait_for, wait_until, with_rng,
 };
 pub use oxframe_macros::{color, ease, scene, tune};
 
@@ -79,7 +81,7 @@ pub mod prelude {
         LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
         OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
         Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, TitleCard, Txt, Vec2,
-        View, Warning, Xl, Xs, all, all_vec, color, ease, next_frame, pct, presets, random,
-        random_range, sequence, span, spawn, tune, wait_for, wait_until,
+        View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
+        random_range, repeat, sequence, span, spawn, stagger, tune, wait_for, wait_until,
     };
 }

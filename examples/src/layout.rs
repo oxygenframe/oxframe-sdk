@@ -39,14 +39,7 @@ pub async fn layout(view: View) {
         cards.push(card);
     }
     // Staggered fade-in.
-    sequence(
-        0.15,
-        cards
-            .iter()
-            .map(|c| -> oxframe::BoxFuture { Box::pin(c.opacity().to(1.0, 0.5)) })
-            .collect(),
-    )
-    .await;
+    stagger(0.15, &cards, |c| c.opacity().to(1.0, 0.5)).await;
 
     // Growing the gap and one card's padding pushes the others aside.
     all((row.gap().to(60.0, 0.8), cards[1].padding().to(60.0, 0.8))).await;

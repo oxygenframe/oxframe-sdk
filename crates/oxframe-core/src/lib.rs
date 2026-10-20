@@ -28,8 +28,11 @@ pub use color::Color;
 pub use ease::{CubicBezier, Ease, presets};
 pub use ease::{bounce_in, bounce_in_out, bounce_out, elastic_in, elastic_in_out, elastic_out};
 pub use executor::Executor;
+#[allow(deprecated)]
+pub use flow::all_vec;
 pub use flow::{
-    All, BoxFuture, JoinHandle, all, all_vec, next_frame, sequence, spawn, wait_for, wait_until,
+    All, Animation, Any, BoxFuture, Branches, Delayed, IntoAll, JoinHandle, VecBranches, all, any,
+    loop_while, next_frame, repeat, sequence, spawn, stagger, wait_for, wait_until,
 };
 pub use frame::{FrameSource, Image};
 pub use lerp::{Lerp, Transform};

@@ -50,26 +50,16 @@ pub async fn benchmark(view: View) {
     let _ = caption;
     for round in 0..15 {
         let dir = if round % 2 == 0 { 1.0 } else { -1.0 };
-        let tweens = shapes
-            .iter()
-            .enumerate()
-            .map(|(i, s)| -> oxframe::BoxFuture {
-                let s = *s;
-                let phase = i as f64 * 0.01;
-                Box::pin(async move {
-                    wait_for(phase).await;
-                    all((
-                        s.rotation()
-                            .to(dir * 90.0 * f64::from(round + 1), 2.0 / speed),
-                        s.radius()
-                            .to(if round % 2 == 0 { 20.0 } else { 0.0 }, 2.0 / speed),
-                        s.y().to(s.y().get() + dir * 20.0, 2.0 / speed),
-                    ))
-                    .await;
-                })
-            })
-            .collect();
-        sequence(0.0, tweens).await;
+        stagger(0.01, &shapes, |s| {
+            all((
+                s.rotation()
+                    .to(dir * 90.0 * f64::from(round + 1), 2.0 / speed),
+                s.radius()
+                    .to(if round % 2 == 0 { 20.0 } else { 0.0 }, 2.0 / speed),
+                s.y().to(s.y().get() + dir * 20.0, 2.0 / speed),
+            ))
+        })
+        .await;
         wait_for(4.0 - 2.0 - (NODES - 1) as f64 * 0.01).await;
     }
 }

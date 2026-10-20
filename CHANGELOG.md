@@ -6,6 +6,50 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.3.0 — 2026-10-20
+
+Scene code without Rust plumbing (ROADMAP task 4): no `Box::pin`, no
+`BoxFuture` in a typical scene.
+
+### Added
+
+- `stagger(delay, items, |x| animation)`: the same animation on many items,
+  each starting `delay` seconds after the previous one.
+- `all(..)` takes a `Vec`, an array or an iterator of animations of one kind
+  as well as a tuple: `all(cards.iter().map(|c| c.fade_in()))`.
+- `any(..)`: completes when the first animation does (returns its index);
+  the others stop where they are.
+- `repeat(n, || animation)` and `loop_while(|| condition, || animation)`.
+- Node helpers, timed by the theme's motion tokens: `pop_in()` (scale from
+  zero with overshoot), `slide_in(Side::Left)` (slides in and fades in),
+  `draw_on()` (outline drawn from start to end), next to the existing
+  `fade_in()` / `fade_out()`.
+- `Tween::duration(s)` changes a helper's length: `title.fade_in().duration(0.3)`.
+- Clearer compile errors: `all(5)`, `all(a, b)` and a `stagger` closure that
+  ends in `;` explain how to fix them.
+
+### Breaking
+
+- `sequence(delay, futures)` takes any `Vec`, array or iterator of
+  animations instead of `Vec<BoxFuture>`. Code that built the list with
+  `.collect()` no longer infers its type; use `stagger` instead:
+
+  ```rust
+  // before
+  sequence(0.15, cards.iter()
+      .map(|c| -> oxframe::BoxFuture { Box::pin(c.opacity().to(1.0, 0.5)) })
+      .collect()).await;
+  // after
+  stagger(0.15, &cards, |c| c.opacity().to(1.0, 0.5)).await;
+  ```
+
+  Several steps per item: return an `async move { … }` block from the
+  closure, no boxing.
+
+- `all_vec(v)` is deprecated: `all(v)` takes the `Vec` directly.
+- `CodeExplainer::next()` returns `impl Future` instead of `BoxFuture`
+  (awaiting it is unchanged).
+
 ## 0.2.6 — 2026-10-20
 
 The first published release after 0.2.1: it also contains everything listed

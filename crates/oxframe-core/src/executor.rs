@@ -109,7 +109,10 @@ mod tests {
     use std::cell::RefCell;
 
     use super::*;
-    use crate::{Signal, all, next_frame, presets, sequence, spawn, wait_for, wait_until};
+    use crate::{
+        Signal, all, any, loop_while, next_frame, presets, repeat, sequence, spawn, stagger,
+        wait_for, wait_until,
+    };
 
     /// Runs to completion, sampling `f` after each frame.
     fn run<T>(fps: f64, fut: impl Future<Output = ()> + 'static, f: impl Fn() -> T) -> Vec<T> {
@@ -181,9 +184,9 @@ mod tests {
             async move {
                 sequence(
                     0.5,
-                    vec![
-                        Box::pin(a2.to(1.0, 1.0).ease(presets::LINEAR)),
-                        Box::pin(b2.to(1.0, 1.0).ease(presets::LINEAR)),
+                    [
+                        a2.to(1.0, 1.0).ease(presets::LINEAR),
+                        b2.to(1.0, 1.0).ease(presets::LINEAR),
                     ],
                 )
                 .await;
@@ -250,5 +253,120 @@ mod tests {
         assert_eq!(draw(1), draw(1));
         assert_ne!(draw(1), draw(2));
         assert!(draw(3).iter().all(|v| (0.0..1.0).contains(v)));
+    }
+
+    /// `(frame, time)` when the scene reaches the logging point.
+    fn end_of(fps: f64, fut: impl Future<Output = ()> + 'static) -> (u32, f64) {
+        let log = Rc::new(RefCell::new(None));
+        let l = log.clone();
+        run(
+            fps,
+            async move {
+                fut.await;
+                *l.borrow_mut() = Some((crate::frame(), crate::time()));
+            },
+            || (),
+        );
+        log.borrow().expect("logged")
+    }
+
+    #[test]
+    fn all_takes_vecs_arrays_and_iterators() {
+        let durations = [0.5, 1.0, 0.2];
+        assert_eq!(
+            end_of(10.0, async move {
+                all(durations.map(wait_for)).await;
+            })
+            .1,
+            1.0
+        );
+        assert_eq!(
+            end_of(10.0, async move {
+                all(durations.iter().map(|&d| wait_for(d))).await;
+            })
+            .1,
+            1.0
+        );
+        assert_eq!(
+            end_of(10.0, async move {
+                all(vec![wait_for(0.3), wait_for(0.7)]).await;
+            })
+            .1,
+            0.7
+        );
+        // Outputs come back in order.
+        let out = Rc::new(RefCell::new(Vec::new()));
+        let o = out.clone();
+        end_of(10.0, async move {
+            *o.borrow_mut() = all((1..=3).map(|i| async move { i * 10 })).await;
+        });
+        assert_eq!(*out.borrow(), vec![10, 20, 30]);
+        // Nothing to wait for completes at once.
+        assert_eq!(
+            end_of(10.0, async {
+                all(Vec::<crate::flow::WaitFor>::new()).await;
+            })
+            .1,
+            0.0
+        );
+    }
+
+    #[test]
+    fn any_completes_with_the_first_and_continues_from_its_end() {
+        let s = Signal::new(0.0f64);
+        let s2 = s.clone();
+        let first = Rc::new(RefCell::new(None));
+        let f = first.clone();
+        let (frame, time) = end_of(10.0, async move {
+            let i = any((
+                wait_for(2.0),
+                s2.to(1.0, 2.0).ease(presets::LINEAR),
+                wait_for(0.5),
+            ))
+            .await;
+            *f.borrow_mut() = Some(i);
+        });
+        assert_eq!(*first.borrow(), Some(2));
+        assert_eq!((frame, time), (5, 0.5));
+        // The slower tween stopped where it was.
+        assert!((s.get() - 0.25).abs() < 1e-12, "{}", s.get());
+    }
+
+    #[test]
+    fn stagger_starts_each_item_later() {
+        let signals: Vec<Signal<f64>> = (0..3).map(|_| Signal::new(0.0)).collect();
+        let watch = signals.clone();
+        let values = run(
+            10.0,
+            async move {
+                stagger(0.2, &signals, |s| s.to(1.0, 1.0).ease(presets::LINEAR)).await;
+            },
+            move || watch.iter().map(Signal::get).collect::<Vec<_>>(),
+        );
+        // Last item starts at 0.4 s and ends at 1.4 s.
+        assert_eq!(values.len(), 15);
+        let at_half = &values[5];
+        assert!((at_half[0] - 0.5).abs() < 1e-12);
+        assert!((at_half[1] - 0.3).abs() < 1e-12);
+        assert!((at_half[2] - 0.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn repeat_and_loop_while() {
+        assert_eq!(end_of(10.0, repeat(3, || wait_for(0.5))).1, 1.5);
+        let left = Rc::new(std::cell::Cell::new(4));
+        let l = left.clone();
+        let end = end_of(
+            10.0,
+            loop_while(
+                move || {
+                    l.set(l.get() - 1);
+                    l.get() >= 0
+                },
+                || wait_for(0.25),
+            ),
+        );
+        assert_eq!(end.1, 1.0);
+        assert_eq!(left.get(), -1);
     }
 }

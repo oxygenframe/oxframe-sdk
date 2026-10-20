@@ -33,13 +33,7 @@ pub async fn together(view: View) {
             )
         })
         .collect();
-    sequence(
-        0.1,
-        wave.iter()
-            .map(|c| -> oxframe::BoxFuture { Box::pin(c.y().to(200.0, 0.4)) })
-            .collect(),
-    )
-    .await;
+    stagger(0.1, &wave, |c| c.y().to(200.0, 0.4)).await;
 }
 
 // Try: swap the two lines in step 1 into an `all((..))` and watch them move together.

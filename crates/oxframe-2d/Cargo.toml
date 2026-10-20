@@ -21,3 +21,6 @@ taffy.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+oxframe-protocol.workspace = true

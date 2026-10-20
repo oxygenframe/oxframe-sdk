@@ -51,29 +51,14 @@ pub async fn shapes(view: View) {
         })
         .collect();
     let pop = ease!("pop", presets::OUT_BACK);
-    sequence(
-        0.08,
-        items
-            .iter()
-            .map(|r| -> oxframe::BoxFuture {
-                Box::pin(r.scale().to(Vec2::new(1.0, 1.0), 0.5).ease(pop))
-            })
-            .collect(),
-    )
+    stagger(0.08, &items, |r| {
+        r.scale().to(Vec2::new(1.0, 1.0), 0.5).ease(pop)
+    })
     .await;
     wait_until("spin").await;
-    sequence(
-        0.05,
-        items
-            .iter()
-            .map(|r| -> oxframe::BoxFuture {
-                let r = *r;
-                Box::pin(async move {
-                    all((r.rotation().to(180.0, 0.8), r.radius().to(60.0, 0.8))).await;
-                })
-            })
-            .collect(),
-    )
+    stagger(0.05, &items, |r| {
+        all((r.rotation().to(180.0, 0.8), r.radius().to(60.0, 0.8)))
+    })
     .await;
     wait_for(0.5).await;
 }

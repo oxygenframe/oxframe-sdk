@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use oxframe_2d::{BaseProps, Code, Muted, Node, NodeBuilder, NodeId, Normal, Txt};
-use oxframe_core::{BoxFuture, Seconds, Tween, all};
+use oxframe_core::{Seconds, Tween, all};
 
 use crate::host;
 
@@ -35,7 +35,7 @@ impl CodeExplainer {
     }
 
     /// Focuses the next step and shows its caption.
-    pub fn next(&self) -> BoxFuture {
+    pub fn next(&self) -> impl std::future::Future<Output = ()> + 'static {
         let n = self.steps.len();
         let i = self.cursor.get();
         let (first, last, text) = if n == 0 {
@@ -54,9 +54,9 @@ impl CodeExplainer {
         } else {
             self.caption.opacity().to(1.0, Normal)
         };
-        Box::pin(async move {
+        async move {
             all((focus, fade)).await;
-        })
+        }
     }
 
     /// Fades the block out.

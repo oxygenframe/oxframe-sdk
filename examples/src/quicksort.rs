@@ -200,15 +200,12 @@ pub async fn quicksort(view: View) {
         bars.push((Bar { group, rect }, *v));
     }
     // Bars grow in, left to right.
-    sequence(
-        0.04,
-        bars.iter()
-            .map(|(b, v)| -> oxframe::BoxFuture {
-                let (r, h) = (b.rect, f64::from(*v) * 5.0);
-                Box::pin(async move { r.height().to(h, 0.6).ease(presets::OUT_BACK).await })
-            })
-            .collect(),
-    )
+    stagger(0.04, &bars, |(b, v)| {
+        b.rect
+            .height()
+            .to(f64::from(*v) * 5.0, 0.6)
+            .ease(presets::OUT_BACK)
+    })
     .await;
 
     // Pointers `i` and `j` under the bars.
@@ -356,26 +353,21 @@ pub async fn quicksort(view: View) {
         code.focus_lines(0, 0, 0.5),
     ))
     .await;
-    sequence(
-        0.05,
-        bars.iter()
-            .map(|(b, _)| -> oxframe::BoxFuture {
-                let r = b.rect;
-                Box::pin(async move {
-                    all((
-                        r.shadow_color().to(DONE.with_alpha(0.9), 0.3),
-                        r.shadow_blur().to(18.0, 0.3),
-                    ))
-                    .await;
-                    all((
-                        r.shadow_color().to(Color::TRANSPARENT, 0.5),
-                        r.shadow_blur().to(0.0, 0.5),
-                    ))
-                    .await;
-                })
-            })
-            .collect(),
-    )
+    stagger(0.05, &bars, |(b, _)| {
+        let r = b.rect;
+        async move {
+            all((
+                r.shadow_color().to(DONE.with_alpha(0.9), 0.3),
+                r.shadow_blur().to(18.0, 0.3),
+            ))
+            .await;
+            all((
+                r.shadow_color().to(Color::TRANSPARENT, 0.5),
+                r.shadow_blur().to(0.0, 0.5),
+            ))
+            .await;
+        }
+    })
     .await;
     title.morph_to("sorted", 0.8).await;
     wait_for(1.2).await;

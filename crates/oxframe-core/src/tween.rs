@@ -53,6 +53,13 @@ impl<T: Lerp + Clone + 'static> Tween<T> {
         self
     }
 
+    /// Changes the length, e.g. of a helper like `fade_in()` that defaults to
+    /// the theme's pace: `title.fade_in().duration(0.3)`.
+    pub fn duration(mut self, duration: impl Seconds) -> Self {
+        self.duration = duration.seconds().max(0.0);
+        self
+    }
+
     /// Starts from `value` instead of the signal's value at the first poll.
     pub fn from(mut self, value: T) -> Self {
         self.from = Some(value);

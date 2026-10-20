@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use kurbo::{BezPath, Point};
-use oxframe_core::{BlendMode, Color, Gradient, Signal, Tween, Vec2};
+use oxframe_core::{BlendMode, Color, Gradient, Signal, Tween, Vec2, all};
 
 use crate::builder::{
     self, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder, LayoutBuilder,
@@ -11,6 +11,9 @@ use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
 use crate::place::{Edge, Place, SafeArea, Side};
 use crate::text::RichSpan;
+
+/// How far [`Node::slide_in`] starts from the node's place, in pixels.
+pub const SLIDE_DISTANCE: f64 = 160.0;
 
 /// Untyped node handle with the properties every node has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -103,6 +106,45 @@ impl Node {
         let motion = crate::theme::current().motion;
         self.opacity().set(0.0);
         self.opacity().to(1.0, motion.normal).ease(motion.enter)
+    }
+
+    /// Grows the node from nothing to its current scale with a small
+    /// overshoot (the theme's emphasis easing, `OUT_BACK` by default).
+    pub fn pop_in(self) -> Tween<Vec2> {
+        let motion = crate::theme::current().motion;
+        let full = self.scale().peek();
+        self.scale().set(Vec2::ZERO);
+        self.scale().to(full, motion.normal).ease(motion.emphasis)
+    }
+
+    /// Draws the outline from start to end (`end` from 0 to 1), as if with a
+    /// pen. Works on every shape with an outline: paths, lines, rectangles,
+    /// circles, polygons.
+    pub fn draw_on(self) -> Tween<f64> {
+        let motion = crate::theme::current().motion;
+        self.end().set(0.0);
+        self.end().to(1.0, motion.slow).ease(motion.enter)
+    }
+
+    /// Slides the node into its place from `SLIDE_DISTANCE` pixels towards
+    /// `from`, fading in on the way.
+    pub fn slide_in(self, from: Side) -> impl std::future::Future<Output = ()> + 'static {
+        let motion = crate::theme::current().motion;
+        let (axis, offset) = match from {
+            Side::Left => (self.x(), -SLIDE_DISTANCE),
+            Side::Right => (self.x(), SLIDE_DISTANCE),
+            Side::Top => (self.y(), -SLIDE_DISTANCE),
+            Side::Bottom => (self.y(), SLIDE_DISTANCE),
+        };
+        let home = axis.peek();
+        axis.set(home + offset);
+        let moves = all((
+            axis.to(home, motion.normal).ease(motion.enter),
+            self.fade_in(),
+        ));
+        async move {
+            moves.await;
+        }
     }
 
     /// Sits just outside `other`. The gap is the theme's `Md` step, and the
@@ -370,6 +412,53 @@ mod tests {
         let graph = SceneGraph::new(400, 400);
         graph.enter(|| f(View::current()));
         graph
+    }
+
+    /// Runs `scene` to the end inside a graph; returns the frames it took.
+    fn play(
+        scene_fn: impl FnOnce(View) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>,
+    ) -> u32 {
+        let graph = SceneGraph::new(400, 400);
+        graph.enter(|| {
+            let fut = scene_fn(View::current());
+            let mut ex =
+                oxframe_core::Executor::new(60.0, oxframe_protocol::Meta::default(), 0, fut);
+            let mut frames = 0;
+            while !ex.step() {
+                frames += 1;
+                assert!(frames < 10_000, "scene did not finish");
+            }
+            frames
+        })
+    }
+
+    #[test]
+    fn entrance_helpers_start_at_once_and_end_in_place() {
+        let normal = crate::theme::current().motion.normal;
+        let expected = (normal * 60.0).round() as u32;
+        let frames = play(|view| {
+            let r = view.add(Rect::new().size(100.0).x(50.0));
+            let pop = r.pop_in();
+            // The start value is set when the helper is called, not awaited:
+            // nothing flashes in its final state for a frame.
+            assert_eq!(r.scale().get(), Vec2::ZERO);
+            let slide = r.slide_in(Side::Left);
+            assert_eq!(r.x().get(), 50.0 - SLIDE_DISTANCE);
+            assert_eq!(r.opacity().get(), 0.0);
+            let draw = r.draw_on();
+            assert_eq!(r.end().get(), 0.0);
+            Box::pin(async move {
+                all((pop, slide)).await;
+                assert_eq!(r.scale().get(), Vec2::new(1.0, 1.0));
+                assert_eq!((r.x().get(), r.opacity().get()), (50.0, 1.0));
+                draw.await;
+                assert_eq!(r.end().get(), 1.0);
+                r.fade_out().duration(0.5).await;
+                assert_eq!(r.opacity().get(), 0.0);
+            })
+        });
+        let slow = crate::theme::current().motion.slow;
+        assert_eq!(frames, expected + (slow * 60.0).round() as u32 + 30);
     }
 
     #[test]
