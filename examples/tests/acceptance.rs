@@ -20,7 +20,12 @@ fn gallery_has_no_check_errors() {
             .issues
             .iter()
             .filter(|i| i.severity == oxframe::lint::Severity::Error)
-            .map(|i| format!("{name} {} {:.2}..{:.2} {}: {}", i.rule, i.time[0], i.time[1], i.node, i.hint))
+            .map(|i| {
+                format!(
+                    "{name} {} {:.2}..{:.2} {}: {}",
+                    i.rule, i.time[0], i.time[1], i.node, i.hint
+                )
+            })
             .collect();
         if !errors.is_empty() {
             bad.extend(errors);
