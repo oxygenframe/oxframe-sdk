@@ -14,6 +14,7 @@ use rand_chacha::ChaCha8Rng;
 use crate::CubicBezier;
 use crate::ease::presets;
 use crate::flow::Task;
+use crate::transition::Recorded;
 
 pub(crate) struct Runtime {
     pub fps: f64,
@@ -26,6 +27,10 @@ pub(crate) struct Runtime {
     pub meta: RefCell<Meta>,
     pub meta_changed: Cell<bool>,
     pub rng: RefCell<ChaCha8Rng>,
+    /// Set by the engine: this scene has one before it, so a transition blends.
+    pub has_previous: Cell<bool>,
+    /// The transition declared by the scene, if it starts one.
+    pub transition: RefCell<Option<Recorded>>,
 }
 
 impl Runtime {
@@ -39,6 +44,8 @@ impl Runtime {
             meta: RefCell::new(meta),
             meta_changed: Cell::new(false),
             rng: RefCell::new(ChaCha8Rng::seed_from_u64(seed)),
+            has_previous: Cell::new(false),
+            transition: RefCell::new(None),
         })
     }
 
@@ -93,6 +100,40 @@ pub fn dt() -> f64 {
 /// Time of the current frame, `frame / fps` seconds.
 pub fn now() -> f64 {
     with(|rt| rt.now())
+}
+
+/// Whether the running scene has a scene before it.
+pub fn has_previous() -> bool {
+    with(|rt| rt.has_previous.get())
+}
+
+/// Records `spec`, letting `meta.json` override its duration the way markers
+/// do. Returns the duration to wait. Panics if the scene already started one.
+pub fn begin_transition(mut spec: Recorded) -> f64 {
+    with(|rt| {
+        if rt.transition.borrow().is_some() {
+            panic!("oxframe: a scene can declare only one transition; call it once, at the start");
+        }
+        let stored = rt.meta.borrow().transition.as_ref().map(|t| t.seconds);
+        if let Some(seconds) = stored {
+            spec.seconds = if seconds.is_finite() {
+                seconds.max(0.0)
+            } else {
+                0.0
+            };
+        } else if spec.seconds.is_finite() && spec.seconds > 0.0 {
+            let seconds = spec.seconds;
+            rt.meta.borrow_mut().transition = Some(oxframe_protocol::TransitionMeta { seconds });
+            rt.meta_changed.set(true);
+        } else {
+            spec.seconds = 0.0;
+        }
+        let seconds = spec.seconds;
+        if seconds > 0.0 {
+            *rt.transition.borrow_mut() = Some(spec);
+        }
+        seconds
+    })
 }
 
 /// Virtual time of the current task — where the next animation starts.

@@ -6,6 +6,20 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.6.0 — 2026-10-21
+
+Scenes can blend into each other (ROADMAP task 5).
+
+### Added
+
+- `transition(Transition::slide(Dir::Left)).await` at the start of a scene.
+  Also `fade`, `wipe`, `zoom_in`, `zoom_out`, `.duration`, `.ease`, `.overlap`,
+  and `Transition::custom`. The length is stored in `meta.json` and can be
+  dragged on the timeline. `render --scene` leaves the incoming blend out.
+  `check` samples it and `inspect` reports kind and progress.
+- Example `transitions`: a title card slides into an end card.
+- The browser presents a transition as one canvas frame. Both layers are drawn first, then blended.
+
 ## 0.5.0 — 2026-10-20
 
 Code edits itself (ROADMAP task 2). `Txt` still types its text out.

@@ -29,6 +29,7 @@ pub mod showcase;
 pub mod svg;
 pub mod text;
 pub mod theme;
+pub mod transitions;
 pub mod typography;
 
 /// Builds an example project.
@@ -53,6 +54,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("svg", svg::project),
         ("typography", typography::project),
         ("theme", theme::project),
+        ("transitions", transitions::project),
         ("relative", relative::project),
         ("learn_01_hello", learn_01_hello::project),
         ("learn_02_together", learn_02_together::project),

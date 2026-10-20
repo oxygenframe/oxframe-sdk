@@ -52,6 +52,13 @@ pub enum MetaEdit {
         /// New value.
         value: f64,
     },
+    /// Change how long a scene's incoming transition lasts.
+    Transition {
+        /// Scene the transition belongs to.
+        scene: String,
+        /// Blend length in seconds. Zero removes it.
+        seconds: f64,
+    },
 }
 
 /// What the preview needs from an engine, on top of drawing frames
@@ -354,6 +361,9 @@ impl<E: PreviewEngine> Session<E> {
             }
             Command::SetEase { name, value } => self.edit(MetaEdit::Ease { name, value }),
             Command::SetTunable { name, value } => self.edit(MetaEdit::Tunable { name, value }),
+            Command::SetTransition { scene, seconds } => {
+                self.edit(MetaEdit::Transition { scene, seconds })
+            }
             Command::Pick { x, y } => {
                 self.selected = self.engine.pick(self.frame, x, y);
                 let mut out = vec![Output::Event(Event::Selected {
@@ -479,6 +489,8 @@ mod tests {
                 name: "a".into(),
                 start: 0,
                 frames: 20,
+                transition: 0,
+                transition_at: 0,
             }]
         }
         fn markers(&self) -> Vec<MarkerInfo> {

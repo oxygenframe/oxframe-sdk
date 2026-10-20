@@ -36,6 +36,7 @@ pub mod lint;
 mod preview;
 mod project;
 mod scene;
+mod transition;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
@@ -43,6 +44,7 @@ pub use adapter::PreviewAdapter;
 pub use engine::{Engine, EngineError, MetaSection};
 pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
+pub use transition::{Transition, transition};
 
 pub use oxframe_2d::{
     Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Danger, Direction,
@@ -63,6 +65,7 @@ pub use oxframe_core::{
     next_frame, now, presets, random, random_range, repeat, sequence, spawn, stagger, time,
     tunable, wait_for, wait_until, with_rng,
 };
+pub use oxframe_core::{Blend, Dir, LayerPose};
 pub use oxframe_macros::{color, ease, scene, tune};
 
 pub use oxframe_2d as nodes;
@@ -75,13 +78,14 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        Accent, Aspect, Background, BezPath, BlendMode, BulletList, Callout, Camera, ChapterMarker,
-        Circle, Code, CodeExplainer, CodeTheme, Color, Danger, Direction, Ease, Edge, EndCard,
-        Fast, FlowDiagram, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg,
-        Line, LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
-        OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
-        Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Txt,
-        Vec2, View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets,
-        random, random_range, repeat, sequence, span, spawn, stagger, tune, wait_for, wait_until,
+        Accent, Aspect, Background, BezPath, Blend, BlendMode, BulletList, Callout, Camera,
+        ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Danger, Dir, Direction, Ease,
+        Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img, Justify, LayerPose, Layout,
+        LayoutAlign, Lerp, Lg, Line, LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node,
+        NodeBuilder, Normal, OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS,
+        SafeArea, Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign,
+        Theme, TitleCard, Transition, Txt, Vec2, View, Warning, Xl, Xs, all, any, color, ease,
+        loop_while, next_frame, pct, presets, random, random_range, repeat, sequence, span, spawn,
+        stagger, transition, tune, wait_for, wait_until,
     };
 }

@@ -196,6 +196,7 @@ impl GpuRenderer {
                 // TEXTURE_BINDING: the browser path samples it when copying to the canvas.
                 usage: wgpu::TextureUsages::STORAGE_BINDING
                     | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::COPY_DST
                     | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             });
@@ -436,11 +437,69 @@ impl GpuRenderer {
         (w, h)
     }
 
+    /// Browser: rasterizes with the CPU renderer. A transition needs two
+    /// pictures, and the canvas can be acquired only once per frame.
+    #[cfg(target_arch = "wasm32")]
+    pub fn render_cpu(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image {
+        self.cpu.render(graph, options)
+    }
+
+    /// Browser: uploads a straight-alpha image and presents it once.
+    #[cfg(target_arch = "wasm32")]
+    pub fn present_image(&mut self, image: &Image) {
+        let (w, h) = (image.width, image.height);
+        if w == 0 || h == 0 || image.data.len() < (w as usize) * (h as usize) * 4 {
+            return;
+        }
+        self.target(w, h);
+        let padded = (w * 4).div_ceil(256) * 256;
+        let mut bytes = vec![0u8; padded as usize * h as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let i = ((y * w + x) * 4) as usize;
+                let a = u16::from(image.data[i + 3]);
+                let premul = |c: u8| -> u8 { ((u16::from(c) * a + 127) / 255) as u8 };
+                let o = (y * padded + x * 4) as usize;
+                bytes[o] = premul(image.data[i]);
+                bytes[o + 1] = premul(image.data[i + 1]);
+                bytes[o + 2] = premul(image.data[i + 2]);
+                bytes[o + 3] = image.data[i + 3];
+            }
+        }
+        let texture = self.target.as_ref().expect("target exists").texture.clone();
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded),
+                rows_per_image: Some(h),
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.present_target(w, h);
+    }
+
     /// Browser: draws the frame into the canvas passed to
     /// [`new_for_canvas`](Self::new_for_canvas) and presents it.
     #[cfg(target_arch = "wasm32")]
     pub fn render_to_canvas(&mut self, graph: &SceneGraph, options: &RenderOptions) {
         let (w, h) = self.draw_to_target(graph, options);
+        self.present_target(w, h);
+    }
+
+    /// Copies the offscreen target onto the canvas. One acquire per call.
+    #[cfg(target_arch = "wasm32")]
+    fn present_target(&mut self, w: u32, h: u32) {
         let Self {
             device,
             queue,

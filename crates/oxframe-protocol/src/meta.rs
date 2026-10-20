@@ -28,10 +28,24 @@ pub struct Meta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Soundtrack placement.
     pub audio: Option<AudioMeta>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Incoming transition length, edited on the timeline.
+    pub transition: Option<TransitionMeta>,
     #[serde(flatten)]
     #[cfg_attr(feature = "ts", ts(skip))]
     /// Keys this version does not know, kept as they are.
     pub extra: BTreeMap<String, Value>,
+}
+
+/// Length of the transition into this scene, edited on the timeline.
+///
+/// Absent on scenes that do not start with one. An older `meta.json` has
+/// no such key and still loads.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct TransitionMeta {
+    /// Blend length in seconds.
+    pub seconds: f64,
 }
 
 /// Where the soundtrack plays.
@@ -57,6 +71,7 @@ impl Default for Meta {
             eases: BTreeMap::new(),
             tunables: BTreeMap::new(),
             audio: None,
+            transition: None,
             extra: BTreeMap::new(),
         }
     }
@@ -180,6 +195,7 @@ mod tests {
         assert_eq!(meta.eases["slide"], [0.65, 0.0, 0.35, 1.0]);
         assert_eq!(meta.tunables["speed"], 1.4);
         assert_eq!(meta.audio.unwrap().file, "assets/voice.mp3");
+        assert!(meta.transition.is_none());
     }
 
     #[test]

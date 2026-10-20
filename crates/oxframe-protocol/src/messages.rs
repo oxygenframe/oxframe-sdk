@@ -63,6 +63,13 @@ pub enum Command {
         /// New value.
         value: f64,
     },
+    /// Sets how long the transition into `scene` lasts, in seconds.
+    SetTransition {
+        /// Scene the transition belongs to.
+        scene: String,
+        /// Blend length. Zero removes it.
+        seconds: f64,
+    },
     /// Hit-test at a point in frame pixels of the project size (origin
     /// top-left). Answered with `Selected`.
     Pick {
@@ -206,6 +213,12 @@ pub struct SceneInfo {
     pub start: u32,
     /// Length in frames.
     pub frames: u32,
+    #[serde(default)]
+    /// Incoming blend length in frames. 0 if this scene has no transition.
+    pub transition: u32,
+    #[serde(default)]
+    /// Frame inside the scene where that blend starts.
+    pub transition_at: u32,
 }
 
 /// A marker on the timeline.

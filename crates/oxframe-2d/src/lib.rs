@@ -52,6 +52,8 @@ pub use trim::trim;
 pub use oxframe_core::{BlendMode, Color, Gradient, GradientKind, Signal};
 pub use oxframe_text::{Align as TextAlign, Lang, MONO, SANS};
 pub use text::{CodeTheme, RichSpan, span};
+/// Theme of the scene that is running, or the dark theme outside one.
+pub use theme::current as current_theme;
 pub use theme::enter as enter_theme;
 pub use theme::{
     Corner, Ink,

@@ -93,6 +93,17 @@ impl Renderer for CanvasRenderer {
             data: Vec::new(),
         }
     }
+
+    fn render_pixels(&mut self, graph: &oxframe_2d::SceneGraph, options: &RenderOptions) -> Image {
+        // The canvas surface can be acquired once per frame. A transition
+        // draws both layers here (CPU, so the pixels are real) and presents
+        // the blend with `present_image`.
+        self.0.render_cpu(graph, options)
+    }
+
+    fn present_image(&mut self, image: &Image) {
+        self.0.present_image(image);
+    }
 }
 
 /// `init_gpu(config_json, canvas)`: like [`init`], but renders with

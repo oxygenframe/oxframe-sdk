@@ -91,6 +91,9 @@ impl PreviewEngine for PreviewAdapter {
                         m.tunables.insert(name, value);
                     })?
             }
+            MetaEdit::Transition { scene, seconds } => {
+                self.engine.set_transition_seconds(&scene, seconds)?
+            }
         };
         Ok(vec![changed])
     }

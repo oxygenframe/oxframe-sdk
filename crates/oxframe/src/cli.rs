@@ -306,13 +306,17 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         return EXIT_ENV;
     }
 
-    let engine = match Engine::new(project) {
+    let mut engine = match Engine::new(project) {
         Ok(e) => e,
         Err(e) => {
             eprintln!("error: {e}");
             return EXIT_ERROR;
         }
     };
+    // One scene, on its own: no blend with the scene before it.
+    if args.scene.is_some() {
+        engine.skip_transitions(true);
+    }
     let fps = engine.fps();
     let mut frames = 0..engine.total_frames();
     if let Some(name) = &args.scene {

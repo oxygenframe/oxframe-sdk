@@ -153,24 +153,7 @@ pub fn inspect(project: Project, seconds: f64) -> Result<serde_json::Value, Engi
     let mut engine = Engine::new(project)?;
     let frame = frame_at(seconds, engine.fps(), engine.total_frames());
     let nodes = engine.seek(frame).inspect_nodes();
-    let (w, h) = engine.size();
-    Ok(serde_json::json!({
-        "time": seconds,
-        "frame": frame,
-        "size": [w, h],
-        "nodes": nodes.iter().map(|n| serde_json::json!({
-            "id": n.id,
-            "parent": n.parent,
-            "kind": n.kind,
-            "name": n.name,
-            "source": n.source,
-            "bounds": n.bounds,
-            "opacity": n.opacity,
-            "text": n.text,
-            "order": n.order,
-            "in_camera": n.in_camera,
-        })).collect::<Vec<_>>(),
-    }))
+    Ok(scene_json(&engine, seconds, frame, &nodes))
 }
 
 struct When {
@@ -193,7 +176,20 @@ fn pass(
     } else {
         0.0
     };
-    let schedule = schedule(duration, fps, &marker_times(engine), opts);
+    let mut schedule = schedule(duration, fps, &marker_times(engine), opts);
+    for span in engine.transition_spans() {
+        if span.frames == 0 {
+            continue;
+        }
+        let mid = span.start + span.frames / 2;
+        schedule.push(When {
+            t: f64::from(mid) / fps,
+            marker: Some(span.kind.to_owned()),
+            story: true,
+        });
+    }
+    schedule.sort_by(|a, b| a.t.total_cmp(&b.t));
+    schedule = dedup(schedule, fps);
     let mut samples = Vec::with_capacity(schedule.len());
     let mut cells = Vec::new();
     let mut cpu = CpuRenderer::new();
@@ -281,6 +277,10 @@ fn schedule(duration: f64, fps: f64, markers: &[(f64, String)], opts: &Options) 
         }
     }
     raw.sort_by(|a, b| a.t.total_cmp(&b.t));
+    dedup(raw, fps)
+}
+
+fn dedup(raw: Vec<When>, fps: f64) -> Vec<When> {
     let tol = 0.5 / fps.max(1.0);
     let mut out: Vec<When> = Vec::new();
     for w in raw {
@@ -296,6 +296,41 @@ fn schedule(duration: f64, fps: f64, markers: &[(f64, String)], opts: &Options) 
         }
     }
     out
+}
+
+fn scene_json(
+    engine: &Engine,
+    seconds: f64,
+    frame: u32,
+    nodes: &[oxframe_2d::InspectNode],
+) -> serde_json::Value {
+    let (w, h) = engine.size();
+    let mut value = serde_json::json!({
+        "time": seconds,
+        "frame": frame,
+        "size": [w, h],
+        "nodes": nodes.iter().map(|n| serde_json::json!({
+            "id": n.id,
+            "parent": n.parent,
+            "kind": n.kind,
+            "name": n.name,
+            "source": n.source,
+            "bounds": n.bounds,
+            "opacity": n.opacity,
+            "text": n.text,
+            "order": n.order,
+            "in_camera": n.in_camera,
+        })).collect::<Vec<_>>(),
+    });
+    if let Some(tr) = engine.transition_at(frame) {
+        value["transition"] = serde_json::json!({
+            "kind": tr.kind,
+            "dir": tr.dir,
+            "progress": tr.progress,
+            "overlap": tr.overlap,
+        });
+    }
+    value
 }
 
 fn frame_at(t: f64, fps: u32, total: u32) -> u32 {
@@ -619,24 +654,7 @@ fn inspect_engine(engine: Engine, seconds: f64) -> Result<String, EngineError> {
     let mut engine = engine;
     let frame = frame_at(seconds, engine.fps(), engine.total_frames());
     let nodes = engine.seek(frame).inspect_nodes();
-    let (w, h) = engine.size();
-    let value = serde_json::json!({
-        "time": seconds,
-        "frame": frame,
-        "size": [w, h],
-        "nodes": nodes.iter().map(|n| serde_json::json!({
-            "id": n.id,
-            "parent": n.parent,
-            "kind": n.kind,
-            "name": n.name,
-            "source": n.source,
-            "bounds": n.bounds,
-            "opacity": n.opacity,
-            "text": n.text,
-            "order": n.order,
-            "in_camera": n.in_camera,
-        })).collect::<Vec<_>>(),
-    });
+    let value = scene_json(&engine, seconds, frame, &nodes);
     Ok(serde_json::to_string_pretty(&value).expect("json"))
 }
 

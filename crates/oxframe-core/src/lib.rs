@@ -22,6 +22,7 @@ mod paint;
 mod path;
 mod runtime;
 mod signal;
+mod transition;
 mod tween;
 
 pub use color::Color;
@@ -38,8 +39,10 @@ pub use frame::{FrameSource, Image};
 pub use lerp::{Lerp, Transform};
 pub use paint::{BlendMode, Gradient, GradientKind};
 pub use runtime::{
-    dt, ease_named, fps, frame, meta_snapshot, now, random, random_range, time, tunable, with_rng,
+    begin_transition, dt, ease_named, fps, frame, has_previous, meta_snapshot, now, random,
+    random_range, time, tunable, with_rng,
 };
+pub use transition::{Blend, Dir, Kind, LayerPose, Recorded};
 
 pub use rand;
 pub use signal::Signal;

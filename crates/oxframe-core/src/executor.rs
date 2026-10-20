@@ -102,6 +102,16 @@ impl Executor {
     pub fn take_meta_changed(&self) -> bool {
         self.rt.meta_changed.replace(false)
     }
+
+    /// The scene before this one exists, so a transition has something to blend.
+    pub fn set_has_previous(&self, has_previous: bool) {
+        self.rt.has_previous.set(has_previous);
+    }
+
+    /// Transition declared while the scene ran, if any.
+    pub fn transition(&self) -> Option<crate::transition::Recorded> {
+        *self.rt.transition.borrow()
+    }
 }
 
 #[cfg(test)]

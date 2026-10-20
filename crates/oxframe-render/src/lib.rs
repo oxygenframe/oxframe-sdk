@@ -42,8 +42,24 @@ pub struct RenderOptions {
 
 /// Draws a scene graph into an image.
 pub trait Renderer {
-    /// Draws the current state of `graph`.
+    /// Draws the current state of `graph` and returns the picture.
+    ///
+    /// A renderer that presents straight to a surface may return an empty
+    /// image after showing the frame. Transitions need the pixels, so they
+    /// call [`render_pixels`](Self::render_pixels) and then
+    /// [`present_image`](Self::present_image).
     fn render(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image;
+
+    /// Draws `graph` and returns the pixels, without presenting.
+    ///
+    /// The default is [`render`](Self::render), which already returns pixels.
+    fn render_pixels(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image {
+        self.render(graph, options)
+    }
+
+    /// Shows a frame that was blended from pixels. The default does nothing,
+    /// because [`render`](Self::render) already showed the frame.
+    fn present_image(&mut self, _image: &Image) {}
 }
 
 /// Maps scene coordinates (origin at the center, y down) to output pixels.
