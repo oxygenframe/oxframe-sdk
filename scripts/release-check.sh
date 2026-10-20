@@ -29,4 +29,7 @@ step "CLI: tests, and a new project built and previewed on this SDK"
 step "Site and compile service on this SDK (examples, docs, sandbox template, e2e)"
 (cd "$web" && OXFRAME_SDK_PATH="$sdk" bun run verify)
 
+step "Container images on this SDK (podman or docker): build, run offline, smoke test"
+(cd "$web" && OXFRAME_SDK_PATH="$sdk" ./scripts/image-check.sh)
+
 printf '\nrelease-check: all green\n'
