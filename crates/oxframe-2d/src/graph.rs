@@ -161,6 +161,12 @@ pub enum NodeKind {
         height: Signal<f64>,
         spacing: Signal<f64>,
     },
+    /// An imported SVG. Draws nothing itself; its children are the file's
+    /// groups, paths and images. `width` and `height` are the fitted size.
+    Svg {
+        width: Signal<f64>,
+        height: Signal<f64>,
+    },
 }
 
 impl NodeKind {
@@ -179,6 +185,7 @@ impl NodeKind {
             Self::Img { .. } => "Img",
             Self::Layout { .. } => "Layout",
             Self::Grid { .. } => "Grid",
+            Self::Svg { .. } => "Svg",
         }
     }
 }
@@ -344,6 +351,7 @@ impl NodeData {
         const TOLERANCE: f64 = 0.1;
         match &self.kind {
             NodeKind::Group
+            | NodeKind::Svg { .. }
             | NodeKind::Camera { .. }
             | NodeKind::Img { .. }
             | NodeKind::Txt { .. }
@@ -679,6 +687,41 @@ impl SceneGraph {
         (f64::from(self.size.0), f64::from(self.size.1))
     }
 
+    /// First descendant of `root` (including `root`) whose name is `name`.
+    pub(crate) fn descendant_named(&self, root: NodeId, name: &str) -> Option<NodeId> {
+        fn walk(nodes: &[NodeData], id: NodeId, name: &str) -> Option<NodeId> {
+            let n = nodes.get(id.0 as usize)?;
+            if n.name.as_deref() == Some(name) {
+                return Some(id);
+            }
+            for &c in &n.children {
+                if let Some(hit) = walk(nodes, c, name) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        walk(&self.nodes.borrow(), root, name)
+    }
+
+    /// Path nodes under `root`, in paint order.
+    pub(crate) fn descendant_paths(&self, root: NodeId) -> Vec<NodeId> {
+        fn walk(nodes: &[NodeData], id: NodeId, out: &mut Vec<NodeId>) {
+            let Some(n) = nodes.get(id.0 as usize) else {
+                return;
+            };
+            if matches!(n.kind, NodeKind::Path { .. }) {
+                out.push(id);
+            }
+            for &c in &n.children {
+                walk(nodes, c, out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(&self.nodes.borrow(), root, &mut out);
+        out
+    }
+
     /// `(id, parent, kind, name)` of every attached node, depth-first.
     pub fn tree(&self) -> Vec<(NodeId, Option<NodeId>, &'static str, Option<String>)> {
         let nodes = self.nodes.borrow();
@@ -932,9 +975,9 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         NodeKind::Circle { size, .. }
         | NodeKind::Polygon { size, .. }
         | NodeKind::Star { size, .. } => (size.get(), size.get()),
-        NodeKind::Img { width, height, .. } | NodeKind::Grid { width, height, .. } => {
-            (width.get(), height.get())
-        }
+        NodeKind::Img { width, height, .. }
+        | NodeKind::Grid { width, height, .. }
+        | NodeKind::Svg { width, height } => (width.get(), height.get()),
         NodeKind::Txt { .. } | NodeKind::Code { .. } => match n.text_draw() {
             Some(TextDraw::Styled(s)) => (s.layout.width, s.layout.height),
             Some(TextDraw::Morph { size, .. }) => size,
@@ -973,6 +1016,7 @@ fn resizable(kind: &NodeKind) -> bool {
             | NodeKind::Layout { .. }
             | NodeKind::Img { .. }
             | NodeKind::Grid { .. }
+            | NodeKind::Svg { .. }
     )
 }
 

@@ -26,6 +26,7 @@ pub mod quicksort;
 pub mod relative;
 pub mod shapes;
 pub mod showcase;
+pub mod svg;
 pub mod text;
 pub mod theme;
 pub mod typography;
@@ -49,6 +50,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("showcase", showcase::project),
         ("effects", effects::project),
         ("shapes", shapes::project),
+        ("svg", svg::project),
         ("typography", typography::project),
         ("theme", theme::project),
         ("relative", relative::project),

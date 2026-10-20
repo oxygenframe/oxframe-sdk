@@ -10,7 +10,7 @@ use oxframe_core::{BlendMode, Color, Ease, Gradient, Seconds, Signal, Tween, Vec
 use crate::builder::{
     self, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
     LayoutBuilder, LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder,
-    TxtBuilder,
+    SvgBuilder, TxtBuilder,
 };
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
@@ -255,6 +255,7 @@ typed_handle!(Path, PathBuilder);
 typed_handle!(Line, LineBuilder);
 typed_handle!(Txt, TxtBuilder);
 typed_handle!(Img, ImgBuilder);
+typed_handle!(Svg, SvgBuilder);
 typed_handle!(Layout, LayoutBuilder);
 typed_handle!(Grid, GridBuilder);
 typed_handle!(Polygon, PolygonBuilder);
@@ -641,6 +642,34 @@ impl Future for CodeTween {
         Poll::Ready(())
     }
 }
+kind_signal!(Svg::Svg {
+    width: f64,
+    height: f64
+});
+
+impl Svg {
+    /// The node imported from the SVG element with this `id`.
+    ///
+    /// # Panics
+    ///
+    /// If the file has no element with that id.
+    pub fn find(self, id: &str) -> Node {
+        let id = with_graph(|g| g.descendant_named(self.id(), id))
+            .unwrap_or_else(|| panic!("svg has no element with id {id:?}"));
+        Node::from_id(id)
+    }
+
+    /// Every path from the file, in paint order.
+    pub fn paths(self) -> Vec<Path> {
+        with_graph(|g| {
+            g.descendant_paths(self.id())
+                .into_iter()
+                .map(Path::from_id)
+                .collect()
+        })
+    }
+}
+
 kind_signal!(Img::Img {
     width: f64,
     height: f64

@@ -166,7 +166,7 @@ fn collect(group: &usvg::Group, opacity: f32, out: &mut Vec<VectorShape>) {
     }
 }
 
-fn to_bez(p: &usvg::tiny_skia_path::Path) -> BezPath {
+pub(crate) fn to_bez(p: &usvg::tiny_skia_path::Path) -> BezPath {
     use usvg::tiny_skia_path::PathSegment;
     let pt = |p: usvg::tiny_skia_path::Point| (f64::from(p.x), f64::from(p.y));
     let mut out = BezPath::new();

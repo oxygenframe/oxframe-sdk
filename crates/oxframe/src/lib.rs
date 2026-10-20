@@ -49,7 +49,7 @@ pub use oxframe_2d::{
     Edge, Fast, Grid, Group, Img, Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin,
     MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent,
     Polygon, Rect, RichSpan, SANS, SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success,
-    Surface, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
+    Surface, Svg, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
 };
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
@@ -80,8 +80,8 @@ pub mod prelude {
         Fast, FlowDiagram, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg,
         Line, LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
         OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
-        Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, TitleCard, Txt, Vec2,
-        View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
-        random_range, repeat, sequence, span, spawn, stagger, tune, wait_for, wait_until,
+        Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Txt,
+        Vec2, View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets,
+        random, random_range, repeat, sequence, span, spawn, stagger, tune, wait_for, wait_until,
     };
 }

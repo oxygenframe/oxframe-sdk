@@ -9,6 +9,7 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 ## 0.5.0 — 2026-10-20
 
 Code edits itself (ROADMAP task 2). `Txt` still types its text out.
+SVG files become ordinary nodes (ROADMAP task 3).
 
 ### Added
 
@@ -23,6 +24,13 @@ Code edits itself (ROADMAP task 2). `Txt` still types its text out.
 - A focus on lines that move rides with them and lands on their new numbers
   when the tween ends.
 - Example `code_steps`: a function written in a few edits.
+- `Svg` loads a file (`.src(include_bytes!(..))` or `.file(path)`) and
+  expands it into groups, paths and images. `.width` / `.height` keep the
+  aspect ratio. `svg.find("id")` is the element with that id, `svg.paths()`
+  is every contour in paint order, and those paths morph through `data`
+  like a path written by hand. Filters, masks and clip paths are skipped
+  with a warning.
+- Example `svg`: a logo drawn on path by path, then one part recolored.
 
 ### Breaking
 

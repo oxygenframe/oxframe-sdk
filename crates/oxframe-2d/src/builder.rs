@@ -885,6 +885,93 @@ impl NodeBuilder for ImgBuilder {
     }
 }
 
+// -------------------------------------------------------------------- Svg
+
+builder!(
+    /// An SVG file, expanded into groups, paths and images.
+    SvgBuilder => Svg, kind "Svg", defaults {},
+    fields { bytes: Vec<u8> = Vec::new(), width: Option<f64> = None, height: Option<f64> = None });
+
+impl SvgBuilder {
+    /// SVG bytes, typically `include_bytes!("../assets/logo.svg")` — the only
+    /// option under wasm.
+    ///
+    /// # Panics
+    ///
+    /// If the bytes are not an SVG `usvg` can parse.
+    pub fn src(mut self, bytes: &[u8]) -> Self {
+        self.bytes = bytes.to_vec();
+        self
+    }
+
+    /// Reads an SVG file (native only).
+    ///
+    /// # Panics
+    ///
+    /// If the file cannot be read or parsed.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn file(self, path: impl AsRef<std::path::Path>) -> Self {
+        let path = path.as_ref();
+        let bytes =
+            std::fs::read(path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        self.src(&bytes)
+    }
+
+    /// Width in pixels. Height keeps the view box aspect unless also set.
+    pub fn width(mut self, v: f64) -> Self {
+        self.width = Some(v);
+        self
+    }
+
+    /// Height in pixels. Width keeps the view box aspect unless also set.
+    pub fn height(mut self, v: f64) -> Self {
+        self.height = Some(v);
+        self
+    }
+}
+
+impl NodeBuilder for SvgBuilder {
+    type Handle = crate::handles::Svg;
+    base_accessor!();
+    fn build(mut self, g: &SceneGraph, parent: NodeId) -> crate::handles::Svg {
+        if self.bytes.is_empty() {
+            panic!("Svg needs a source: call .src(bytes) or .file(path)");
+        }
+        let tree = usvg::Tree::from_data(&self.bytes, &usvg::Options::default())
+            .unwrap_or_else(|e| panic!("cannot parse svg: {e}"));
+        let size = tree.size();
+        let (nw, nh) = (f64::from(size.width()), f64::from(size.height()));
+        let aspect = if nh > 0.0 { nw / nh } else { 1.0 };
+        let (w, h) = match (self.width, self.height) {
+            (Some(w), Some(h)) => (w, h),
+            (Some(w), None) => (w, if aspect > 0.0 { w / aspect } else { w }),
+            (None, Some(h)) => (h * aspect, h),
+            (None, None) => (nw, nh),
+        };
+        if self.base.name.is_none()
+            && let Some(id) = (!tree.root().id().is_empty()).then(|| tree.root().id())
+        {
+            self.base.name = Some(id.to_string());
+        }
+        self.base.opacity *= f64::from(tree.root().opacity().get());
+        self.base.blend = crate::svg::blend(tree.root().blend_mode());
+        let k = Self::KIND;
+        let kind = NodeKind::Svg {
+            width: sig(g, k, "width", w),
+            height: sig(g, k, "height", h),
+        };
+        let id = insert(g, parent, kind, self.base);
+        let fit = crate::svg::Fit {
+            nw,
+            nh,
+            sx: if nw > 0.0 { w / nw } else { 1.0 },
+            sy: if nh > 0.0 { h / nh } else { 1.0 },
+        };
+        crate::svg::inflate(g, id, tree.root(), &fit);
+        crate::handles::Svg::from_id(id)
+    }
+}
+
 // ----------------------------------------------------------------- Layout
 
 builder!(

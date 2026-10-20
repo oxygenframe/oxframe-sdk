@@ -19,6 +19,10 @@ image.workspace = true
 usvg.workspace = true
 taffy.workspace = true
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["console"] }
+
 [lints]
 workspace = true
 

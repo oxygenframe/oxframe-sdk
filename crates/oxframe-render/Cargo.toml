@@ -37,3 +37,4 @@ web-sys = { version = "0.3", features = ["OffscreenCanvas"], optional = true }
 [dev-dependencies]
 kurbo.workspace = true
 image.workspace = true
+resvg = "0.48"
