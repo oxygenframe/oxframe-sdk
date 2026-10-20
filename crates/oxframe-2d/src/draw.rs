@@ -217,7 +217,7 @@ pub(crate) fn primitives(n: &NodeData, size: (f64, f64), opacity: f64) -> Vec<Pr
     let mut out = Vec::new();
     let (start, end) = (n.start.get(), n.end.get());
     match &n.kind {
-        NodeKind::Group => {}
+        NodeKind::Group | NodeKind::Camera { .. } => {}
         NodeKind::Rect { .. }
         | NodeKind::Circle { .. }
         | NodeKind::Polygon { .. }

@@ -190,7 +190,9 @@ fn out_of_frame(samples: &[Sample], size: (u32, u32), limits: &Limits) -> Vec<Is
     let mut frame_hits = Vec::new();
     let mut safe_hits = Vec::new();
     for s in samples {
-        for n in s.nodes.iter().filter(|n| visible(n)) {
+        // Through a camera, leaving the frame is the framing (a zoom onto a
+        // detail), not a mistake.
+        for n in s.nodes.iter().filter(|n| visible(n) && !n.in_camera) {
             if outside(n.bounds, frame) {
                 frame_hits.push(Hit {
                     time: s.time,
@@ -658,6 +660,7 @@ mod tests {
             fill: Color::WHITE,
             text_overflow: 0.0,
             parent_kind: Some("Group"),
+            in_camera: false,
         }
     }
 
@@ -690,6 +693,17 @@ mod tests {
                 .iter()
                 .any(|i| i.rule == "out_of_frame" && i.severity == Severity::Error)
         );
+    }
+
+    #[test]
+    fn a_camera_framing_out_a_node_is_not_a_mistake() {
+        let mut outside = node(1, "Rect", [900.0, -10.0, 1100.0, 10.0]);
+        outside.in_camera = true;
+        let samples: Vec<_> = (0..8)
+            .map(|i| at(i as f64 * 0.1, vec![outside.clone()]))
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(issues.iter().all(|i| i.rule != "out_of_frame"));
     }
 
     #[test]

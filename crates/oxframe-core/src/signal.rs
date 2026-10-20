@@ -159,11 +159,11 @@ impl<T: Clone + 'static> Signal<T> {
     /// Tweens from the current value to `target` over `duration` seconds.
     ///
     /// `f64` is seconds. A theme pace (`Normal`) is a duration too.
-    pub fn to(&self, target: T, duration: impl Seconds) -> Tween<T>
+    pub fn to(&self, target: impl Into<T>, duration: impl Seconds) -> Tween<T>
     where
         T: Lerp,
     {
-        Tween::new(self.clone(), target, duration.seconds())
+        Tween::new(self.clone(), target.into(), duration.seconds())
     }
 
     fn track(&self) {

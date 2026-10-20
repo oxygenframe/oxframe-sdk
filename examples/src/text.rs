@@ -8,7 +8,7 @@ pub async fn text(view: View) {
     // Strings tween like a typewriter.
     title
         .text()
-        .to("Hello, oxframe".into(), 1.2)
+        .to("Hello, oxframe", 1.2)
         .ease(presets::LINEAR)
         .await;
     all((
@@ -19,7 +19,7 @@ pub async fn text(view: View) {
     // Retype: deletes back to the common prefix, then types the rest.
     title
         .text()
-        .to("Hello, Rust".into(), 1.0)
+        .to("Hello, Rust", 1.0)
         .ease(presets::LINEAR)
         .await;
 

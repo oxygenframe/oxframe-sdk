@@ -65,6 +65,11 @@ pub enum Justify {
 #[doc(hidden)]
 pub enum NodeKind {
     Group,
+    /// Looks at `x`/`y` with `zoom` and `rotation`; its children are drawn
+    /// through it (see [`NodeData::local_transform`]).
+    Camera {
+        zoom: Signal<f64>,
+    },
     Rect {
         width: Signal<f64>,
         height: Signal<f64>,
@@ -152,6 +157,7 @@ impl NodeKind {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Group => "Group",
+            Self::Camera { .. } => "Camera",
             Self::Rect { .. } => "Rect",
             Self::Circle { .. } => "Circle",
             Self::Polygon { .. } => "Polygon",
@@ -227,6 +233,16 @@ impl NodeData {
     /// Transform relative to the parent, plus a layout-assigned offset.
     /// `size` is the node's box, needed for the anchor.
     pub fn local_transform(&self, offset: Vec2, size: (f64, f64)) -> Affine {
+        if let NodeKind::Camera { zoom } = &self.kind {
+            // The view through the camera: the point it looks at comes to
+            // the camera's origin, scaled by zoom and turned against its
+            // rotation.
+            let (x, y) = self.placed.get();
+            return Affine::translate(offset)
+                * Affine::rotate(-self.rotation.get().to_radians())
+                * Affine::scale(zoom.get().max(1e-6))
+                * Affine::translate((-x, -y));
+        }
         let s = self.scale.get();
         let a = self.anchor.get();
         let (x, y) = self.placed.get();
@@ -297,6 +313,7 @@ impl NodeData {
         const TOLERANCE: f64 = 0.1;
         match &self.kind {
             NodeKind::Group
+            | NodeKind::Camera { .. }
             | NodeKind::Img { .. }
             | NodeKind::Txt { .. }
             | NodeKind::Code { .. }
@@ -613,6 +630,22 @@ impl SceneGraph {
         Some(tf)
     }
 
+    /// The box of `id` (its size around its origin) in the coordinate frame
+    /// of `frame`'s children: for a camera, where the node sits in the
+    /// world the camera looks at. Axis-aligned.
+    pub fn box_in(&self, id: NodeId, frame: NodeId) -> Option<kurbo::Rect> {
+        let node_tf = self.world_transform(id)?;
+        let frame_tf = self.world_transform(frame)?;
+        let (w, h) = measure(&self.nodes.borrow(), id);
+        let [x0, y0, x1, y1] = aabb(frame_tf.inverse() * node_tf, w, h);
+        Some(kurbo::Rect::new(x0, y0, x1, y1))
+    }
+
+    /// Frame size in pixels.
+    pub fn frame_size(&self) -> (f64, f64) {
+        (f64::from(self.size.0), f64::from(self.size.1))
+    }
+
     /// `(id, parent, kind, name)` of every attached node, depth-first.
     pub fn tree(&self) -> Vec<(NodeId, Option<NodeId>, &'static str, Option<String>)> {
         let nodes = self.nodes.borrow();
@@ -716,6 +749,19 @@ impl SceneGraph {
                 fill: n.fill.get(),
                 text_overflow,
                 parent_kind: n.parent.map(|p| nodes[p.0 as usize].kind.name()),
+                in_camera: {
+                    let mut up = n.parent;
+                    let mut found = false;
+                    while let Some(p) = up {
+                        let pn = &nodes[p.0 as usize];
+                        if matches!(pn.kind, NodeKind::Camera { .. }) {
+                            found = true;
+                            break;
+                        }
+                        up = pn.parent;
+                    }
+                    found
+                },
             });
         }
         out
@@ -751,6 +797,9 @@ pub struct InspectNode {
     pub text_overflow: f64,
     /// Type of the parent, if any.
     pub parent_kind: Option<&'static str>,
+    /// Seen through a [`Camera`](crate::Camera): leaving the frame is then
+    /// usually the camera's framing, not a layout mistake.
+    pub in_camera: bool,
 }
 
 thread_local! {
@@ -864,6 +913,8 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
             (bb.width(), bb.height())
         }
         NodeKind::Layout { .. } => crate::flex::compute(nodes, id, &|c| measure(nodes, c)).0,
+        // A window onto its children, not a shape: no box of its own.
+        NodeKind::Camera { .. } => (0.0, 0.0),
         NodeKind::Group => {
             let mut bb: Option<kurbo::Rect> = None;
             for &c in &n.children {

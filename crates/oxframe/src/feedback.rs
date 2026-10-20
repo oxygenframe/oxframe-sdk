@@ -168,6 +168,7 @@ pub fn inspect(project: Project, seconds: f64) -> Result<serde_json::Value, Engi
             "opacity": n.opacity,
             "text": n.text,
             "order": n.order,
+            "in_camera": n.in_camera,
         })).collect::<Vec<_>>(),
     }))
 }
@@ -633,6 +634,7 @@ fn inspect_engine(engine: Engine, seconds: f64) -> Result<String, EngineError> {
             "opacity": n.opacity,
             "text": n.text,
             "order": n.order,
+            "in_camera": n.in_camera,
         })).collect::<Vec<_>>(),
     });
     Ok(serde_json::to_string_pretty(&value).expect("json"))

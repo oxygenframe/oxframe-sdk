@@ -32,16 +32,17 @@ mod theme;
 mod trim;
 
 pub use builder::{
-    BaseProps, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder, LayoutBuilder,
-    LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder, TxtBuilder,
+    BaseProps, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
+    LayoutBuilder, LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder,
+    TxtBuilder,
 };
 pub use draw::{DrawItem, Layer, LineCap, LineJoin, Paint, Primitive, Shadow, StrokeStyle};
 pub use graph::{
     Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph,
 };
 pub use handles::{
-    Circle, Code, Grid, Group, Img, Layout, Line, Node, Path, Polygon, Rect, SLIDE_DISTANCE, Star,
-    Txt, View,
+    Camera, Circle, Code, Grid, Group, Img, Layout, Line, Node, Path, Polygon, Rect,
+    SLIDE_DISTANCE, Star, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};

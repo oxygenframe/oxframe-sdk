@@ -12,7 +12,7 @@ pub async fn text(view: View) {
     // Typewriter: from "" to the full text.
     title
         .text()
-        .to("Hello, text".into(), 1.0)
+        .to("Hello, text", 1.0)
         .ease(presets::LINEAR)
         .await;
 

@@ -1,11 +1,12 @@
 use std::ops::Deref;
 
 use kurbo::{BezPath, Point};
-use oxframe_core::{BlendMode, Color, Gradient, Signal, Tween, Vec2, all};
+use oxframe_core::{BlendMode, Color, Gradient, Seconds, Signal, Tween, Vec2, all};
 
 use crate::builder::{
-    self, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder, LayoutBuilder,
-    LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder, TxtBuilder,
+    self, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
+    LayoutBuilder, LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder,
+    TxtBuilder,
 };
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
@@ -243,6 +244,7 @@ macro_rules! typed_handle {
 }
 
 typed_handle!(Group, GroupBuilder);
+typed_handle!(Camera, CameraBuilder);
 typed_handle!(Rect, RectBuilder);
 typed_handle!(Circle, CircleBuilder);
 typed_handle!(Path, PathBuilder);
@@ -294,6 +296,73 @@ kind_signal!(Star::Star {
     inner: f64
 });
 kind_signal!(Path::Path { data: BezPath });
+kind_signal!(Camera::Camera {
+    /// 1 shows the world at its size, 2 twice as big.
+    zoom: f64
+});
+
+impl Camera {
+    /// Moves the camera so `node`'s center is in the middle of the frame.
+    pub fn center_on(
+        self,
+        node: impl Into<Node>,
+        duration: impl Seconds,
+    ) -> impl std::future::Future<Output = ()> + 'static {
+        let node = node.into();
+        let d = duration.seconds();
+        let target = with_graph(|g| g.box_in(node.id(), self.id())).map(|r| r.center());
+        let moves = target.map(|c| all((self.x().to(c.x, d), self.y().to(c.y, d))));
+        async move {
+            if let Some(m) = moves {
+                m.await;
+            }
+        }
+    }
+
+    /// Centers on `node` and zooms so all of it fits in the frame with
+    /// `padding` pixels to spare. Measures the node when called, so a layout
+    /// that is still growing fits at its current size.
+    pub fn fit(
+        self,
+        node: impl Into<Node>,
+        padding: f64,
+        duration: impl Seconds,
+    ) -> impl std::future::Future<Output = ()> + 'static {
+        let node = node.into();
+        let d = duration.seconds();
+        let (bounds, (fw, fh)) = with_graph(|g| (g.box_in(node.id(), self.id()), g.frame_size()));
+        let moves = bounds.map(|r| {
+            let zoom = ((fw - 2.0 * padding) / r.width().max(1e-6))
+                .min((fh - 2.0 * padding) / r.height().max(1e-6))
+                .max(1e-3);
+            let c = r.center();
+            all((
+                self.x().to(c.x, d),
+                self.y().to(c.y, d),
+                self.zoom().to(zoom, d),
+            ))
+        });
+        async move {
+            if let Some(m) = moves {
+                m.await;
+            }
+        }
+    }
+
+    /// Back to the start: looking at the origin, no zoom, no rotation.
+    pub fn reset(self, duration: impl Seconds) -> impl std::future::Future<Output = ()> + 'static {
+        let d = duration.seconds();
+        let moves = all((
+            self.x().to(0.0, d),
+            self.y().to(0.0, d),
+            self.zoom().to(1.0, d),
+            self.rotation().to(0.0, d),
+        ));
+        async move {
+            moves.await;
+        }
+    }
+}
 kind_signal!(Line::Line { points: Vec<Vec2>, arrow_size: f64 });
 kind_signal!(Txt::Txt { text: String, spans: Vec<RichSpan>, font_size: f64, weight: f64 });
 kind_signal!(Code::Code {
@@ -430,6 +499,80 @@ mod tests {
             }
             frames
         })
+    }
+
+    /// Screen position of a node's origin.
+    fn screen(n: impl Into<Node>) -> (f64, f64) {
+        let p = n.into().absolute_position();
+        ((p.x * 1e6).round() / 1e6, (p.y * 1e6).round() / 1e6)
+    }
+
+    #[test]
+    fn camera_pans_zooms_and_turns_its_children_only() {
+        scene(|view| {
+            let cam = view.add(Camera::new());
+            let dot = cam.add(Circle::new().size(10.0).x(100.0).y(50.0));
+            let hud = view.add(Txt::new().text("HUD").x(-300.0).y(-200.0));
+            // A fresh camera changes nothing.
+            assert_eq!(screen(dot), (100.0, 50.0));
+            // Looking at the dot brings it to the center.
+            cam.x().set(100.0);
+            cam.y().set(50.0);
+            assert_eq!(screen(dot), (0.0, 0.0));
+            // Zoom scales distances from the point looked at.
+            cam.zoom().set(2.0);
+            let other = cam.add(Circle::new().size(10.0).x(110.0).y(50.0));
+            assert_eq!(screen(other), (20.0, 0.0));
+            // Turning the camera clockwise turns the world the other way.
+            cam.rotation().set(90.0);
+            assert_eq!(screen(other), (0.0, -20.0));
+            // Nodes outside the camera stay put.
+            assert_eq!(screen(hud), (-300.0, -200.0));
+        });
+    }
+
+    #[test]
+    fn camera_center_on_fit_and_reset() {
+        play(|view| {
+            let cam = view.add(Camera::new());
+            let card = cam.add(Rect::new().width(200.0).height(100.0).x(300.0).y(-100.0));
+            let row = cam.add(
+                Layout::new()
+                    .x(-500.0)
+                    .gap(10.0)
+                    .child(Rect::new().size(50.0))
+                    .child(Rect::new().size(50.0)),
+            );
+            Box::pin(async move {
+                cam.center_on(card, 1.0).await;
+                assert_eq!((cam.x().get(), cam.y().get()), (300.0, -100.0));
+                assert_eq!(screen(card), (0.0, 0.0));
+                // 400×400 frame, 20 px padding: limited by width (360 / 200).
+                cam.fit(card, 20.0, 0.0).await;
+                assert!(
+                    (cam.zoom().get() - 1.8).abs() < 1e-9,
+                    "{}",
+                    cam.zoom().get()
+                );
+                // A layout that grew is fitted at its current size.
+                row.gap().to(110.0, 0.5).await;
+                cam.fit(row, 0.0, 0.0).await;
+                let (w, _) = row.size();
+                assert!((w - 210.0).abs() < 1e-6, "layout width {w}");
+                assert!((cam.zoom().get() - 400.0 / 210.0).abs() < 1e-9);
+                assert!((cam.x().get() + 500.0).abs() < 1e-9);
+                cam.reset(0.5).await;
+                assert_eq!(
+                    (
+                        cam.x().get(),
+                        cam.y().get(),
+                        cam.zoom().get(),
+                        cam.rotation().get()
+                    ),
+                    (0.0, 0.0, 1.0, 0.0)
+                );
+            })
+        });
     }
 
     #[test]

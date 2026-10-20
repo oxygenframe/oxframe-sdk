@@ -6,6 +6,39 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.4.0 — 2026-10-20
+
+### Added
+
+- `Camera` (ROADMAP task 1): a node that zooms, pans and turns the view of
+  everything added to it. Signals `x`/`y` (the point it looks at), `zoom`,
+  `rotation`; `center_on(node, s)`, `fit(node, padding, s)` (measures the
+  node when called, so a growing layout fits at its current size) and
+  `reset(s)`. Follow a moving node with `cam.x().bind(..)`. Nodes added to
+  the view stay on screen (titles, captions, a HUD).
+- Zoomed content is drawn at the final scale on both renderers: text and
+  outlines stay sharp at ×10, blurs and shadows scale with the zoom
+  (golden frames `camera_zoom`, `camera_rotate_blur`; GPU within ΔE 0.04).
+- `oxframe check` does not report `out_of_frame` for nodes seen through a
+  camera (framing a detail is the point); `inspect` marks them `in_camera`.
+- Example `camera`: a tour of a system diagram.
+
+### Changed
+
+- `Signal::to` takes anything that converts into the value: theme tokens
+  (`rect.fill().to(Accent, 0.3)`), integers for `f64`, `&str` for text.
+
+### Breaking
+
+- An explicit `.into()` in `.to(..)` is now ambiguous; drop it:
+
+  ```rust
+  // before
+  title.text().to("Hello".into(), 1.0).await;
+  // after
+  title.text().to("Hello", 1.0).await;
+  ```
+
 ## 0.3.0 — 2026-10-20
 
 Scene code without Rust plumbing (ROADMAP task 4): no `Box::pin`, no

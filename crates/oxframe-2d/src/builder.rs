@@ -5,7 +5,7 @@ use oxframe_text::TextStyle;
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{Direction, Justify, LayoutAlign, NodeId, NodeKind, SceneGraph, with_graph};
 use crate::handles::{
-    Circle, Code, Grid, Group, Img, Layout, Line, Path, Polygon, Rect, Star, Txt,
+    Camera, Circle, Code, Grid, Group, Img, Layout, Line, Path, Polygon, Rect, Star, Txt,
 };
 use crate::image::ImageSource;
 use crate::place::{self, Axis, Edge, Place, Side, Span};
@@ -406,6 +406,30 @@ impl NodeBuilder for GroupBuilder {
     base_accessor!();
     fn build(self, graph: &SceneGraph, parent: NodeId) -> Group {
         Group::from_id(insert(graph, parent, NodeKind::Group, self.base))
+    }
+}
+
+// ----------------------------------------------------------------- Camera
+
+builder!(
+    /// A camera: everything added to it is seen through it, so animating its
+    /// `x`/`y` (the point it looks at), `zoom` and `rotation` pans, zooms
+    /// and turns the view. Nodes added to the view itself stay on screen
+    /// (titles, captions, a HUD).
+    CameraBuilder => Camera, kind "Camera", defaults {}, fields { zoom: f64 = 1.0 });
+setters!(CameraBuilder {
+    /// 1 shows the world at its size, 2 twice as big.
+    zoom: f64
+});
+
+impl NodeBuilder for CameraBuilder {
+    type Handle = Camera;
+    base_accessor!();
+    fn build(self, g: &SceneGraph, parent: NodeId) -> Camera {
+        let kind = NodeKind::Camera {
+            zoom: sig(g, Self::KIND, "zoom", self.zoom),
+        };
+        Camera::from_id(insert(g, parent, kind, self.base))
     }
 }
 

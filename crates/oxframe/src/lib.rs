@@ -45,11 +45,11 @@ pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
 
 pub use oxframe_2d::{
-    Accent, Background, Circle, Code, CodeTheme, Danger, Direction, Edge, Fast, Grid, Group, Img,
-    Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
-    NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent, Polygon, Rect, RichSpan, SANS,
-    SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign,
-    Theme, Txt, View, Warning, Xl, Xs, pct, span,
+    Accent, Background, Camera, Circle, Code, CodeTheme, Danger, Direction, Edge, Fast, Grid,
+    Group, Img, Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion,
+    Muted, Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent, Polygon, Rect,
+    RichSpan, SANS, SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Text,
+    TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
 };
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
@@ -75,10 +75,10 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        Accent, Aspect, Background, BezPath, BlendMode, BulletList, Callout, ChapterMarker, Circle,
-        Code, CodeExplainer, CodeTheme, Color, Danger, Direction, Ease, Edge, EndCard, Fast,
-        FlowDiagram, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg, Line,
-        LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
+        Accent, Aspect, Background, BezPath, BlendMode, BulletList, Callout, Camera, ChapterMarker,
+        Circle, Code, CodeExplainer, CodeTheme, Color, Danger, Direction, Ease, Edge, EndCard,
+        Fast, FlowDiagram, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg,
+        Line, LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
         OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
         Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, TitleCard, Txt, Vec2,
         View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,

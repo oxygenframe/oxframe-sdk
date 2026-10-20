@@ -395,6 +395,43 @@ fn scenes() -> Vec<(&'static str, Rc<SceneGraph>)> {
                 );
             }),
         ),
+        (
+            // Zoom ×10 onto small text and a hairline outline, with a HUD
+            // label outside the camera that must not move or scale.
+            "camera_zoom",
+            build(|v| {
+                let cam = v.add(Camera::new().zoom(10.0).x(8.0));
+                cam.add(Txt::new().text("Ax").font_size(14.0).fill(Color::WHITE));
+                cam.add(
+                    Rect::new()
+                        .size(24.0)
+                        .x(14.0)
+                        .fill(Color::TRANSPARENT)
+                        .stroke(hex("#68abdf"))
+                        .line_width(1.0),
+                );
+                v.add(
+                    Txt::new()
+                        .text("HUD")
+                        .font_size(28.0)
+                        .y(-140.0)
+                        .fill(hex("#f5c242")),
+                );
+            }),
+        ),
+        (
+            // A turned, zoomed camera over blurred and shadowed shapes.
+            "camera_rotate_blur",
+            build(|v| {
+                let cam = v.add(Camera::new().zoom(2.5).rotation(20.0).x(-15.0));
+                cam.add(Circle::new().size(60.0).fill(hex("#e13238")).blur(3.0));
+                cam.add(Rect::new().size(40.0).x(35.0).fill(hex("#68abdf")).shadow(
+                    Color::BLACK,
+                    4.0,
+                    (3.0, 3.0),
+                ));
+            }),
+        ),
     ]
 }
 
@@ -520,4 +557,37 @@ fn gpu_matches_golden() {
         // CI without a GPU: skip loudly rather than fail.
         Err(e) => eprintln!("SKIPPED gpu golden test: {e}"),
     }
+}
+
+/// Zooming in re-rasterizes at the final scale: an edge magnified ×10 is
+/// still a 1–2 pixel anti-aliased step, not a 10-pixel smear.
+#[test]
+fn camera_zoom_keeps_edges_sharp() {
+    let g = build(|v| {
+        let cam = v.add(Camera::new().zoom(10.0).x(9.0));
+        cam.add(Rect::new().size(20.0).fill(Color::WHITE));
+    });
+    let img = CpuRenderer::new().render(
+        &g,
+        &RenderOptions {
+            width: W,
+            height: H,
+            background: Color::BLACK,
+        },
+    );
+    // The rect's right edge (x = 10 in the world) lands near the frame
+    // center; count partially covered pixels along the middle row.
+    let row = (H / 2) as usize;
+    let partial = (0..W as usize)
+        .map(|x| img.data[(row * W as usize + x) * 4])
+        .filter(|&v| v > 8 && v < 247)
+        .count();
+    assert!(partial <= 2, "edge is {partial} pixels wide");
+    let white = (0..W as usize)
+        .filter(|&x| img.data[(row * W as usize + x) * 4] >= 247)
+        .count();
+    assert!(
+        white > 10,
+        "the zoomed rect fills part of the row ({white})"
+    );
 }
