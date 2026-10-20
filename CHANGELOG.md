@@ -6,6 +6,20 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.2.5 — 2026-10-20
+
+### Added
+
+- Crate `oxframe-components`, re-exported from the prelude. `TitleCard`,
+  `ChapterMarker`, `BulletList`, `CodeExplainer`, `FlowDiagram`, `Callout`,
+  `LowerThird` and `EndCard` are added like any other node. Each has
+  `enter`, `next` and `exit`. They take color and type from the theme.
+  `LowerThird` and `ChapterMarker` pin to the safe area. `FlowDiagram` lays
+  its own nodes out in layers (`.down()` stacks them).
+- `Node::from_id`, so another crate can implement `NodeBuilder`.
+
+The scene API and the editor protocol are unchanged.
+
 ## 0.2.4 — 2026-10-20
 
 ### Added

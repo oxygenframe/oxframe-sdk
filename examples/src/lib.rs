@@ -4,6 +4,7 @@
 
 pub mod benchmark;
 pub mod chart;
+pub mod components;
 pub mod effects;
 pub mod intro;
 pub mod layout;
@@ -38,6 +39,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("morph", morph::project),
         ("layout", layout::project),
         ("chart", chart::project),
+        ("components", components::project),
         ("particles", particles::project),
         ("quicksort", quicksort::project),
         ("showcase", showcase::project),

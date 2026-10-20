@@ -23,6 +23,7 @@ gpu = ["oxframe-render/gpu"]
 [dependencies]
 oxframe-core.workspace = true
 oxframe-2d.workspace = true
+oxframe-components.workspace = true
 oxframe-text.workspace = true
 oxframe-render.workspace = true
 oxframe-protocol.workspace = true

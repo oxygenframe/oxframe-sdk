@@ -51,6 +51,9 @@ pub use oxframe_2d::{
     SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign,
     Theme, Txt, View, Warning, Xl, Xs, pct, span,
 };
+pub use oxframe_components::{
+    BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
+};
 pub use oxframe_core::{
     Affine, BezPath, BlendMode, BoxFuture, Color, CubicBezier, Ease, Executor, Gradient,
     JoinHandle, Lerp, Point, Signal, Transform, Tween, Vec2, all, all_vec, bounce_in,
@@ -70,12 +73,13 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        Accent, Aspect, Background, BezPath, BlendMode, Circle, Code, CodeTheme, Color, Danger,
-        Direction, Ease, Edge, Fast, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign,
-        Lerp, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
+        Accent, Aspect, Background, BezPath, BlendMode, BulletList, Callout, ChapterMarker, Circle,
+        Code, CodeExplainer, CodeTheme, Color, Danger, Direction, Ease, Edge, EndCard, Fast,
+        FlowDiagram, Gradient, Grid, Group, Img, Justify, Layout, LayoutAlign, Lerp, Lg, Line,
+        LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
         OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal,
-        Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, Txt, Vec2, View,
-        Warning, Xl, Xs, all, all_vec, color, ease, next_frame, pct, presets, random, random_range,
-        sequence, span, spawn, tune, wait_for, wait_until,
+        Slow, Sm, Span, Star, Step, Success, Surface, Text, TextAlign, Theme, TitleCard, Txt, Vec2,
+        View, Warning, Xl, Xs, all, all_vec, color, ease, next_frame, pct, presets, random,
+        random_range, sequence, span, spawn, tune, wait_for, wait_until,
     };
 }

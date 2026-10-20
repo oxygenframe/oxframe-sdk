@@ -1,0 +1,19 @@
+[package]
+name = "oxframe-components"
+description = "Ready-made blocks for explainer videos: titles, lists, diagrams, code"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-components"
+
+[dependencies]
+oxframe-core.workspace = true
+oxframe-2d.workspace = true
+
+[lints]
+workspace = true

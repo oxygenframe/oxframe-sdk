@@ -35,6 +35,14 @@ impl Node {
         self.0
     }
 
+    /// Wraps an id from [`NodeBuilder::build`](crate::NodeBuilder::build).
+    ///
+    /// Other crates implement [`NodeBuilder`](crate::NodeBuilder) with this:
+    /// the `parent` argument is only an id, and handles are what `add` needs.
+    pub fn from_id(id: NodeId) -> Self {
+        Self(id)
+    }
+
     base_signal! {
         x: f64,
         y: f64,
