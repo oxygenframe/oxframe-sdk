@@ -45,6 +45,7 @@ commands:
   inspect  print the scene tree at a time as JSON
              --at <seconds>      required
              --scene <name>      --at is measured from the start of this scene
+             --graph             also list render passes (vector, then composite)
   preview  run the preview server for the editor
              --port <n>          port on 127.0.0.1 (0 = pick a free one; printed on stdout)
   info     print the project timeline as JSON

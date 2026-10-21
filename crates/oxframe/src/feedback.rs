@@ -150,10 +150,25 @@ fn stamp(issues: &mut [Issue], aspect: Option<&str>) {
 ///
 /// If the project has no scenes or a meta file is invalid.
 pub fn inspect(project: Project, seconds: f64) -> Result<serde_json::Value, EngineError> {
+    inspect_value(project, seconds, false)
+}
+
+fn inspect_value(
+    project: Project,
+    seconds: f64,
+    graph: bool,
+) -> Result<serde_json::Value, EngineError> {
     let mut engine = Engine::new(project)?;
     let frame = frame_at(seconds, engine.fps(), engine.total_frames());
     let nodes = engine.seek(frame).inspect_nodes();
-    Ok(scene_json(&engine, seconds, frame, &nodes))
+    let passes = graph.then(|| oxframe_2d::pass_graph(&engine.seek(frame).draw_list()));
+    Ok(scene_json(
+        &engine,
+        seconds,
+        frame,
+        &nodes,
+        passes.as_deref(),
+    ))
 }
 
 struct When {
@@ -326,6 +341,7 @@ fn scene_json(
     seconds: f64,
     frame: u32,
     nodes: &[oxframe_2d::InspectNode],
+    passes: Option<&[oxframe_2d::Pass]>,
 ) -> serde_json::Value {
     let (w, h) = engine.size();
     let mut value = serde_json::json!({
@@ -352,6 +368,31 @@ fn scene_json(
             "progress": tr.progress,
             "overlap": tr.overlap,
         });
+    }
+    if let Some(passes) = passes {
+        value["passes"] = serde_json::json!(
+            passes
+                .iter()
+                .enumerate()
+                .map(|(order, pass)| {
+                    let name = nodes
+                        .iter()
+                        .find(|n| n.id == pass.node.0)
+                        .map(|n| n.name.as_str());
+                    serde_json::json!({
+                        "order": order,
+                        "kind": pass.kind.name(),
+                        "node": pass.node.0,
+                        "name": name,
+                        "items": pass.items,
+                        "depth": pass.depth,
+                        "opacity": pass.opacity,
+                        "blend": pass.blend,
+                        "filtered": pass.filtered,
+                    })
+                })
+                .collect::<Vec<_>>()
+        );
     }
     value
 }
@@ -622,6 +663,7 @@ pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i3
 pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> i32 {
     let mut at = None;
     let mut scene = None;
+    let mut graph = false;
     let mut args = args;
     while let Some(flag) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -640,6 +682,7 @@ pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> 
                 Ok(v) => scene = Some(v),
                 Err(e) => return crate::cli::usage_error(&e),
             },
+            "--graph" => graph = true,
             other => return crate::cli::usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -660,7 +703,7 @@ pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> 
         };
         at += f64::from(info.start) / f64::from(engine.fps());
     }
-    match inspect_engine(engine, at) {
+    match inspect_engine(engine, at, graph) {
         Ok(json) => {
             println!("{json}");
             crate::cli::EXIT_OK
@@ -672,12 +715,12 @@ pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> 
     }
 }
 
-fn inspect_engine(engine: Engine, seconds: f64) -> Result<String, EngineError> {
-    // Re-enter through the project is unnecessary: seek on this engine.
+fn inspect_engine(engine: Engine, seconds: f64, graph: bool) -> Result<String, EngineError> {
     let mut engine = engine;
     let frame = frame_at(seconds, engine.fps(), engine.total_frames());
     let nodes = engine.seek(frame).inspect_nodes();
-    let value = scene_json(&engine, seconds, frame, &nodes);
+    let passes = graph.then(|| oxframe_2d::pass_graph(&engine.seek(frame).draw_list()));
+    let value = scene_json(&engine, seconds, frame, &nodes, passes.as_deref());
     Ok(serde_json::to_string_pretty(&value).expect("json"))
 }
 
@@ -1032,6 +1075,33 @@ mod tests {
             nodes
                 .iter()
                 .any(|n| n["name"] == "box" && n["kind"] == "Rect")
+        );
+        assert!(json.get("passes").is_none());
+    }
+
+    #[test]
+    fn inspect_graph_lists_passes_only_when_asked() {
+        fn soft(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    crate::Rect::new()
+                        .size(40.0)
+                        .fill(Color::WHITE)
+                        .blur(2.0)
+                        .name("soft"),
+                );
+                crate::wait_for(0.2).await;
+            })
+        }
+        let plain = inspect(project(hold), 0.1).unwrap();
+        assert!(plain.get("passes").is_none());
+        let json = inspect_value(project(soft), 0.1, true).unwrap();
+        let passes = json["passes"].as_array().unwrap();
+        assert!(passes.iter().any(|p| p["kind"] == "vector"));
+        assert!(
+            passes
+                .iter()
+                .any(|p| p["kind"] == "composite" && p["filtered"] == true)
         );
     }
 }

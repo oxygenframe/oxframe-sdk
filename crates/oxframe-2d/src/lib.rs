@@ -26,6 +26,7 @@ mod flex;
 mod graph;
 mod handles;
 mod image;
+mod passes;
 mod place;
 mod sim;
 mod svg;
@@ -50,6 +51,7 @@ pub use handles::{
     Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Star, Svg, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
+pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use trim::trim;
 

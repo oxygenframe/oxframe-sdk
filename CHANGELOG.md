@@ -6,6 +6,23 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.8.0 — 2026-10-21
+
+A frame's draw list is a pass graph, and a layer whose vectors did not
+change is reused (ROADMAP task 15, stage 2). No new scene API and no shaders.
+
+### Added
+
+- Render passes in topological order: one vector pass when nothing opens a
+  layer, then a composite pass for a group opacity, a blend, a blur, a shadow
+  or a clip. Contents run before the composite that uses them.
+- A static layer is cached as the pixmap from before `composite`, so the next
+  frame skips redrawing that layer. The root vector pass is not hashed, and a
+  layer that moved or changed is drawn again. CPU bytes stay the reference.
+- `inspect --graph` adds a `passes` array (`kind`, `node`, `name`, `items`,
+  `depth`, `opacity`, `blend`, `filtered`). Without the flag the JSON is
+  unchanged.
+
 ## 0.7.0 — 2026-10-21
 
 A node can draw its own geometry, and a spray keeps a seeded simulation

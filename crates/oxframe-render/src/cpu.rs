@@ -21,6 +21,17 @@ pub struct CpuRenderer {
     images: BTreeMap<u64, Pixmap>,
     /// Reused layer buffers.
     pool: Vec<Pixmap>,
+    /// Pre-composite pixels of layers whose vectors did not change.
+    layers: Vec<CachedLayer>,
+    /// Items left to ignore because their layer was replayed from [`Self::layers`].
+    skip: u32,
+}
+
+struct CachedLayer {
+    key: u64,
+    region: Region,
+    buf: Pixmap,
+    seen: bool,
 }
 
 impl CpuRenderer {
@@ -60,51 +71,95 @@ impl CpuRenderer {
             w: base.width(),
             h: base.height(),
         };
-        // Open layers: buffer, the region of the frame it covers, layer, transform.
-        let mut stack: Vec<(Pixmap, Region, Layer, Affine)> = Vec::new();
+        for slot in &mut self.layers {
+            slot.seen = false;
+        }
+        self.skip = 0;
+        // Open layers: buffer, the region it covers, layer, transform, cache key, replayed.
+        let mut stack: Vec<(Pixmap, Region, Layer, Affine, u64, bool)> = Vec::new();
         for (i, item) in items.iter().enumerate() {
             let tf = view * item.transform;
+            if self.skip > 0 {
+                match &item.prim {
+                    Primitive::PushLayer(_) => self.skip += 1,
+                    Primitive::PopLayer => {
+                        self.skip -= 1;
+                        if self.skip == 0 {
+                            self.pop_layer(&mut stack, base, &full);
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             match &item.prim {
                 Primitive::PushLayer(layer) => {
-                    // Only the area the layer's content (plus blur and
-                    // shadow reach) can touch is allocated and filtered.
-                    let parent = stack.last().map_or(full, |(_, r, _, _)| *r);
+                    let parent = stack.last().map_or(full, |(_, r, _, _, _, _)| *r);
                     let region = layer_region(items, i, view, parent).unwrap_or(Region {
                         x: parent.x,
                         y: parent.y,
                         w: 1,
                         h: 1,
                     });
-                    let buf = self.take_layer(region.w, region.h);
-                    stack.push((buf, region, layer.clone(), tf));
+                    let key = cache_key(oxframe_2d::layer_fingerprint(items, i), region);
+                    if let Some(slot) = self
+                        .layers
+                        .iter_mut()
+                        .find(|slot| slot.key == key && slot.region == region)
+                    {
+                        slot.seen = true;
+                        stack.push((slot.buf.clone(), region, layer.clone(), tf, key, true));
+                        self.skip = 1;
+                    } else {
+                        let buf = self.take_layer(region.w, region.h);
+                        stack.push((buf, region, layer.clone(), tf, key, false));
+                    }
                 }
-                Primitive::PopLayer => {
-                    let Some((buf, region, layer, ltf)) = stack.pop() else {
-                        continue;
-                    };
-                    let (dst, dst_region) = match stack.last_mut() {
-                        Some((p, r, _, _)) => (p, *r),
-                        None => (&mut *base, full),
-                    };
-                    composite(dst, dst_region, buf, region, &layer, ltf, &mut self.pool);
-                }
+                Primitive::PopLayer => self.pop_layer(&mut stack, base, &full),
                 prim => {
                     let (dst, region) = match stack.last_mut() {
-                        Some((p, r, _, _)) => (p, *r),
+                        Some((p, r, _, _, _, _)) => (p, *r),
                         None => (&mut *base, full),
                     };
                     draw_prim(dst, prim, region.shift() * tf, &mut self.images);
                 }
             }
         }
-        // Unbalanced pushes (should not happen): flush them.
-        while let Some((buf, region, layer, ltf)) = stack.pop() {
-            let (dst, dst_region) = match stack.last_mut() {
-                Some((p, r, _, _)) => (p, *r),
-                None => (&mut *base, full),
-            };
-            composite(dst, dst_region, buf, region, &layer, ltf, &mut self.pool);
+        while !stack.is_empty() {
+            self.pop_layer(&mut stack, base, &full);
         }
+        self.layers.retain(|slot| slot.seen);
+        self.skip = 0;
+    }
+
+    fn pop_layer(
+        &mut self,
+        stack: &mut Vec<(Pixmap, Region, Layer, Affine, u64, bool)>,
+        base: &mut Pixmap,
+        full: &Region,
+    ) {
+        let Some((buf, region, layer, ltf, key, replay)) = stack.pop() else {
+            return;
+        };
+        if !replay {
+            if let Some(slot) = self.layers.iter_mut().find(|slot| slot.key == key) {
+                slot.buf = buf.clone();
+                slot.region = region;
+                slot.seen = true;
+            } else {
+                self.layers.push(CachedLayer {
+                    key,
+                    region,
+                    buf: buf.clone(),
+                    seen: true,
+                });
+            }
+        }
+        let (dst, dst_region) = match stack.last_mut() {
+            Some((p, r, _, _, _, _)) => (p, *r),
+            None => (&mut *base, *full),
+        };
+        composite(dst, dst_region, buf, region, &layer, ltf, &mut self.pool);
     }
 }
 
@@ -122,6 +177,14 @@ impl Region {
     fn shift(self) -> Affine {
         Affine::translate((-f64::from(self.x), -f64::from(self.y)))
     }
+}
+
+fn cache_key(fingerprint: u64, region: Region) -> u64 {
+    fingerprint
+        ^ (region.w as u64).wrapping_shl(1)
+        ^ (region.h as u64).wrapping_shl(17)
+        ^ (region.x as u32 as u64).wrapping_shl(33)
+        ^ (region.y as u32 as u64).wrapping_shl(49)
 }
 
 /// Pixel bounds of everything between the `PushLayer` at `start` and its
@@ -473,5 +536,49 @@ mod tests {
         assert_eq!(px(10, 10), [0, 0, 0, 255]);
         assert_eq!(px(74, 50), [255, 0, 0, 255]);
         assert_eq!(px(76, 50), [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn a_static_blur_replays_the_same_bytes() {
+        let graph = SceneGraph::new(64, 64);
+        graph.enter(|| {
+            View::current().add(
+                Rect::new()
+                    .size(24.0)
+                    .fill(Color::from_hex("#ff0000").unwrap())
+                    .blur(1.5),
+            );
+        });
+        let opts = RenderOptions {
+            width: 64,
+            height: 64,
+            background: Color::BLACK,
+        };
+        let mut cached = CpuRenderer::new();
+        let first = cached.render(&graph, &opts);
+        let second = cached.render(&graph, &opts);
+        let fresh = CpuRenderer::new().render(&graph, &opts);
+        assert_eq!(first.data, fresh.data);
+        assert_eq!(second.data, fresh.data);
+    }
+
+    #[test]
+    fn a_moved_blur_is_not_served_from_the_old_buffer() {
+        let opts = RenderOptions {
+            width: 64,
+            height: 64,
+            background: Color::BLACK,
+        };
+        let at = |x: f64| {
+            let graph = SceneGraph::new(64, 64);
+            graph.enter(|| {
+                View::current().add(Rect::new().size(16.0).x(x).fill(Color::WHITE).blur(1.0));
+            });
+            graph
+        };
+        let mut renderer = CpuRenderer::new();
+        let before = renderer.render(&at(0.0), &opts);
+        let after = renderer.render(&at(18.0), &opts);
+        assert_ne!(before.data, after.data);
     }
 }
