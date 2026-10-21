@@ -194,8 +194,14 @@ fn pass(
     let mut cells = Vec::new();
     let mut cpu = CpuRenderer::new();
     let cell = cell_size(engine.size(), opts.cell_width);
+    let mut drift = Vec::new();
     for when in &schedule {
         let frame = frame_at(when.t, engine.fps(), engine.total_frames());
+        if let Some((node, source)) = engine.seek(frame).draw_drift()
+            && !drift.iter().any(|(_, name, _)| name == &node)
+        {
+            drift.push((when.t, node, source));
+        }
         let nodes = engine.seek(frame).inspect_nodes();
         samples.push(Sample {
             time: when.t,
@@ -210,13 +216,30 @@ fn pass(
         }
     }
     let has_audio = engine.audio().is_some();
-    let issues = lint::lint(
+    let mut issues = lint::lint(
         &samples,
         engine.size(),
         engine.project().background,
         has_audio,
         &opts.limits,
     );
+    for (t, node, source) in drift {
+        issues.push(lint::Issue {
+            rule: "nondeterministic",
+            severity: lint::Severity::Error,
+            time: [t, t],
+            node,
+            source,
+            hint: "This frame differs when it is drawn twice. Draw from the time and ctx.rng(seed), not from saved numbers.".into(),
+            aspect: None,
+        });
+    }
+    issues.sort_by(|a, b| {
+        a.time[0]
+            .total_cmp(&b.time[0])
+            .then(a.rule.cmp(b.rule))
+            .then(a.node.cmp(&b.node))
+    });
     Ok((Report { duration, issues }, cells))
 }
 
@@ -738,7 +761,7 @@ fn format_issue(issue: &Issue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BoxFuture, NodeBuilder, SceneDef, SourceLocation, View};
+    use crate::{BoxFuture, Custom, NodeBuilder, Particles, SceneDef, SourceLocation, View};
     use oxframe_core::Color;
     use oxframe_protocol::Meta;
     use std::collections::BTreeMap;
@@ -859,6 +882,113 @@ mod tests {
                 .iter()
                 .any(|i| i.rule == "out_of_frame" && i.node == "gone")
         );
+    }
+
+    #[test]
+    fn custom_that_keeps_a_counter_fails_check() {
+        fn drift(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let n = std::cell::Cell::new(0.0);
+                let _ = view.add(
+                    Custom::new(move |ctx, _| {
+                        let x = n.get();
+                        n.set(x + 1.0);
+                        ctx.circle((x, 0.0), 6.0).fill(Color::WHITE);
+                    })
+                    .size(40.0, 40.0)
+                    .name("drift"),
+                );
+                crate::wait_for(0.2).await;
+            })
+        }
+        let report = report(project(drift), &Options::default()).unwrap();
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.rule == "nondeterministic" && i.node == "drift"),
+            "{:?}",
+            report.issues
+        );
+    }
+
+    #[test]
+    fn spray_seeks_back_to_the_same_frame() {
+        fn spray(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    Custom::new(|ctx, t| {
+                        let mut rng = ctx.rng(3);
+                        let y = (rng.range(0.0..40.0) + t * 20.0) % 40.0;
+                        ctx.circle((0.0, y), 5.0).fill(Color::WHITE);
+                    })
+                    .size(20.0, 80.0)
+                    .name("rain"),
+                );
+                let p = view.add(
+                    Particles::new()
+                        .seed(7)
+                        .gravity(400.0)
+                        .life(1.0)
+                        .fill(Color::WHITE)
+                        .toward_camera()
+                        .name("spray"),
+                );
+                p.burst((0.0, 0.0), 6).await;
+                crate::wait_for(0.4).await;
+            })
+        }
+        let mut engine = crate::Engine::new(project(spray)).unwrap();
+        let frame = engine.total_frames() / 2;
+        let paint = |engine: &mut crate::Engine, frame: u32| {
+            engine
+                .seek(frame)
+                .draw_list()
+                .iter()
+                .map(|item| format!("{:?}", item.prim))
+                .collect::<Vec<_>>()
+        };
+        let first = paint(&mut engine, frame);
+        engine.seek(0);
+        let second = paint(&mut engine, frame);
+        assert_eq!(first, second);
+        assert!(engine.seek(frame).draw_drift().is_none());
+    }
+
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn custom_circle_matches_on_cpu_and_gpu() {
+        fn dot(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    Custom::new(|ctx, _| {
+                        ctx.circle((0.0, 0.0), 30.0).fill(Color::WHITE);
+                    })
+                    .size(80.0, 80.0),
+                );
+                crate::wait_for(0.05).await;
+            })
+        }
+        let mut engine = crate::Engine::new(project(dot)).unwrap();
+        let size = engine.size();
+        let cpu = engine.render(0, &mut crate::render::CpuRenderer::new(), size);
+        let mut gpu = match crate::render::GpuRenderer::new() {
+            Ok(g) if g.is_software() && std::env::var_os("OXFRAME_GPU_TESTS").is_none() => return,
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let gpu_img = engine.render(0, &mut gpu, size);
+        let px = |img: &crate::render::Image, x, y| {
+            let i = ((y * img.width + x) * 4) as usize;
+            [
+                img.data[i],
+                img.data[i + 1],
+                img.data[i + 2],
+                img.data[i + 3],
+            ]
+        };
+        let (cx, cy) = (size.0 / 2, size.1 / 2);
+        assert_eq!(px(&cpu, cx, cy), px(&gpu_img, cx, cy));
     }
 
     #[test]

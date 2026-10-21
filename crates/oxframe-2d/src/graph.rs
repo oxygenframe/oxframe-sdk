@@ -167,6 +167,24 @@ pub enum NodeKind {
         width: Signal<f64>,
         height: Signal<f64>,
     },
+    /// Geometry drawn by a closure on every paint. `width` and `height` are
+    /// the layout box; the closure's shapes are not measured.
+    Custom {
+        draw: crate::draw::DrawFn,
+        width: f64,
+        height: f64,
+    },
+    /// Particles integrated from bursts. The box is a point; the dots are
+    /// drawn in the node's coordinates.
+    Particles {
+        seed: u64,
+        gravity: Signal<f64>,
+        toward_camera: bool,
+        life: f64,
+        speed: f64,
+        radius: f64,
+        state: crate::sim::ParticlesState,
+    },
 }
 
 impl NodeKind {
@@ -186,6 +204,8 @@ impl NodeKind {
             Self::Layout { .. } => "Layout",
             Self::Grid { .. } => "Grid",
             Self::Svg { .. } => "Svg",
+            Self::Custom { .. } => "Custom",
+            Self::Particles { .. } => "Particles",
         }
     }
 }
@@ -356,7 +376,9 @@ impl NodeData {
             | NodeKind::Img { .. }
             | NodeKind::Txt { .. }
             | NodeKind::Code { .. }
-            | NodeKind::Grid { .. } => None,
+            | NodeKind::Grid { .. }
+            | NodeKind::Custom { .. }
+            | NodeKind::Particles { .. } => None,
             NodeKind::Rect { radius, .. } | NodeKind::Layout { radius, .. } => {
                 let (w, h) = (size.0.max(0.0), size.1.max(0.0));
                 let r = radius.get().clamp(0.0, w.min(h) / 2.0);
@@ -499,6 +521,8 @@ pub(crate) enum TextDraw {
 pub struct SceneGraph {
     nodes: RefCell<Vec<NodeData>>,
     size: (u32, u32),
+    /// Seconds of the frame last stepped. [`draw_list`](Self::draw_list) paints this time.
+    time: Cell<f64>,
 }
 
 impl SceneGraph {
@@ -510,6 +534,7 @@ impl SceneGraph {
         let graph = Rc::new(Self {
             nodes: RefCell::new(Vec::new()),
             size: (width, height),
+            time: Cell::new(0.0),
         });
         graph.insert(
             None,
@@ -525,6 +550,17 @@ impl SceneGraph {
     /// Scene size in pixels.
     pub fn size(&self) -> (u32, u32) {
         self.size
+    }
+
+    /// Time, in seconds, that the next [`draw_list`](Self::draw_list) paints.
+    /// The engine sets this after each frame.
+    pub fn set_time(&self, seconds: f64) {
+        self.time.set(seconds.max(0.0));
+    }
+
+    /// Time the last [`set_time`](Self::set_time) stored.
+    pub fn time(&self) -> f64 {
+        self.time.get()
     }
 
     /// Number of nodes, including the root.
@@ -640,8 +676,31 @@ impl SceneGraph {
         self.resolve_places();
         let nodes = self.nodes.borrow();
         let mut out = Vec::new();
-        visit(&nodes, Self::ROOT, Affine::IDENTITY, None, None, &mut out);
+        visit(
+            &nodes,
+            Self::ROOT,
+            Affine::IDENTITY,
+            None,
+            None,
+            self.time.get(),
+            &mut out,
+        );
         out
+    }
+
+    /// `Some` when painting this frame twice does not produce the same
+    /// primitives. The string is the node's name, or its `add` call site.
+    pub fn draw_drift(&self) -> Option<(String, Option<String>)> {
+        let a = self.draw_list();
+        let b = self.draw_list();
+        let id = first_drift(&a, &b)?;
+        let n = self.node(id);
+        let label = n
+            .name
+            .clone()
+            .or_else(|| n.source.clone())
+            .unwrap_or_else(|| n.kind.name().to_owned());
+        Some((label, n.source.clone()))
     }
 
     /// Topmost node under `p` (scene coordinates), excluding the view.
@@ -992,7 +1051,8 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         }
         NodeKind::Layout { .. } => crate::flex::compute(nodes, id, &|c| measure(nodes, c)).0,
         // A window onto its children, not a shape: no box of its own.
-        NodeKind::Camera { .. } => (0.0, 0.0),
+        NodeKind::Camera { .. } | NodeKind::Particles { .. } => (0.0, 0.0),
+        NodeKind::Custom { width, height, .. } => (*width, *height),
         NodeKind::Group => {
             let mut bb: Option<kurbo::Rect> = None;
             for &c in &n.children {
@@ -1020,12 +1080,60 @@ fn resizable(kind: &NodeKind) -> bool {
     )
 }
 
+fn first_drift(a: &[DrawItem], b: &[DrawItem]) -> Option<NodeId> {
+    let n = a.len().max(b.len());
+    for i in 0..n {
+        match (a.get(i), b.get(i)) {
+            (Some(x), Some(y)) if x.node == y.node && prim_same(&x.prim, &y.prim) => {}
+            (Some(x), _) => return Some(x.node),
+            (_, Some(y)) => return Some(y.node),
+            (None, None) => {}
+        }
+    }
+    None
+}
+
+fn prim_same(a: &Primitive, b: &Primitive) -> bool {
+    use Primitive::{Fill, Image, PopLayer, PushLayer, Stroke};
+    match (a, b) {
+        (Fill { path: p, paint: c }, Fill { path: q, paint: d }) => p == q && c == d,
+        (
+            Stroke {
+                path: p,
+                paint: c,
+                style: s,
+            },
+            Stroke {
+                path: q,
+                paint: d,
+                style: t,
+            },
+        ) => p == q && c == d && s == t,
+        (
+            Image {
+                rect: r,
+                opacity: o,
+                ..
+            },
+            Image {
+                rect: s,
+                opacity: p,
+                ..
+            },
+        ) => r == s && o == p,
+        (PushLayer(x), PushLayer(y)) => x == y,
+        (PopLayer, PopLayer) => true,
+        _ => false,
+    }
+}
+
 fn visit(
     nodes: &[NodeData],
     id: NodeId,
     parent_tf: Affine,
     placement: Option<FlexBox>,
     flex: Option<&FlexMap>,
+    time: f64,
     out: &mut Vec<DrawItem>,
 ) {
     let n = &nodes[id.0 as usize];
@@ -1074,7 +1182,7 @@ fn visit(
         });
     }
     let paint_opacity = if layered { 1.0 } else { opacity };
-    for prim in crate::draw::primitives(n, size, paint_opacity) {
+    for prim in crate::draw::primitives(n, size, paint_opacity, time) {
         out.push(DrawItem {
             node: id,
             transform: tf,
@@ -1118,7 +1226,7 @@ fn visit(
         });
         for (_, c) in order {
             let placement = map.and_then(|m| m.get(&c).copied());
-            visit(nodes, c, tf, placement, map, out);
+            visit(nodes, c, tf, placement, map, time, out);
         }
         if clipped {
             out.push(DrawItem {

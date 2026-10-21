@@ -32,15 +32,15 @@ pub use executor::Executor;
 #[allow(deprecated)]
 pub use flow::all_vec;
 pub use flow::{
-    All, Animation, Any, BoxFuture, Branches, Delayed, IntoAll, JoinHandle, VecBranches, all, any,
-    loop_while, next_frame, repeat, sequence, spawn, stagger, wait_for, wait_until,
+    All, Animation, Any, BoxFuture, Branches, Delayed, IntoAll, JoinHandle, VecBranches, WaitFor,
+    all, any, loop_while, next_frame, repeat, sequence, spawn, stagger, wait_for, wait_until,
 };
 pub use frame::{FrameSource, Image};
 pub use lerp::{Lerp, Transform};
 pub use paint::{BlendMode, Gradient, GradientKind};
 pub use runtime::{
-    begin_transition, dt, ease_named, fps, frame, has_previous, meta_snapshot, now, random,
-    random_range, time, tunable, with_rng,
+    SeededRng, begin_transition, dt, ease_named, fps, frame, has_previous, meta_snapshot, now,
+    random, random_range, time, tunable, with_rng,
 };
 pub use transition::{Blend, Dir, Kind, LayerPose, Recorded};
 

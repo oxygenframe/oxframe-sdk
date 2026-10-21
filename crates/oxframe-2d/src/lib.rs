@@ -27,23 +27,27 @@ mod graph;
 mod handles;
 mod image;
 mod place;
+mod sim;
 mod svg;
 mod text;
 mod theme;
 mod trim;
 
 pub use builder::{
-    BaseProps, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
-    LayoutBuilder, LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder,
-    TxtBuilder,
+    BaseProps, CameraBuilder, CircleBuilder, CodeBuilder, CustomBuilder, GridBuilder, GroupBuilder,
+    ImgBuilder, LayoutBuilder, LineBuilder, NodeBuilder, ParticlesBuilder, PathBuilder,
+    PolygonBuilder, RectBuilder, StarBuilder, TxtBuilder,
 };
-pub use draw::{DrawItem, Layer, LineCap, LineJoin, Paint, Primitive, Shadow, StrokeStyle};
+pub use draw::{
+    DrawCtx, DrawItem, DrawRng, Layer, LineCap, LineJoin, Paint, Pen, Primitive, Shadow,
+    StrokeStyle,
+};
 pub use graph::{
     Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph,
 };
 pub use handles::{
-    Camera, Circle, Code, CodeText, CodeTween, Grid, Group, Img, Layout, Line, Node, Path, Polygon,
-    Rect, SLIDE_DISTANCE, Star, Svg, Txt, View,
+    Camera, Circle, Code, CodeText, CodeTween, Custom, Grid, Group, Img, Layout, Line, Node,
+    Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Star, Svg, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};

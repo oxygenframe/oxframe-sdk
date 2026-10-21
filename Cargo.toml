@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "examples"]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -13,16 +13,16 @@ keywords = ["animation", "motion-graphics", "video", "vector-graphics", "procedu
 categories = ["graphics", "multimedia::video", "rendering"]
 
 [workspace.dependencies]
-oxframe-core = { path = "crates/oxframe-core", version = "0.6.0" }
-oxframe-2d = { path = "crates/oxframe-2d", version = "0.6.0" }
-oxframe-render = { path = "crates/oxframe-render", version = "0.6.0" }
-oxframe-text = { path = "crates/oxframe-text", version = "0.6.0" }
-oxframe-export = { path = "crates/oxframe-export", version = "0.6.0" }
-oxframe-preview = { path = "crates/oxframe-preview", version = "0.6.0", default-features = false }
-oxframe-protocol = { path = "crates/oxframe-protocol", version = "0.6.0" }
-oxframe-macros = { path = "crates/oxframe-macros", version = "0.6.0" }
-oxframe = { path = "crates/oxframe", version = "0.6.0" }
-oxframe-components = { path = "crates/oxframe-components", version = "0.6.0" }
+oxframe-core = { path = "crates/oxframe-core", version = "0.7.0" }
+oxframe-2d = { path = "crates/oxframe-2d", version = "0.7.0" }
+oxframe-render = { path = "crates/oxframe-render", version = "0.7.0" }
+oxframe-text = { path = "crates/oxframe-text", version = "0.7.0" }
+oxframe-export = { path = "crates/oxframe-export", version = "0.7.0" }
+oxframe-preview = { path = "crates/oxframe-preview", version = "0.7.0", default-features = false }
+oxframe-protocol = { path = "crates/oxframe-protocol", version = "0.7.0" }
+oxframe-macros = { path = "crates/oxframe-macros", version = "0.7.0" }
+oxframe = { path = "crates/oxframe", version = "0.7.0" }
+oxframe-components = { path = "crates/oxframe-components", version = "0.7.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

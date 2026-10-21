@@ -213,7 +213,12 @@ fn fill_and_stroke(n: &NodeData, path: BezPath, opacity: f64, out: &mut Vec<Prim
     }
 }
 
-pub(crate) fn primitives(n: &NodeData, size: (f64, f64), opacity: f64) -> Vec<Primitive> {
+pub(crate) fn primitives(
+    n: &NodeData,
+    size: (f64, f64),
+    opacity: f64,
+    time: f64,
+) -> Vec<Primitive> {
     let mut out = Vec::new();
     let (start, end) = (n.start.get(), n.end.get());
     match &n.kind {
@@ -422,6 +427,53 @@ pub(crate) fn primitives(n: &NodeData, size: (f64, f64), opacity: f64) -> Vec<Pr
                 });
             }
         }
+        NodeKind::Custom { draw, .. } => {
+            let mut ctx = DrawCtx::new(time, size, opacity);
+            draw(&mut ctx, time);
+            out.extend(ctx.finish());
+        }
+        NodeKind::Particles {
+            seed,
+            gravity,
+            toward_camera,
+            life,
+            speed,
+            radius,
+            state,
+        } => {
+            let params = crate::sim::SimParams {
+                seed: *seed,
+                gravity: gravity.get(),
+                toward_camera: *toward_camera,
+                life: *life,
+                speed: *speed,
+                radius: *radius,
+            };
+            {
+                let bursts = state.bursts.borrow();
+                state.sim.borrow_mut().at(time, &bursts, params);
+            }
+            let particles: Vec<_> = state.sim.borrow().particles().to_vec();
+            let fill = fill_paint(n, 1.0);
+            let Some(paint) = fill else {
+                return out;
+            };
+            for p in particles {
+                let depth = if *toward_camera { 0.28 / p.z } else { 1.0 };
+                let fade = (1.0 - p.age / p.life).clamp(0.0, 1.0);
+                let Paint::Solid(color) = &paint else {
+                    continue;
+                };
+                let a = (f64::from(color.a) * opacity * fade) as f32;
+                if a <= 0.0 {
+                    continue;
+                }
+                out.push(Primitive::Fill {
+                    path: kurbo::Circle::new((p.x, p.y), p.radius * depth).to_path(0.2),
+                    paint: Paint::Solid(color.with_alpha(a)),
+                });
+            }
+        }
     }
     out
 }
@@ -432,6 +484,144 @@ fn tangent(seg: &PathSeg, t: f64) -> Vec2 {
     // Degenerate handles (e.g. lines raised to cubics) can give a zero
     // derivative at the ends; fall back to the chord.
     if d.hypot() > 1e-9 { d } else { c.p3 - c.p0 }
+}
+
+/// Closure a [`crate::Custom`] node paints with: the context and the frame time.
+pub type DrawFn = std::rc::Rc<dyn Fn(&mut DrawCtx, f64)>;
+
+/// What a [`crate::Custom`] node draws into. Coordinates are the node's own:
+/// the origin is the node center, positive x is right, positive y is down.
+///
+/// The closure runs every time the frame is painted. It has to be a function
+/// of `t`, of signals it captured, and of [`DrawCtx::rng`]: the same inputs
+/// must produce the same shapes, because a frame can be painted more than
+/// once and a seek paints it without the frames in between.
+pub struct DrawCtx {
+    prims: Vec<Primitive>,
+    time: f64,
+    size: (f64, f64),
+    opacity: f64,
+    quality: f64,
+}
+
+impl DrawCtx {
+    pub(crate) fn new(time: f64, size: (f64, f64), opacity: f64) -> Self {
+        Self {
+            prims: Vec::new(),
+            time,
+            size,
+            opacity,
+            quality: 1.0,
+        }
+    }
+
+    pub(crate) fn finish(self) -> Vec<Primitive> {
+        self.prims
+    }
+
+    /// Time of the frame being painted, in seconds.
+    pub fn time(&self) -> f64 {
+        self.time
+    }
+
+    /// The node's box, in its own coordinates.
+    pub fn size(&self) -> (f64, f64) {
+        self.size
+    }
+
+    /// 1 is a full frame. A later draft mode will pass a smaller value so a
+    /// closure can draw fewer shapes; it does not change positions.
+    pub fn quality(&self) -> f64 {
+        self.quality
+    }
+
+    /// Generator for `seed`. It does not touch the scene's `random()`, and
+    /// the same seed is the same sequence on every paint of this frame.
+    pub fn rng(&self, seed: u64) -> DrawRng {
+        DrawRng(oxframe_core::SeededRng::new(seed))
+    }
+
+    /// A straight segment from `a` to `b`.
+    pub fn line(&mut self, a: impl Into<Point>, b: impl Into<Point>) -> Pen<'_> {
+        let mut path = BezPath::new();
+        path.move_to(a.into());
+        path.line_to(b.into());
+        Pen { ctx: self, path }
+    }
+
+    /// A filled or stroked circle.
+    pub fn circle(&mut self, center: impl Into<Point>, radius: f64) -> Pen<'_> {
+        Pen {
+            path: kurbo::Circle::new(center.into(), radius.max(0.0)).to_path(0.2),
+            ctx: self,
+        }
+    }
+
+    /// A rectangle in the node's coordinates.
+    pub fn rect(&mut self, rect: kurbo::Rect) -> Pen<'_> {
+        Pen {
+            path: rect.to_path(0.1),
+            ctx: self,
+        }
+    }
+
+    /// An arbitrary outline.
+    pub fn path(&mut self, path: BezPath) -> Pen<'_> {
+        Pen { ctx: self, path }
+    }
+}
+
+/// A generator from [`DrawCtx::rng`].
+pub struct DrawRng(oxframe_core::SeededRng);
+
+impl DrawRng {
+    /// Uniform number in `[0, 1)`.
+    pub fn next_f64(&mut self) -> f64 {
+        self.0.next_f64()
+    }
+
+    /// Uniform number in `span` (`end` is excluded).
+    pub fn range(&mut self, span: std::ops::Range<f64>) -> f64 {
+        self.0.range(span)
+    }
+}
+
+/// A shape just added to a [`DrawCtx`], waiting for a fill or a stroke.
+pub struct Pen<'a> {
+    ctx: &'a mut DrawCtx,
+    path: BezPath,
+}
+
+impl Pen<'_> {
+    /// Fills the shape. A theme role such as `Accent` uses the current theme.
+    pub fn fill(self, paint: impl crate::theme::IntoPaint) {
+        self.paint(paint.into_paint(), None);
+    }
+
+    /// Strokes the shape with `width` in the node's coordinates.
+    pub fn stroke(self, paint: impl crate::theme::IntoPaint, width: f64) {
+        self.paint(paint.into_paint(), Some(width));
+    }
+
+    fn paint(self, color: oxframe_core::Color, stroke: Option<f64>) {
+        let a = (f64::from(color.a) * self.ctx.opacity) as f32;
+        if a <= 0.0 {
+            return;
+        }
+        let color = color.with_alpha(a);
+        match stroke {
+            None => self.ctx.prims.push(Primitive::Fill {
+                path: self.path,
+                paint: Paint::Solid(color),
+            }),
+            Some(width) if width > 0.0 => self.ctx.prims.push(Primitive::Stroke {
+                path: self.path,
+                paint: Paint::Solid(color),
+                style: StrokeStyle::solid(width),
+            }),
+            Some(_) => {}
+        }
+    }
 }
 
 fn arrow_head(tip: Point, dir: Vec2, size: f64) -> BezPath {

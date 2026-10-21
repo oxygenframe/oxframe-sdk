@@ -47,11 +47,12 @@ pub use scene::{SceneDef, SourceLocation};
 pub use transition::{Transition, transition};
 
 pub use oxframe_2d::{
-    Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Danger, Direction,
-    Edge, Fast, Grid, Group, Img, Ink, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin,
-    MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Path, Percent,
-    Polygon, Rect, RichSpan, SANS, SafeArea, SceneGraph, Side, Slow, Sm, Span, Star, Step, Success,
-    Surface, Svg, Text, TextAlign, Theme, Txt, View, Warning, Xl, Xs, pct, span,
+    Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Custom, Danger,
+    Direction, DrawCtx, DrawRng, Edge, Fast, Grid, Group, Img, Ink, Justify, Layout, LayoutAlign,
+    Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId, Normal,
+    OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect, RichSpan, SANS, SafeArea,
+    SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme,
+    Txt, View, Warning, Xl, Xs, pct, span,
 };
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
@@ -79,13 +80,14 @@ pub use oxframe_text::register_font;
 pub mod prelude {
     pub use crate::{
         Accent, Aspect, Background, BezPath, Blend, BlendMode, BulletList, Callout, Camera,
-        ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Danger, Dir, Direction, Ease,
-        Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img, Justify, LayerPose, Layout,
-        LayoutAlign, Lerp, Lg, Line, LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node,
-        NodeBuilder, Normal, OnAccent, Path, Point, Polygon, Project, Rect, RichSpan, SANS,
-        SafeArea, Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign,
-        Theme, TitleCard, Transition, Txt, Vec2, View, Warning, Xl, Xs, all, any, color, ease,
-        loop_while, next_frame, pct, presets, random, random_range, repeat, sequence, span, spawn,
-        stagger, transition, tune, wait_for, wait_until,
+        ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,
+        Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img,
+        Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line, LineCap, LineJoin, LowerThird,
+        MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, OnAccent, Particles, Path, Point,
+        Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal, Slow, Sm, Span, Star, Step,
+        Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, View,
+        Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
+        random_range, repeat, sequence, span, spawn, stagger, transition, tune, wait_for,
+        wait_until,
     };
 }

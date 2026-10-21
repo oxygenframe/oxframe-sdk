@@ -9,8 +9,8 @@ use oxframe_core::{BlendMode, Color, Ease, Gradient, Seconds, Signal, Tween, Vec
 
 use crate::builder::{
     self, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
-    LayoutBuilder, LineBuilder, NodeBuilder, PathBuilder, PolygonBuilder, RectBuilder, StarBuilder,
-    SvgBuilder, TxtBuilder,
+    LayoutBuilder, LineBuilder, NodeBuilder, ParticlesBuilder, PathBuilder, PolygonBuilder,
+    RectBuilder, StarBuilder, SvgBuilder, TxtBuilder,
 };
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
@@ -262,6 +262,44 @@ typed_handle!(Polygon, PolygonBuilder);
 typed_handle!(Star, StarBuilder);
 typed_handle!(Code, CodeBuilder);
 
+/// Handle to geometry drawn by a closure. Derefs to [`Node`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Custom(Node);
+
+impl Custom {
+    /// Starts a builder. `draw` is called every time the frame is painted,
+    /// with the frame time in seconds. It must depend only on that time, on
+    /// signals it captured, and on `ctx.rng(seed)`.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(draw: impl Fn(&mut crate::draw::DrawCtx, f64) + 'static) -> crate::CustomBuilder {
+        crate::CustomBuilder::from_draw(draw)
+    }
+
+    pub(crate) fn from_id(id: NodeId) -> Self {
+        Self(Node(id))
+    }
+
+    /// The untyped node handle.
+    pub fn node(self) -> Node {
+        self.0
+    }
+}
+
+impl Deref for Custom {
+    type Target = Node;
+    fn deref(&self) -> &Node {
+        &self.0
+    }
+}
+
+impl From<Custom> for Node {
+    fn from(h: Custom) -> Node {
+        h.0
+    }
+}
+
+typed_handle!(Particles, ParticlesBuilder);
+
 macro_rules! kind_signal {
     ($handle:ident :: $kind:ident { $($(#[$doc:meta])* $field:ident: $ty:ty),* $(,)? }) => {
         impl $handle {
@@ -278,6 +316,30 @@ macro_rules! kind_signal {
             )*
         }
     };
+}
+
+kind_signal!(Particles::Particles { gravity: f64 });
+
+impl Particles {
+    /// Emits `count` particles from `origin` at the current script time.
+    ///
+    /// The future is ready immediately: the burst is an event, and the
+    /// particles then move on their own. Seeking back before this time
+    /// removes them; seeking forward restores the same dots.
+    pub fn burst(self, origin: impl Into<Vec2>, count: u32) -> oxframe_core::WaitFor {
+        let origin = origin.into();
+        let time = oxframe_core::time();
+        with_graph(|g| {
+            if let NodeKind::Particles { state, .. } = &g.node(self.id()).kind {
+                state.bursts.borrow_mut().push(crate::sim::Burst {
+                    time,
+                    origin,
+                    count,
+                });
+            }
+        });
+        oxframe_core::wait_for(0.0)
+    }
 }
 
 kind_signal!(Rect::Rect {

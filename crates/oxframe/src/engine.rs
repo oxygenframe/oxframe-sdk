@@ -99,10 +99,13 @@ impl SceneRun {
     fn step(&mut self) -> bool {
         self.exec.set_has_previous(self.has_previous);
         let theme = self.theme.clone();
-        oxframe_2d::enter_theme(&theme, || {
+        let done = oxframe_2d::enter_theme(&theme, || {
             let Self { graph, exec, .. } = self;
             graph.enter(|| exec.step())
-        })
+        });
+        let frame = self.exec.frames_done().saturating_sub(1);
+        self.graph.set_time(f64::from(frame) / self.exec.fps());
+        done
     }
 
     /// Index of the last computed frame, if any.
@@ -533,17 +536,22 @@ impl Engine {
         background: Color,
         present: bool,
     ) -> Image {
+        let theme = self.project.theme.clone();
         let graph = self.seek(frame);
         let options = RenderOptions {
             width: size.0,
             height: size.1,
             background,
         };
-        if present {
-            renderer.render(graph, &options)
-        } else {
-            renderer.render_pixels(graph, &options)
-        }
+        // Custom resolves theme colors while painting, after the scene step
+        // has already returned.
+        oxframe_2d::enter_theme(&theme, || {
+            if present {
+                renderer.render(graph, &options)
+            } else {
+                renderer.render_pixels(graph, &options)
+            }
+        })
     }
 
     fn write_scene_meta(&mut self, i: usize, meta: Meta) -> Result<(String, Meta), String> {

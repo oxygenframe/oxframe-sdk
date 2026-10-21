@@ -6,6 +6,24 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.7.0 — 2026-10-21
+
+A node can draw its own geometry, and a spray keeps a seeded simulation
+(ROADMAP task 15, stage 1). No shaders yet.
+
+### Added
+
+- `Custom::new(|ctx, t| { ... })`. `ctx.line`, `ctx.circle`, `ctx.rect` and
+  `ctx.path` take `.fill` or `.stroke`. `ctx.rng(seed)` does not advance
+  `random()`, and the same seed draws the same shapes after a seek.
+- `Particles::new().seed(7).gravity(900.0).toward_camera()` and
+  `burst(origin, count).await`. Integration uses a fixed 1/120 s step and a
+  checkpoint every 30 steps, so seeking back replays at most that many steps
+  and lands on the same dots. `toward_camera` only scales the dots.
+- `oxframe check` reports `nondeterministic` when painting the same frame
+  twice does not match.
+- Example `spray`: rain from `Custom`, then a burst into the camera.
+
 ## 0.6.0 — 2026-10-21
 
 Scenes can blend into each other (ROADMAP task 5).

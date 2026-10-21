@@ -36,6 +36,7 @@ pub fn wait_for(seconds: f64) -> WaitFor {
     }
 }
 
+/// A wait returned by [`wait_for`].
 #[must_use = "futures do nothing unless awaited"]
 pub struct WaitFor {
     duration: f64,

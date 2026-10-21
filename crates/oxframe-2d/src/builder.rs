@@ -5,7 +5,8 @@ use oxframe_text::TextStyle;
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{Direction, Justify, LayoutAlign, NodeId, NodeKind, SceneGraph, with_graph};
 use crate::handles::{
-    Camera, Circle, Code, Grid, Group, Img, Layout, Line, Path, Polygon, Rect, Star, Txt,
+    Camera, Circle, Code, Custom, Grid, Group, Img, Layout, Line, Particles, Path, Polygon, Rect,
+    Star, Txt,
 };
 use crate::image::ImageSource;
 use crate::place::{self, Axis, Edge, Place, Side, Span};
@@ -1092,5 +1093,145 @@ impl NodeBuilder for GridBuilder {
             spacing: sig(g, k, "spacing", self.spacing),
         };
         Grid::from_id(insert(g, parent, kind, self.base))
+    }
+}
+
+// ------------------------------------------------------------------ Custom
+
+/// Builder for a [`Custom`] node.
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct CustomBuilder {
+    base: BaseProps,
+    draw: crate::draw::DrawFn,
+    width: f64,
+    height: f64,
+    fullscreen: bool,
+}
+
+impl CustomBuilder {
+    pub(crate) fn from_draw(draw: impl Fn(&mut crate::draw::DrawCtx, f64) + 'static) -> Self {
+        Self {
+            base: BaseProps::default(),
+            draw: std::rc::Rc::new(draw),
+            width: 100.0,
+            height: 100.0,
+            fullscreen: false,
+        }
+    }
+
+    /// Layout box. The closure's shapes are not measured into this.
+    pub fn size(mut self, width: f64, height: f64) -> Self {
+        self.width = width;
+        self.height = height;
+        self.fullscreen = false;
+        self
+    }
+
+    /// Uses the frame as the box, centered on the parent. Put the node on
+    /// the view when it should ignore a camera.
+    pub fn fullscreen(mut self) -> Self {
+        self.fullscreen = true;
+        self
+    }
+}
+
+impl NodeBuilder for CustomBuilder {
+    type Handle = Custom;
+    base_accessor!();
+    fn build(self, graph: &SceneGraph, parent: NodeId) -> Custom {
+        let (width, height) = if self.fullscreen {
+            graph.frame_size()
+        } else {
+            (self.width, self.height)
+        };
+        let kind = NodeKind::Custom {
+            draw: self.draw,
+            width,
+            height,
+        };
+        Custom::from_id(insert(graph, parent, kind, self.base))
+    }
+}
+
+// -------------------------------------------------------------- Particles
+
+/// Builder for a [`Particles`] node.
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct ParticlesBuilder {
+    base: BaseProps,
+    seed: u64,
+    gravity: f64,
+    toward_camera: bool,
+    life: f64,
+    speed: f64,
+    radius: f64,
+}
+
+impl Default for ParticlesBuilder {
+    fn default() -> Self {
+        Self {
+            base: BaseProps::default(),
+            seed: 1,
+            gravity: 980.0,
+            toward_camera: false,
+            life: 1.4,
+            speed: 360.0,
+            radius: 5.0,
+        }
+    }
+}
+
+impl ParticlesBuilder {
+    /// Seed of the burst generator. The same seed is the same spray.
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Downward acceleration, in pixels per second squared.
+    pub fn gravity(mut self, gravity: f64) -> Self {
+        self.gravity = gravity;
+        self
+    }
+
+    /// Particles grow as they come toward the viewer. Their motion stays flat.
+    pub fn toward_camera(mut self) -> Self {
+        self.toward_camera = true;
+        self
+    }
+
+    /// How long each particle lives, in seconds.
+    pub fn life(mut self, seconds: f64) -> Self {
+        self.life = seconds;
+        self
+    }
+
+    /// Launch speed, in pixels per second.
+    pub fn speed(mut self, speed: f64) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    /// Dot radius, in pixels, before the depth scale.
+    pub fn radius(mut self, radius: f64) -> Self {
+        self.radius = radius;
+        self
+    }
+}
+
+impl NodeBuilder for ParticlesBuilder {
+    type Handle = Particles;
+    base_accessor!();
+    fn build(self, graph: &SceneGraph, parent: NodeId) -> Particles {
+        let kind = NodeKind::Particles {
+            seed: self.seed,
+            gravity: sig(graph, "Particles", "gravity", self.gravity),
+            toward_camera: self.toward_camera,
+            life: self.life,
+            speed: self.speed,
+            radius: self.radius,
+            state: crate::sim::ParticlesState::new(),
+        };
+        Particles::from_id(insert(graph, parent, kind, self.base))
     }
 }

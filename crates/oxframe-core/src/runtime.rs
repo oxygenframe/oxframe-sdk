@@ -207,3 +207,28 @@ pub fn random() -> f64 {
 pub fn random_range(min: f64, max: f64) -> f64 {
     min + (max - min) * random()
 }
+
+/// A generator seeded by the caller. Drawing with this does not advance the
+/// scene's [`random`] generator, and the same seed always yields the same
+/// sequence, including after a seek.
+#[derive(Clone)]
+pub struct SeededRng(ChaCha8Rng);
+
+impl SeededRng {
+    /// Generator for `seed`. The same seed is the same sequence.
+    pub fn new(seed: u64) -> Self {
+        Self(ChaCha8Rng::seed_from_u64(seed))
+    }
+
+    /// Uniform number in `[0, 1)`.
+    pub fn next_f64(&mut self) -> f64 {
+        use rand::RngExt;
+        self.0.random::<f64>()
+    }
+
+    /// Uniform number in `span` (`end` is excluded).
+    pub fn range(&mut self, span: std::ops::Range<f64>) -> f64 {
+        let w = span.end - span.start;
+        span.start + w * self.next_f64()
+    }
+}
