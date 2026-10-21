@@ -103,6 +103,15 @@ def main() -> None:
     plugin = re.sub(r'"version": "[^"]*"', f'"version": "{version()}"', plugin_json.read_text())
     targets = {OUT / n: t for n, t in files.items()}
     targets |= {PLUGIN / "skills" / "oxframe" / n: t for n, t in files.items()}
+    # The task skills next to it (written by hand) go into the plugin as they are.
+    for other in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        if other.parent.name == "oxframe":
+            continue
+        text = other.read_text()
+        meta = frontmatter(text)
+        if meta.get("name") != other.parent.name or not meta.get("description"):
+            raise SystemExit(f"build-skill: {other.relative_to(ROOT)} needs name and description")
+        targets[PLUGIN / "skills" / other.parent.name / "SKILL.md"] = text
     targets[plugin_json] = plugin
     if "--check" in sys.argv:
         stale = [str(p.relative_to(ROOT)) for p, text in targets.items() if not p.exists() or p.read_text() != text]
