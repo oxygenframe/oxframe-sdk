@@ -10,7 +10,7 @@ use oxframe_core::{BlendMode, Color, Ease, Gradient, Seconds, Signal, Tween, Vec
 use crate::builder::{
     self, CameraBuilder, CircleBuilder, CodeBuilder, GridBuilder, GroupBuilder, ImgBuilder,
     LayoutBuilder, LineBuilder, NodeBuilder, ParticlesBuilder, PathBuilder, PolygonBuilder,
-    RectBuilder, StarBuilder, SvgBuilder, TxtBuilder,
+    RectBuilder, ShaderBuilder, StarBuilder, SvgBuilder, TxtBuilder,
 };
 use crate::draw::{LineCap, LineJoin};
 use crate::graph::{NodeId, NodeKind, SceneGraph, with_graph};
@@ -286,6 +286,111 @@ impl Custom {
 }
 
 impl Deref for Custom {
+    type Target = Node;
+    fn deref(&self) -> &Node {
+        &self.0
+    }
+}
+
+/// Handle to a WGSL shader. Derefs to [`Node`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Shader(Node);
+
+impl Shader {
+    /// A shader from WGSL text. The text defines `struct Params`, the
+    /// uniform `p`, and `fn shade`. oxframe adds `ox` and `ShadeIn`.
+    ///
+    /// The waves preset is what gets painted. A custom `shade` is
+    /// type-checked on every draw.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn source(wgsl: impl Into<String>) -> ShaderBuilder {
+        ShaderBuilder::new(crate::shader::ShaderCode::Wgsl(wgsl.into()))
+    }
+
+    /// A shader read from `path` on every draw, so saving the file updates
+    /// the running scene without a rebuild.
+    pub fn file(path: impl AsRef<std::path::Path>) -> ShaderBuilder {
+        ShaderBuilder::new(crate::shader::ShaderCode::File(path.as_ref().into()))
+    }
+
+    pub(crate) fn from_id(id: NodeId) -> Self {
+        Self(Node(id))
+    }
+
+    /// The untyped node handle.
+    pub fn node(self) -> Node {
+        self.0
+    }
+
+    /// The numeric uniform `name`.
+    ///
+    /// # Panics
+    ///
+    /// If the shader has no numeric uniform with that name. The message
+    /// lists the names it does have.
+    pub fn uniform(self, name: &str) -> Signal<f64> {
+        self.number(name)
+    }
+
+    /// Wave height of the waves preset.
+    pub fn amp(self) -> Signal<f64> {
+        self.number("amp")
+    }
+
+    /// Crest speed of the waves preset.
+    pub fn speed(self) -> Signal<f64> {
+        self.number("speed")
+    }
+
+    /// Water color of the waves preset.
+    pub fn deep(self) -> Signal<Color> {
+        self.color("deep")
+    }
+
+    /// Crest color of the waves preset.
+    pub fn foam(self) -> Signal<Color> {
+        self.color("foam")
+    }
+
+    fn number(self, name: &str) -> Signal<f64> {
+        with_graph(|g| {
+            let NodeKind::Shader { uniforms, .. } = &g.node(self.id()).kind else {
+                unreachable!("handle does not point to a Shader");
+            };
+            for u in uniforms {
+                if u.name == name
+                    && let crate::shader::UniformValue::Num(v) = &u.value
+                {
+                    return v.clone();
+                }
+            }
+            panic!("no numeric uniform {name}. {}", uniform_names(uniforms));
+        })
+    }
+
+    fn color(self, name: &str) -> Signal<Color> {
+        with_graph(|g| {
+            let NodeKind::Shader { uniforms, .. } = &g.node(self.id()).kind else {
+                unreachable!("handle does not point to a Shader");
+            };
+            for u in uniforms {
+                if u.name == name
+                    && let crate::shader::UniformValue::Color(v) = &u.value
+                {
+                    return v.clone();
+                }
+            }
+            panic!("no color uniform {name}. {}", uniform_names(uniforms));
+        })
+    }
+}
+
+fn uniform_names(uniforms: &[crate::shader::Uniform]) -> String {
+    let names: Vec<&str> = uniforms.iter().map(|u| u.name.as_str()).collect();
+    format!("Available: {}.", names.join(", "))
+}
+
+impl Deref for Shader {
     type Target = Node;
     fn deref(&self) -> &Node {
         &self.0

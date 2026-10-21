@@ -185,6 +185,16 @@ pub enum NodeKind {
         radius: f64,
         state: crate::sim::ParticlesState,
     },
+    /// Pixels from a WGSL `shade` function. No children in this version.
+    /// The waves preset is rasterized here; other shaders are type-checked.
+    Shader {
+        code: crate::shader::ShaderCode,
+        /// Runs the waves formula. A custom `shade` is checked, not executed.
+        waves: bool,
+        width: Signal<f64>,
+        height: Signal<f64>,
+        uniforms: Vec<crate::shader::Uniform>,
+    },
 }
 
 impl NodeKind {
@@ -206,6 +216,7 @@ impl NodeKind {
             Self::Svg { .. } => "Svg",
             Self::Custom { .. } => "Custom",
             Self::Particles { .. } => "Particles",
+            Self::Shader { .. } => "Shader",
         }
     }
 }
@@ -378,7 +389,8 @@ impl NodeData {
             | NodeKind::Code { .. }
             | NodeKind::Grid { .. }
             | NodeKind::Custom { .. }
-            | NodeKind::Particles { .. } => None,
+            | NodeKind::Particles { .. }
+            | NodeKind::Shader { .. } => None,
             NodeKind::Rect { radius, .. } | NodeKind::Layout { radius, .. } => {
                 let (w, h) = (size.0.max(0.0), size.1.max(0.0));
                 let r = radius.get().clamp(0.0, w.min(h) / 2.0);
@@ -523,6 +535,8 @@ pub struct SceneGraph {
     size: (u32, u32),
     /// Seconds of the frame last stepped. [`draw_list`](Self::draw_list) paints this time.
     time: Cell<f64>,
+    /// WGSL problems from the last [`draw_list`](Self::draw_list).
+    shader_diags: RefCell<Vec<crate::shader::ShaderDiag>>,
 }
 
 impl SceneGraph {
@@ -535,6 +549,7 @@ impl SceneGraph {
             nodes: RefCell::new(Vec::new()),
             size: (width, height),
             time: Cell::new(0.0),
+            shader_diags: RefCell::new(Vec::new()),
         });
         graph.insert(
             None,
@@ -676,6 +691,12 @@ impl SceneGraph {
         self.resolve_places();
         let nodes = self.nodes.borrow();
         let mut out = Vec::new();
+        crate::shader::clear_diags();
+        for n in nodes.iter() {
+            for diag in crate::shader::problems(n) {
+                crate::shader::push_diag(diag);
+            }
+        }
         visit(
             &nodes,
             Self::ROOT,
@@ -685,7 +706,13 @@ impl SceneGraph {
             self.time.get(),
             &mut out,
         );
+        *self.shader_diags.borrow_mut() = crate::shader::take_diags();
         out
+    }
+
+    /// WGSL problems from the last [`draw_list`](Self::draw_list).
+    pub fn shader_diags(&self) -> Vec<crate::shader::ShaderDiag> {
+        self.shader_diags.borrow().clone()
     }
 
     /// `Some` when painting this frame twice does not produce the same
@@ -1053,6 +1080,7 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         // A window onto its children, not a shape: no box of its own.
         NodeKind::Camera { .. } | NodeKind::Particles { .. } => (0.0, 0.0),
         NodeKind::Custom { width, height, .. } => (*width, *height),
+        NodeKind::Shader { width, height, .. } => (width.get(), height.get()),
         NodeKind::Group => {
             let mut bb: Option<kurbo::Rect> = None;
             for &c in &n.children {
@@ -1077,6 +1105,7 @@ fn resizable(kind: &NodeKind) -> bool {
             | NodeKind::Img { .. }
             | NodeKind::Grid { .. }
             | NodeKind::Svg { .. }
+            | NodeKind::Shader { .. }
     )
 }
 
@@ -1183,6 +1212,16 @@ fn visit(
     }
     let paint_opacity = if layered { 1.0 } else { opacity };
     for prim in crate::draw::primitives(n, size, paint_opacity, time) {
+        out.push(DrawItem {
+            node: id,
+            transform: tf,
+            prim,
+        });
+    }
+    if let NodeKind::Shader { .. } = &n.kind
+        && crate::shader::problems(n).is_empty()
+        && let Some(prim) = crate::shader::raster(n, size, tf, time, paint_opacity)
+    {
         out.push(DrawItem {
             node: id,
             transform: tf,

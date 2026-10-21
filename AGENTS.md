@@ -65,3 +65,19 @@ playground always estimate and never open files.
 
 `oxframe render --subtitles out.srt` writes the lines (`.vtt` by
 extension). `--no-audio` still writes them.
+
+## Shaders
+
+Start with `shaders::waves()`. `.amp()`, `.speed()`, `.deep()` and
+`.foam()` are signals, so `.to()` animates them. `.deep(Accent)` follows
+the theme. The node is a box: `.width(pct(100))`, `.height()`,
+`.to_edge(Edge::Bottom)`. It has no children; put a title on the view,
+above the water.
+
+`Shader::source` and `Shader::file` take WGSL that defines `struct Params`,
+the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
+`resolution`, `size`, `seed`, `view`, `progress`) and `ShadeIn` (`uv`,
+`local`, `world`, `screen`). A name or type that is not in `Params` fails
+`check`. Saving the file updates the next draw without a rebuild. The
+waves preset is what gets painted. A custom `shade` is type-checked on
+every draw.

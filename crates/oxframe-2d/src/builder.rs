@@ -6,7 +6,7 @@ use crate::draw::{LineCap, LineJoin};
 use crate::graph::{Direction, Justify, LayoutAlign, NodeId, NodeKind, SceneGraph, with_graph};
 use crate::handles::{
     Camera, Circle, Code, Custom, Grid, Group, Img, Layout, Line, Particles, Path, Polygon, Rect,
-    Star, Txt,
+    Shader, Star, Txt,
 };
 use crate::image::ImageSource;
 use crate::place::{self, Axis, Edge, Place, Side, Span};
@@ -1234,4 +1234,180 @@ impl NodeBuilder for ParticlesBuilder {
         };
         Particles::from_id(insert(graph, parent, kind, self.base))
     }
+}
+
+// ------------------------------------------------------------------ Shader
+
+enum Seed {
+    Num(f64),
+    Vec2(f64, f64),
+    Color(Color),
+    Bool(bool),
+}
+
+/// Builder for a [`Shader`] node.
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct ShaderBuilder {
+    base: BaseProps,
+    code: crate::shader::ShaderCode,
+    waves: bool,
+    width: Span,
+    height: Span,
+    fullscreen: bool,
+    uniforms: Vec<(String, Seed)>,
+}
+
+impl ShaderBuilder {
+    pub(crate) fn new(code: crate::shader::ShaderCode) -> Self {
+        Self {
+            base: BaseProps::default(),
+            code,
+            waves: false,
+            width: Span::Px(100.0),
+            height: Span::Px(100.0),
+            fullscreen: false,
+            uniforms: Vec::new(),
+        }
+    }
+
+    pub(crate) fn preset() -> Self {
+        let mut s = Self::new(crate::shader::ShaderCode::Wgsl(
+            crate::shader::waves_wgsl().into(),
+        ));
+        s.waves = true;
+        s.uniform("amp", 0.05)
+            .uniform("speed", 1.0)
+            .uniform_color("deep", Color::rgba(0.102_f32, 0.322_f32, 0.549_f32, 1.0))
+            .uniform_color("foam", Color::rgba(0.910_f32, 0.953_f32, 0.980_f32, 1.0))
+    }
+
+    /// Width in pixels, or [`pct`](crate::pct)`(100)` for the whole frame.
+    pub fn width(mut self, v: impl Into<Span>) -> Self {
+        self.width = v.into();
+        self.fullscreen = false;
+        self
+    }
+
+    /// Height in pixels, or a percentage of the frame.
+    pub fn height(mut self, v: impl Into<Span>) -> Self {
+        self.height = v.into();
+        self.fullscreen = false;
+        self
+    }
+
+    /// Uses the frame as the box. Put the node on the view so a camera
+    /// does not move it.
+    pub fn fullscreen(mut self) -> Self {
+        self.fullscreen = true;
+        self
+    }
+
+    /// Sets a numeric `Params` field. A name that is not in the shader
+    /// fails `check` (`param_unknown`).
+    pub fn uniform(mut self, name: impl Into<String>, value: f64) -> Self {
+        self.set_uniform(name.into(), Seed::Num(value));
+        self
+    }
+
+    /// Sets a `vec2<f32>` field from a point.
+    pub fn uniform_vec2(mut self, name: impl Into<String>, value: impl Into<Vec2>) -> Self {
+        let v = value.into();
+        self.set_uniform(name.into(), Seed::Vec2(v.x, v.y));
+        self
+    }
+
+    /// Sets a `vec4<f32>` field from a color or a theme role such as `Accent`.
+    pub fn uniform_color(mut self, name: impl Into<String>, value: impl IntoPaint) -> Self {
+        self.set_uniform(name.into(), Seed::Color(value.into_paint()));
+        self
+    }
+
+    /// Sets a `bool` field.
+    pub fn uniform_bool(mut self, name: impl Into<String>, value: bool) -> Self {
+        self.set_uniform(name.into(), Seed::Bool(value));
+        self
+    }
+
+    /// Wave height, as a fraction of the box. The preset default is 0.05.
+    pub fn amp(self, value: f64) -> Self {
+        self.uniform("amp", value)
+    }
+
+    /// How fast the crest travels. The preset default is 1.
+    pub fn speed(self, value: f64) -> Self {
+        self.uniform("speed", value)
+    }
+
+    /// Color below the crest. A theme role such as `Accent` follows the theme.
+    pub fn deep(self, value: impl IntoPaint) -> Self {
+        self.uniform_color("deep", value)
+    }
+
+    /// Color of the crest.
+    pub fn foam(self, value: impl IntoPaint) -> Self {
+        self.uniform_color("foam", value)
+    }
+
+    fn set_uniform(&mut self, name: String, value: Seed) {
+        if let Some(slot) = self.uniforms.iter_mut().find(|(n, _)| *n == name) {
+            slot.1 = value;
+        } else {
+            self.uniforms.push((name, value));
+        }
+    }
+}
+
+impl NodeBuilder for ShaderBuilder {
+    type Handle = Shader;
+    base_accessor!();
+    fn build(self, graph: &SceneGraph, parent: NodeId) -> Shader {
+        let (width, height) = if self.fullscreen {
+            let (w, h) = graph.frame_size();
+            (Span::Px(w), Span::Px(h))
+        } else {
+            (self.width, self.height)
+        };
+        let n = graph.next_id();
+        let uniforms = self
+            .uniforms
+            .into_iter()
+            .map(|(name, seed)| {
+                let value = match seed {
+                    Seed::Num(v) => crate::shader::UniformValue::Num(
+                        Signal::new(v).with_name(format!("Shader#{n}.{name}")),
+                    ),
+                    Seed::Vec2(x, y) => crate::shader::UniformValue::Vec2(
+                        Signal::new(Vec2::new(x, y)).with_name(format!("Shader#{n}.{name}")),
+                    ),
+                    Seed::Color(c) => crate::shader::UniformValue::Color(
+                        Signal::new(c).with_name(format!("Shader#{n}.{name}")),
+                    ),
+                    Seed::Bool(v) => crate::shader::UniformValue::Bool(
+                        Signal::new(if v { 1.0 } else { 0.0 })
+                            .with_name(format!("Shader#{n}.{name}")),
+                    ),
+                };
+                crate::shader::Uniform { name, value }
+            })
+            .collect();
+        let kind = NodeKind::Shader {
+            code: self.code,
+            waves: self.waves,
+            width: place::span_signal(graph, parent, Axis::X, width, format!("Shader#{n}.width")),
+            height: place::span_signal(
+                graph,
+                parent,
+                Axis::Y,
+                height,
+                format!("Shader#{n}.height"),
+            ),
+            uniforms,
+        };
+        Shader::from_id(insert(graph, parent, kind, self.base))
+    }
+}
+
+/// The waves preset: a crest of `foam` over `deep` water.
+pub fn waves() -> ShaderBuilder {
+    ShaderBuilder::preset()
 }

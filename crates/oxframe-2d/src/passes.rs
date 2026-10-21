@@ -2,7 +2,8 @@
 //!
 //! Vector items stay in one pass. A layer (opacity on a group, a blend, a
 //! blur, a shadow, a clip) becomes a composite pass that runs after the
-//! vector pass of its contents. Shader and effect passes are not built yet.
+//! vector pass of its contents. A shader node is painted into an image in
+//! that vector pass. Effect passes are not built yet.
 
 use std::hash::{Hash, Hasher};
 

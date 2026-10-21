@@ -55,8 +55,8 @@ pub use oxframe_2d::{
     Direction, DrawCtx, DrawRng, Edge, Fast, Grid, Group, Img, Ink, Justify, Layout, LayoutAlign,
     Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId, Normal,
     OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect, RichSpan, SANS, SafeArea,
-    SceneGraph, Side, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme,
-    Txt, View, Warning, Xl, Xs, pct, span,
+    SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign,
+    Theme, Txt, View, Warning, Xl, Xs, pct, span, waves,
 };
 pub use oxframe_components::{
     BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, LowerThird, TitleCard,
@@ -80,6 +80,12 @@ pub use oxframe_render as render;
 pub use oxframe_text as text;
 pub use oxframe_text::register_font;
 
+/// Preset shaders. A scene starts here and writes its own WGSL only when
+/// no preset fits.
+pub mod shaders {
+    pub use crate::waves;
+}
+
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
@@ -88,10 +94,10 @@ pub mod prelude {
         Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img,
         Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line, LineCap, LineJoin, LowerThird,
         MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, OnAccent, Particles, Path, Point,
-        Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal, Slow, Sm, Span, Star, Step,
-        Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, View,
-        Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
-        random_range, repeat, sequence, sound, span, spawn, stagger, transition, tune, voice,
-        wait_for, wait_until,
+        Polygon, Project, Rect, RichSpan, SANS, SafeArea, Shader, Side, Signal, Slow, Sm, Span,
+        Star, Step, Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Transition, Txt,
+        Vec2, View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets,
+        random, random_range, repeat, sequence, shaders, sound, span, spawn, stagger, transition,
+        tune, voice, wait_for, wait_until, waves,
     };
 }

@@ -28,16 +28,18 @@ mod handles;
 mod image;
 mod passes;
 mod place;
+mod shader;
 mod sim;
 mod svg;
 mod text;
 mod theme;
 mod trim;
 
+pub use builder::waves;
 pub use builder::{
     BaseProps, CameraBuilder, CircleBuilder, CodeBuilder, CustomBuilder, GridBuilder, GroupBuilder,
     ImgBuilder, LayoutBuilder, LineBuilder, NodeBuilder, ParticlesBuilder, PathBuilder,
-    PolygonBuilder, RectBuilder, StarBuilder, TxtBuilder,
+    PolygonBuilder, RectBuilder, ShaderBuilder, StarBuilder, TxtBuilder,
 };
 pub use draw::{
     DrawCtx, DrawItem, DrawRng, Layer, LineCap, LineJoin, Paint, Pen, Primitive, Shadow,
@@ -48,11 +50,12 @@ pub use graph::{
 };
 pub use handles::{
     Camera, Circle, Code, CodeText, CodeTween, Custom, Grid, Group, Img, Layout, Line, Node,
-    Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Star, Svg, Txt, View,
+    Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Shader, Star, Svg, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
+pub use shader::{ShaderDiag, draft_shaders, set_shader_budget_ms};
 pub use trim::trim;
 
 pub use oxframe_core::{BlendMode, Color, Gradient, GradientKind, Signal};

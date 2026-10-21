@@ -210,12 +210,18 @@ fn pass(
     let mut cpu = CpuRenderer::new();
     let cell = cell_size(engine.size(), opts.cell_width);
     let mut drift = Vec::new();
+    let mut shader_notes = Vec::new();
+    oxframe_2d::set_shader_budget_ms(opts.limits.shader_ms);
+    let _draft = oxframe_2d::draft_shaders();
     for when in &schedule {
         let frame = frame_at(when.t, engine.fps(), engine.total_frames());
         if let Some((node, source)) = engine.seek(frame).draw_drift()
             && !drift.iter().any(|(_, name, _)| name == &node)
         {
             drift.push((when.t, node, source));
+        }
+        for diag in engine.seek(frame).shader_diags() {
+            shader_notes.push((when.t, diag));
         }
         let nodes = engine.seek(frame).inspect_nodes();
         samples.push(Sample {
@@ -240,6 +246,25 @@ fn pass(
         &opts.limits,
     );
     issues.extend(lint::voice_lines(&engine.voices()));
+    let mut seen_shader = std::collections::BTreeSet::new();
+    for (t, diag) in shader_notes {
+        if seen_shader.insert((diag.rule, diag.node.clone(), diag.hint.clone())) {
+            let severity = if diag.rule == "shader_slow" {
+                lint::Severity::Warning
+            } else {
+                lint::Severity::Error
+            };
+            issues.push(lint::Issue {
+                rule: diag.rule,
+                severity,
+                time: [t, t],
+                node: diag.node,
+                source: diag.source,
+                hint: diag.hint,
+                aspect: None,
+            });
+        }
+    }
     for (t, node, source) in drift {
         issues.push(lint::Issue {
             rule: "nondeterministic",
@@ -806,7 +831,9 @@ fn format_issue(issue: &Issue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BoxFuture, Custom, NodeBuilder, Particles, SceneDef, SourceLocation, View};
+    use crate::{
+        BoxFuture, Custom, NodeBuilder, Particles, SceneDef, Shader, SourceLocation, View,
+    };
     use oxframe_core::Color;
     use oxframe_protocol::Meta;
     use std::collections::BTreeMap;
@@ -958,6 +985,30 @@ mod tests {
     }
 
     #[test]
+    fn a_shader_that_does_not_compile_fails_check() {
+        fn broken(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    Shader::source("this is not wgsl")
+                        .width(80.0)
+                        .height(40.0)
+                        .name("sea"),
+                );
+                crate::wait_for(0.2).await;
+            })
+        }
+        let report = report(project(broken), &Options::default()).unwrap();
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.rule == "shader_error" && i.node == "sea"),
+            "{:?}",
+            report.issues
+        );
+    }
+
+    #[test]
     fn spray_seeks_back_to_the_same_frame() {
         fn spray(view: View) -> BoxFuture {
             Box::pin(async move {
@@ -1034,6 +1085,38 @@ mod tests {
         };
         let (cx, cy) = (size.0 / 2, size.1 / 2);
         assert_eq!(px(&cpu, cx, cy), px(&gpu_img, cx, cy));
+    }
+
+    #[test]
+    fn waves_match_on_cpu_and_gpu() {
+        fn sea(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(crate::waves().width(120.0).height(60.0));
+                crate::wait_for(0.05).await;
+            })
+        }
+        let mut engine = crate::Engine::new(project(sea)).unwrap();
+        let size = engine.size();
+        let cpu = engine.render(0, &mut crate::render::CpuRenderer::new(), size);
+        let mut gpu = match crate::render::GpuRenderer::new() {
+            Ok(g) if g.is_software() && std::env::var_os("OXFRAME_GPU_TESTS").is_none() => return,
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let gpu_img = engine.render(0, &mut gpu, size);
+        let px = |img: &crate::render::Image, x, y| {
+            let i = ((y * img.width + x) * 4) as usize;
+            [
+                img.data[i],
+                img.data[i + 1],
+                img.data[i + 2],
+                img.data[i + 3],
+            ]
+        };
+        let (cx, cy) = (size.0 / 2, size.1 / 2);
+        assert_eq!(px(&cpu, cx, cy - 20), px(&gpu_img, cx, cy - 20));
+        assert_eq!(px(&cpu, cx, cy + 20), px(&gpu_img, cx, cy + 20));
+        assert!(px(&cpu, cx, cy - 20)[2] > px(&cpu, cx, cy + 20)[2]);
     }
 
     #[test]

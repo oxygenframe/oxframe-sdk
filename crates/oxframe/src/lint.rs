@@ -59,6 +59,8 @@ pub struct Limits {
     /// Text held at least this long is not `too_fast`, even if a full reading
     /// would take longer. Catches flashes, not short titles.
     pub text_flash: f64,
+    /// Milliseconds a draft shader raster may take before `shader_slow`.
+    pub shader_ms: f64,
     /// Gap between samples, used to join hits into one interval.
     pub sample_step: f64,
 }
@@ -76,6 +78,7 @@ impl Default for Limits {
             chars_per_second: 20.0,
             min_chars: 24,
             text_flash: 0.8,
+            shader_ms: 250.0,
             sample_step: 0.1,
         }
     }
@@ -111,6 +114,7 @@ pub fn lint(
     if !has_audio {
         issues.extend(dead_time(samples, limits));
     }
+    issues.extend(covers_text(samples));
     issues.sort_by(|a, b| {
         a.time[0]
             .total_cmp(&b.time[0])
@@ -622,6 +626,46 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
     issues
 }
 
+/// An opaque shader painted over text.
+fn covers_text(samples: &[Sample]) -> Vec<Issue> {
+    let mut issues = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for s in samples {
+        let shaders: Vec<&InspectNode> = s
+            .nodes
+            .iter()
+            .filter(|n| n.kind == "Shader" && n.opacity > 0.9 && n.order != u32::MAX)
+            .filter(|n| !seen.contains(&n.name))
+            .collect();
+        for shader in shaders {
+            let covered = s.nodes.iter().any(|text| {
+                (text.kind == "Txt" || text.kind == "Code")
+                    && text.text.as_ref().is_some_and(|t| !t.is_empty())
+                    && text.order < shader.order
+                    && text.order != u32::MAX
+                    && contains_center(shader.bounds, text.bounds)
+            });
+            if covered {
+                seen.insert(shader.name.clone());
+                issues.push(issue(
+                    "covers_text",
+                    Severity::Warning,
+                    [s.time, s.time],
+                    shader,
+                    "This shader paints over the text. Move the text, or keep the shader behind it.",
+                ));
+            }
+        }
+    }
+    issues
+}
+
+fn contains_center(outer: [f64; 4], inner: [f64; 4]) -> bool {
+    let x = (inner[0] + inner[2]) / 2.0;
+    let y = (inner[1] + inner[3]) / 2.0;
+    x >= outer[0] && x <= outer[2] && y >= outer[1] && y <= outer[3]
+}
+
 fn issue(
     rule: &'static str,
     severity: Severity,
@@ -685,6 +729,7 @@ mod tests {
             kind: match kind {
                 "Txt" => "Txt",
                 "Code" => "Code",
+                "Shader" => "Shader",
                 "Rect" => "Rect",
                 _ => "Rect",
             },
@@ -837,5 +882,19 @@ mod tests {
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, true, &limits());
         assert!(issues.iter().all(|i| i.rule != "dead_time"));
+    }
+
+    #[test]
+    fn an_opaque_shader_over_text_is_a_warning() {
+        let title = text(1, "Into the wave", [-40.0, -20.0, 40.0, 20.0]);
+        let sea = node(2, "Shader", [-80.0, -40.0, 80.0, 40.0]);
+        let issues = lint(
+            &[at(0.0, vec![title, sea])],
+            (1920, 1080),
+            Color::BLACK,
+            false,
+            &limits(),
+        );
+        assert!(issues.iter().any(|i| i.rule == "covers_text"));
     }
 }

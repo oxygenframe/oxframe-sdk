@@ -432,6 +432,7 @@ pub(crate) fn primitives(
             draw(&mut ctx, time);
             out.extend(ctx.finish());
         }
+        NodeKind::Shader { .. } => {}
         NodeKind::Particles {
             seed,
             gravity,

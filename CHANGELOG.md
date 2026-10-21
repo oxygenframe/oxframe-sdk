@@ -6,6 +6,24 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.11.0 — 2026-10-21
+
+A scene can paint a wave as a node. The preset renders in a check with no
+GPU, and the same image is what the GPU draws.
+
+### Added
+
+- `shaders::waves()` is a box in the scene. `.amp()`, `.deep()` and
+  `.foam()` are signals, and a theme role such as `Accent` follows the
+  theme. `.uniform()` sets a numeric field of your own shader.
+- `Shader::source` keeps WGSL in the scene. `Shader::file` reads it on
+  every draw, so saving the file updates the picture without a rebuild.
+  The text defines `Params` and `shade`. oxframe adds `ShadeIn`. A wrong
+  name or type fails the check and lists the fields. WGSL that does not
+  compile fails it too, with the line in your source.
+- A check paints shader layers at half resolution. An opaque shader over
+  text is a warning. A pass over the draft budget is a warning.
+
 ## 0.10.0 — 2026-10-21
 
 A scene can wait for one word of a spoken line. Without a provider the
