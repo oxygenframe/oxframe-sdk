@@ -14,8 +14,9 @@ pub enum Severity {
     Warning,
 }
 
-/// One problem found in a scene.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+/// One problem found in a scene. In `report.json` it also has `docs`, the
+/// page that explains its rule ([`Issue::docs`]).
+#[derive(Debug, Clone, PartialEq)]
 pub struct Issue {
     /// Rule id, e.g. `"text_overflow"`.
     pub rule: &'static str,
@@ -29,9 +30,35 @@ pub struct Issue {
     pub source: Option<String>,
     /// What to change.
     pub hint: String,
-    /// Frame shape this was found in, when the project declares several.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Frame shape this was found in, when the project declares several
+    /// (left out of the JSON otherwise).
     pub aspect: Option<String>,
+}
+
+impl Issue {
+    /// The section of the oxframe docs that explains this rule and how to
+    /// fix it.
+    pub fn docs(&self) -> String {
+        format!("https://oxframe.dev/docs/check-rules#{}", self.rule)
+    }
+}
+
+impl Serialize for Issue {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut st = s.serialize_struct("Issue", 8)?;
+        st.serialize_field("rule", self.rule)?;
+        st.serialize_field("severity", &self.severity)?;
+        st.serialize_field("time", &self.time)?;
+        st.serialize_field("node", &self.node)?;
+        st.serialize_field("source", &self.source)?;
+        st.serialize_field("hint", &self.hint)?;
+        if let Some(aspect) = &self.aspect {
+            st.serialize_field("aspect", aspect)?;
+        }
+        st.serialize_field("docs", &self.docs())?;
+        st.end()
+    }
 }
 
 /// Thresholds for [`lint`]. See `[check]` in `oxframe.toml`.
@@ -730,6 +757,31 @@ fn grouped(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_issue_in_json_links_to_its_rule() {
+        let issue = Issue {
+            rule: "too_fast",
+            severity: Severity::Warning,
+            time: [1.0, 2.0],
+            node: "title".into(),
+            source: None,
+            hint: "Hold it longer.".into(),
+            aspect: None,
+        };
+        let json = serde_json::to_value(&issue).unwrap();
+        assert_eq!(json["rule"], "too_fast");
+        assert_eq!(
+            json["docs"],
+            "https://oxframe.dev/docs/check-rules#too_fast"
+        );
+        assert!(json.get("aspect").is_none());
+        let with = Issue {
+            aspect: Some("9:16".into()),
+            ..issue
+        };
+        assert_eq!(serde_json::to_value(&with).unwrap()["aspect"], "9:16");
+    }
+
     use super::*;
 
     fn node(id: u32, kind: &str, bounds: [f64; 4]) -> InspectNode {

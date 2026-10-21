@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- Every issue in `report.json` has `docs`: the link to its rule on
+  https://oxframe.dev/docs/check-rules, with what the rule reports and how to
+  fix it (`Issue::docs`).
+
 ## 0.20.0 — 2026-10-21
 
 Parallel rendering.

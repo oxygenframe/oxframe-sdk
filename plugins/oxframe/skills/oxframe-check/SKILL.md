@@ -10,7 +10,9 @@ Uses the `oxframe` skill (workflow, full API cheat sheet); install both with `np
 `out/check/storyboard.png` and `out/check/report.json`. It exits 1 on errors;
 warnings do not fail it. `oxframe --json check` prints the report on stdout.
 
-Each issue has `rule`, `severity`, a time range, a node and `file:line`. Fix
+Each issue has `rule`, `severity`, a time range, a node, `file:line` and (from
+oxframe 0.21) `docs`, a link to the rule's section of
+https://oxframe.dev/docs/check-rules with a before and after picture. Fix
 errors first, then warnings, then run `check` again until it exits 0. Look at the
 storyboard before reporting: a clean report is necessary, not sufficient.
 
