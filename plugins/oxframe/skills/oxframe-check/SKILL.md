@@ -20,7 +20,8 @@ storyboard before reporting: a clean report is necessary, not sufficient.
 | --- | --- | --- |
 | `out_of_frame` | A node leaves the frame or the safe area | Smaller size, `pct()`, `to_edge(Edge::…)`, or move the camera |
 | `text_overflow` | Text wider than its box or the frame | Shorter text, `.caption()`/`.body()` instead of a heading, a wider box |
-| `text_overlap` / `covers_text` | Text on top of text, or a shape over text | `next_to`, a `Layout`, or fade one out first |
+| `text_overlap` | Text on top of text | `next_to`, a `Layout`, or fade one out first |
+| `covers_text` | A shader drawn over text | Add the shader before the text, or move the text out of its box |
 | `low_contrast` | Text too close to its background | A theme role: `.fill(Text)` on `Surface`, `OnAccent` on `Accent` |
 | `too_fast` | Text not on screen long enough to read, or a large move too quick | `wait_for(…)` after it appears, a longer tween |
 | `dead_time` | Nothing changes for too long | Shorten the wait or animate something |
