@@ -6,6 +6,7 @@ use oxframe_core::Color;
 use oxframe_protocol::Meta;
 
 use crate::SceneDef;
+use crate::audio::Audio;
 
 /// A sequence of scenes plus output settings. Call `main()`
 /// from your binary's `main` to get the `render`/`info` commands.
@@ -21,7 +22,7 @@ pub struct Project {
     pub(crate) max_scene_seconds: f64,
     pub(crate) write_meta: bool,
     pub(crate) meta_dir: Option<PathBuf>,
-    pub(crate) audio: Option<String>,
+    pub(crate) audio: Option<Audio>,
     pub(crate) inline_meta: Option<BTreeMap<String, Meta>>,
     /// Formats `check` renders, and `render --aspect all` exports.
     pub(crate) aspects: Vec<Aspect>,
@@ -188,9 +189,9 @@ impl Project {
 
     /// Soundtrack, relative to the project root (where `oxframe` runs).
     /// Its offset is edited in the timeline and stored in the first scene's
-    /// `meta.json`.
-    pub fn audio(mut self, path: impl Into<String>) -> Self {
-        self.audio = Some(path.into());
+    /// `meta.json`. A path is the same as [`Audio::track`](crate::Audio::track).
+    pub fn audio(mut self, track: impl Into<Audio>) -> Self {
+        self.audio = Some(track.into());
         self
     }
 

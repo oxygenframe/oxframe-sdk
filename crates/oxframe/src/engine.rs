@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use oxframe_2d::{SceneGraph, View};
-use oxframe_core::{Color, Executor, Recorded};
+use oxframe_core::{Color, Executor, Recorded, SoundClip};
 use oxframe_protocol::{MarkerInfo, Meta, MetaError, SceneInfo};
 use oxframe_render::{Image, RenderOptions, Renderer};
 
@@ -114,6 +114,19 @@ impl SceneRun {
     }
 }
 
+/// The project's soundtrack, as declared in code plus the timeline offset.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(crate) struct Track {
+    pub file: String,
+    pub offset: f64,
+    pub volume: f32,
+    pub fade_in: f64,
+    pub fade_out: f64,
+    pub duck: bool,
+    pub master_in: f64,
+    pub master_out: f64,
+}
+
 struct SceneState {
     def: SceneDef,
     meta: Meta,
@@ -122,6 +135,8 @@ struct SceneState {
     frames: u32,
     /// Transition declared while measuring, if the scene starts one.
     incoming: Option<Recorded>,
+    /// Sound effects recorded while measuring, in scene time.
+    clips: Vec<SoundClip>,
     /// Last frame of this scene, transparent, reused while the next scene blends.
     held: Option<(u32, u32, Image)>,
     run: Option<SceneRun>,
@@ -166,19 +181,24 @@ impl Engine {
                 start: 0,
                 frames: 0,
                 incoming: None,
+                clips: Vec::new(),
                 held: None,
                 run: None,
             });
         }
         // The soundtrack is project-wide; its offset lives in the first
         // scene's meta.
-        if let Some(file) = &project.audio
+        if let Some(track) = &project.audio
             && let Some(first) = scenes.first_mut()
-            && first.meta.audio.as_ref().is_none_or(|a| &a.file != file)
+            && first
+                .meta
+                .audio
+                .as_ref()
+                .is_none_or(|a| a.file != track.file)
         {
             let offset = first.meta.audio.as_ref().map_or(0.0, |a| a.offset);
             first.meta.audio = Some(oxframe_protocol::AudioMeta {
-                file: file.clone(),
+                file: track.file.clone(),
                 offset,
                 extra: Default::default(),
             });
@@ -213,6 +233,7 @@ impl Engine {
         while !run.step() && run.exec.frames_done() < max.max(1) {}
         scene.frames = run.exec.frames_done();
         scene.incoming = run.exec.transition();
+        scene.clips = run.exec.sounds();
         if run.exec.take_meta_changed() {
             scene.meta = run.exec.meta();
             if self.project.write_meta && self.project.inline_meta.is_none() {
@@ -282,6 +303,49 @@ impl Engine {
     pub fn audio(&self) -> Option<(String, f64)> {
         let a = self.scenes.first()?.meta.audio.as_ref()?;
         Some((a.file.clone(), a.offset))
+    }
+
+    /// Soundtrack settings from the project, plus the offset stored in meta.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub(crate) fn track(&self) -> Option<Track> {
+        let audio = self.project.audio.as_ref()?;
+        let offset = self
+            .scenes
+            .first()
+            .and_then(|s| s.meta.audio.as_ref())
+            .map(|a| a.offset)
+            .unwrap_or(0.0);
+        Some(Track {
+            file: audio.file.clone(),
+            offset,
+            volume: audio.volume,
+            fade_in: audio.fade_in,
+            fade_out: audio.fade_out,
+            duck: audio.duck,
+            master_in: audio.master_in,
+            master_out: audio.master_out,
+        })
+    }
+
+    /// Sound effects of every scene, in project time.
+    pub(crate) fn scheduled(&self) -> Vec<crate::audio::Scheduled> {
+        let fps = f64::from(self.project.fps);
+        self.scenes
+            .iter()
+            .flat_map(|s| {
+                let origin = f64::from(s.start) / fps;
+                s.clips.iter().map(move |c| crate::audio::Scheduled {
+                    file: c.file.clone(),
+                    start: origin + c.at,
+                    volume: c.volume,
+                    fade_in: c.fade_in,
+                    fade_out: c.fade_out,
+                    trim_start: c.trim_start,
+                    trim_end: c.trim_end,
+                    priority: c.priority,
+                })
+            })
+            .collect()
     }
 
     /// Meta of every scene, as `(scene, meta)`.

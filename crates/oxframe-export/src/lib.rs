@@ -11,6 +11,13 @@
 
 #![warn(missing_docs)]
 
+mod mix;
+
+pub use mix::{
+    MixClip, MixError, MixRequest, Mixed, PREVIEW_RATE, SAMPLE_RATE, downsample, envelope, mix,
+    probe_duration, write_wav,
+};
+
 use std::fmt;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -91,6 +98,9 @@ pub struct ExportOptions {
     pub audio: Option<Audio>,
     /// Explicit ffmpeg binary; otherwise found in `PATH`.
     pub ffmpeg: Option<PathBuf>,
+    /// Stop after this many seconds. Without it, padding the soundtrack can
+    /// run past the last frame.
+    pub duration: Option<f64>,
 }
 
 /// Why an export failed.
@@ -387,7 +397,14 @@ pub fn ffmpeg_args(o: &ExportOptions) -> Vec<String> {
             Format::Png => {}
         }
         // Pad audio with silence so `-shortest` never cuts the video.
-        push(&["-af", "apad"]);
+        // `whole_dur` stops the pad at the last frame; an open-ended pad
+        // ignores `-shortest` and the file runs on.
+        if let Some(seconds) = o.duration {
+            let filter = format!("apad=whole_dur={seconds:.6}");
+            push(&["-af", &filter, "-t", &format!("{seconds:.6}")]);
+        } else {
+            push(&["-af", "apad"]);
+        }
     }
     a.push(o.out.to_string_lossy().into_owned());
     a
@@ -487,6 +504,7 @@ mod tests {
             fps: 30,
             audio: None,
             ffmpeg: None,
+            duration: None,
         }
     }
 

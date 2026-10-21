@@ -230,7 +230,7 @@ fn pass(
             ));
         }
     }
-    let has_audio = engine.audio().is_some();
+    let has_audio = engine.audio().is_some() || !engine.scheduled().is_empty();
     let mut issues = lint::lint(
         &samples,
         engine.size(),

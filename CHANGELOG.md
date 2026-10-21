@@ -6,6 +6,23 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.9.0 — 2026-10-21
+
+Sound effects mix with the soundtrack into one track. ffmpeg only encodes
+that mix, so the samples do not depend on the ffmpeg version.
+
+### Added
+
+- `Audio::track` builds the soundtrack. `Project::audio("music.mp3")` still
+  works. `.volume()`, `.fade_in()`, `.fade_out()` and `.master_fade()` shape
+  it. `.duck_under_voice()` lowers it under a clip marked `.priority()`.
+- `sound("click.wav")` starts at the current frame. `.play()` does not wait.
+  Awaiting it waits until the clip ends. `.trim()` plays a slice of the file,
+  which is also how long the wait is.
+- The editor draws each effect on the timeline and plays the mix while you
+  play or seek. `--no-audio` leaves effects out. `--range` keeps only the
+  effects inside that part of the video.
+
 ## 0.8.0 — 2026-10-21
 
 A frame's draw list is a pass graph, and a layer whose vectors did not

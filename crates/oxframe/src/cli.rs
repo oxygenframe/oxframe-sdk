@@ -207,6 +207,16 @@ pub(crate) fn make_renderer(cpu: bool) -> (Box<dyn Renderer>, &'static str) {
     (Box::new(CpuRenderer::new()), "cpu (tiny-skia)")
 }
 
+struct RemoveOnDrop(Option<PathBuf>);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
 fn render(project: Project, args: RenderArgs) -> i32 {
     if !args.at.is_empty() {
         return snapshot(project, &args);
@@ -342,14 +352,34 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     }
 
     let size = args.size.unwrap_or(engine.size());
-    let audio = (!args.no_audio && format != Format::Png)
-        .then(|| engine.audio())
-        .flatten()
-        .map(|(file, offset)| Audio {
-            file: file.into(),
-            // The video starts at `frames.start`, so shift the audio too.
-            offset: offset - f64::from(frames.start) / f64::from(fps),
-        });
+    let origin = f64::from(frames.start) / f64::from(fps);
+    let seconds = frames.len() as f64 / f64::from(fps);
+    let mixed = if !args.no_audio && format != Format::Png {
+        match crate::audio::mix_range(&engine, origin, seconds) {
+            Ok(mixed) => mixed,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return EXIT_ERROR;
+            }
+        }
+    } else {
+        None
+    };
+    let mix_path = if let Some(mixed) = mixed {
+        let path = std::env::temp_dir().join(format!("oxframe-mix-{}.wav", std::process::id()));
+        if let Err(e) = oxframe_export::write_wav(&path, &mixed) {
+            eprintln!("error: {e}");
+            return EXIT_ERROR;
+        }
+        Some(path)
+    } else {
+        None
+    };
+    let _remove_mix = RemoveOnDrop(mix_path.clone());
+    let audio = mix_path.as_ref().map(|file| Audio {
+        file: file.clone(),
+        offset: 0.0,
+    });
     let opts = ExportOptions {
         out: out.clone(),
         format,
@@ -358,6 +388,7 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         fps,
         audio,
         ffmpeg: args.ffmpeg.clone(),
+        duration: Some(seconds),
     };
     let mut exporter = match Exporter::start(&opts) {
         Ok(e) => e,

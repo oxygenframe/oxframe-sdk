@@ -22,6 +22,7 @@ mod paint;
 mod path;
 mod runtime;
 mod signal;
+mod sound;
 mod transition;
 mod tween;
 
@@ -46,6 +47,7 @@ pub use transition::{Blend, Dir, Kind, LayerPose, Recorded};
 
 pub use rand;
 pub use signal::Signal;
+pub use sound::{SoundClip, record_sound};
 pub use tween::{Seconds, Tween};
 
 pub use kurbo::{self, Affine, BezPath, Point, Vec2};

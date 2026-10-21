@@ -4,7 +4,7 @@
 use oxframe_2d::NodeId;
 use oxframe_core::{FrameSource, Image, Point};
 use oxframe_preview::{MetaEdit, PreviewEngine};
-use oxframe_protocol::{MarkerInfo, Meta, NodeInfo, SceneInfo, SignalValue};
+use oxframe_protocol::{AudioClipInfo, MarkerInfo, Meta, NodeInfo, SceneInfo, SignalValue};
 use oxframe_render::Renderer;
 
 use crate::Engine;
@@ -15,6 +15,7 @@ pub struct PreviewAdapter {
     engine: Engine,
     renderer: Box<dyn Renderer>,
     waveform: Option<Option<Vec<f32>>>,
+    pcm: Option<Option<(u32, Vec<i16>)>>,
 }
 
 impl PreviewAdapter {
@@ -24,6 +25,7 @@ impl PreviewAdapter {
             engine,
             renderer,
             waveform: None,
+            pcm: None,
         }
     }
 }
@@ -147,21 +149,70 @@ impl PreviewEngine for PreviewAdapter {
     }
 
     fn waveform(&mut self, buckets: usize) -> Option<Vec<f32>> {
-        if self.waveform.is_none() {
-            #[cfg(not(target_arch = "wasm32"))]
+        self.ensure_audio(buckets);
+        self.waveform.clone().flatten()
+    }
+
+    fn audio_clips(&self) -> Vec<AudioClipInfo> {
+        self.engine
+            .scheduled()
+            .into_iter()
+            .map(|sound| AudioClipInfo {
+                name: std::path::Path::new(&sound.file)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(sound.file.as_str())
+                    .to_owned(),
+                start: sound.start,
+                seconds: sound.known_seconds().unwrap_or(0.0),
+                priority: sound.priority,
+            })
+            .collect()
+    }
+
+    fn audio_pcm(&mut self) -> Option<(u32, Vec<i16>)> {
+        self.ensure_audio(1);
+        self.pcm.clone().flatten()
+    }
+}
+
+impl PreviewAdapter {
+    fn ensure_audio(&mut self, buckets: usize) {
+        if self.waveform.is_some() {
+            return;
+        }
+        let buckets = buckets.clamp(1, 4096);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let seconds =
+                f64::from(self.engine.total_frames()) / f64::from(self.engine.fps().max(1));
+            match crate::audio::mix_range(&self.engine, 0.0, seconds) {
+                Ok(Some(mixed)) => {
+                    self.waveform = Some(Some(oxframe_export::envelope(&mixed.samples, buckets)));
+                    let preview = oxframe_export::downsample(
+                        &mixed.samples,
+                        mixed.rate,
+                        oxframe_export::PREVIEW_RATE,
+                    );
+                    self.pcm = Some(Some((oxframe_export::PREVIEW_RATE, preview)));
+                    return;
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("warning: mix: {e}"),
+            }
             let wf = self.engine.audio().and_then(|(file, _)| {
                 oxframe_export::waveform(std::path::Path::new(&file), buckets, None)
                     .map_err(|e| eprintln!("warning: waveform: {e}"))
                     .ok()
             });
-            // Decoding audio in the browser is the page's job (WebAudio).
-            #[cfg(target_arch = "wasm32")]
-            let wf = {
-                let _ = buckets;
-                None
-            };
             self.waveform = Some(wf);
+            self.pcm = Some(None);
         }
-        self.waveform.clone().flatten()
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = buckets;
+            self.waveform = Some(None);
+            self.pcm = Some(None);
+        }
     }
 }

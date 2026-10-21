@@ -25,6 +25,7 @@
 #![warn(missing_docs)]
 
 mod adapter;
+mod audio;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
 mod engine;
@@ -41,6 +42,7 @@ mod transition;
 pub mod wasm;
 
 pub use adapter::PreviewAdapter;
+pub use audio::{Audio, sound};
 pub use engine::{Engine, EngineError, MetaSection};
 pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
@@ -79,7 +81,7 @@ pub use oxframe_text::register_font;
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        Accent, Aspect, Background, BezPath, Blend, BlendMode, BulletList, Callout, Camera,
+        Accent, Aspect, Audio, Background, BezPath, Blend, BlendMode, BulletList, Callout, Camera,
         ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,
         Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img,
         Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line, LineCap, LineJoin, LowerThird,
@@ -87,7 +89,7 @@ pub mod prelude {
         Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal, Slow, Sm, Span, Star, Step,
         Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, View,
         Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
-        random_range, repeat, sequence, span, spawn, stagger, transition, tune, wait_for,
+        random_range, repeat, sequence, sound, span, spawn, stagger, transition, tune, wait_for,
         wait_until,
     };
 }

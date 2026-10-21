@@ -27,6 +27,7 @@ pub mod relative;
 pub mod release;
 pub mod shapes;
 pub mod showcase;
+pub mod sounds;
 pub mod spray;
 pub mod svg;
 pub mod text;
@@ -60,6 +61,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("relative", relative::project),
         ("release", release::project),
         ("spray", spray::project),
+        ("sounds", sounds::project),
         ("learn_01_hello", learn_01_hello::project),
         ("learn_02_together", learn_02_together::project),
         ("learn_03_shapes", learn_03_shapes::project),

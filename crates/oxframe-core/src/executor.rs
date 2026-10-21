@@ -112,6 +112,11 @@ impl Executor {
     pub fn transition(&self) -> Option<crate::transition::Recorded> {
         *self.rt.transition.borrow()
     }
+
+    /// Sound effects the scene scheduled, in the order it scheduled them.
+    pub fn sounds(&self) -> Vec<crate::SoundClip> {
+        self.rt.sounds.borrow().clone()
+    }
 }
 
 #[cfg(test)]

@@ -31,6 +31,8 @@ pub(crate) struct Runtime {
     pub has_previous: Cell<bool>,
     /// The transition declared by the scene, if it starts one.
     pub transition: RefCell<Option<Recorded>>,
+    /// Sound effects scheduled by `sound()`, in scene time.
+    pub sounds: RefCell<Vec<crate::SoundClip>>,
 }
 
 impl Runtime {
@@ -46,6 +48,7 @@ impl Runtime {
             rng: RefCell::new(ChaCha8Rng::seed_from_u64(seed)),
             has_previous: Cell::new(false),
             transition: RefCell::new(None),
+            sounds: RefCell::new(Vec::new()),
         })
     }
 

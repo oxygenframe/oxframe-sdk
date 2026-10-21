@@ -135,6 +135,9 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         /// Peak amplitudes of the soundtrack in `0..=1`, one per frame (at most 4096).
         audio_waveform: Option<Vec<f32>>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        /// Sound effects on the timeline.
+        audio_clips: Vec<AudioClipInfo>,
     },
     /// The node tree of the current frame's scene.
     Tree {
@@ -221,6 +224,20 @@ pub struct SceneInfo {
     pub transition_at: u32,
 }
 
+/// A sound effect on the timeline.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct AudioClipInfo {
+    /// File name.
+    pub name: String,
+    /// Start on the project timeline, in seconds.
+    pub start: f64,
+    /// Length in seconds. `0` when the file was not measured.
+    pub seconds: f64,
+    /// This clip ducks the soundtrack.
+    pub priority: bool,
+}
+
 /// A marker on the timeline.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -270,6 +287,9 @@ pub enum FrameFormat {
     /// No body: the frame was drawn directly into the transport's surface
     /// (an OffscreenCanvas in the browser).
     Surface = 4,
+    /// Signed 16-bit little-endian mono PCM. `width` is the sample rate,
+    /// `height` is 1, and the body is the samples.
+    Pcm = 5,
 }
 
 impl FrameFormat {
@@ -280,6 +300,7 @@ impl FrameFormat {
             2 => Some(Self::Jpeg),
             3 => Some(Self::Rgba),
             4 => Some(Self::Surface),
+            5 => Some(Self::Pcm),
             _ => None,
         }
     }

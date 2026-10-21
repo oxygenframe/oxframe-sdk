@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 
 use oxframe_core::{FrameSource, Image};
 use oxframe_protocol::{
-    Command, ErrorKind, Event, FrameFormat, FrameHeader, MarkerInfo, Meta, NodeInfo,
+    AudioClipInfo, Command, ErrorKind, Event, FrameFormat, FrameHeader, MarkerInfo, Meta, NodeInfo,
     PROTOCOL_VERSION, SceneInfo, SignalValue,
 };
 
@@ -88,6 +88,14 @@ pub trait PreviewEngine: FrameSource {
     fn inspect(&mut self, frame: u32, node: u32) -> Option<(Vec<SignalValue>, [f64; 8])>;
     /// Audio peak envelope for the timeline, if the project has audio.
     fn waveform(&mut self, buckets: usize) -> Option<Vec<f32>>;
+    /// Sound effects, for the timeline bars.
+    fn audio_clips(&self) -> Vec<AudioClipInfo> {
+        Vec::new()
+    }
+    /// Mixed preview audio: sample rate and mono s16le samples.
+    fn audio_pcm(&mut self) -> Option<(u32, Vec<i16>)> {
+        None
+    }
 }
 
 /// A message for the UI: JSON event or binary frame.
@@ -151,6 +159,23 @@ pub struct Session<E> {
     version: u64,
     cache: FrameCache,
     last_tree: Vec<NodeInfo>,
+}
+
+fn encode_pcm(rate: u32, samples: &[i16]) -> Vec<u8> {
+    let mut body = Vec::with_capacity(samples.len() * 2);
+    for sample in samples {
+        body.extend_from_slice(&sample.to_le_bytes());
+    }
+    let header = FrameHeader {
+        frame: 0,
+        width: u16::try_from(rate).unwrap_or(u16::MAX),
+        height: 1,
+        format: FrameFormat::Pcm,
+        len: u32::try_from(body.len()).unwrap_or(u32::MAX),
+    };
+    let mut bytes = header.encode().to_vec();
+    bytes.extend(body);
+    bytes
 }
 
 impl<E: PreviewEngine> Session<E> {
@@ -219,14 +244,14 @@ impl<E: PreviewEngine> Session<E> {
                 .into_iter()
                 .map(|(scene, meta)| Output::Event(Event::MetaChanged { scene, meta })),
         );
-        out.push(self.timeline(true));
+        out.extend(self.timeline(true));
         out.extend(self.show());
         out
     }
 
-    fn timeline(&mut self, with_audio: bool) -> Output {
+    fn timeline(&mut self, with_audio: bool) -> Vec<Output> {
         let frames = self.engine.total_frames();
-        Output::Event(Event::Timeline {
+        let mut out = vec![Output::Event(Event::Timeline {
             frames,
             markers: self.engine.markers(),
             scenes: self.engine.scenes(),
@@ -235,7 +260,12 @@ impl<E: PreviewEngine> Session<E> {
             } else {
                 None
             },
-        })
+            audio_clips: self.engine.audio_clips(),
+        })];
+        if with_audio && let Some((rate, samples)) = self.engine.audio_pcm() {
+            out.push(Output::Frame(encode_pcm(rate, &samples)));
+        }
+        out
     }
 
     /// Frame plus everything that depends on it.
@@ -399,7 +429,7 @@ impl<E: PreviewEngine> Session<E> {
                     .into_iter()
                     .map(|(scene, meta)| Output::Event(Event::MetaChanged { scene, meta }))
                     .collect();
-                out.push(self.timeline(false));
+                out.extend(self.timeline(false));
                 out.extend(self.show());
                 out
             }
