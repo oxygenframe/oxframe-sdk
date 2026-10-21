@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "oxframe": {
+      "command": "oxframe",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

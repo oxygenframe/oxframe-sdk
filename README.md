@@ -1,5 +1,10 @@
 # oxframe-sdk
 
+[![crates.io](https://img.shields.io/crates/v/oxframe.svg)](https://crates.io/crates/oxframe)
+[![docs.rs](https://img.shields.io/docsrs/oxframe)](https://docs.rs/oxframe)
+[![license](https://img.shields.io/crates/l/oxframe.svg)](https://github.com/oxygenframe/oxframe-sdk#license)
+[![playground](https://img.shields.io/badge/try-playground-e13238)](https://oxframe.dev/playground)
+
 > **Status:** oxframe is under very active development. The API is not stable yet and may change from version to version. Pin the exact version in your Cargo.toml and check the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md) before upgrading.
 
 The Rust SDK of [oxframe](https://oxframe.dev).
@@ -28,6 +33,28 @@ fn main() {
 ```sh
 cargo run --release -p oxframe-examples --bin intro -- render --out out/intro
 ```
+
+## With an AI agent
+
+oxframe is made for agents that write the video and check their own
+frames (`oxframe check`).
+
+```sh
+npx skills add oxygenframe/oxframe-sdk     # Cursor, Copilot, Codex, Claude Code and others
+```
+
+In Claude Code, the plugin adds the skill and the `oxframe mcp` server:
+
+```text
+/plugin marketplace add oxygenframe/oxframe-sdk
+/plugin install oxframe@oxframe
+```
+
+Both need the CLI: `cargo install oxframe-cli` (or the
+[install script](https://github.com/oxygenframe/oxframe-cli)). Every release
+gets a video of its notes from
+[release-video-action](https://github.com/oxygenframe/release-video-action),
+made with oxframe.
 
 ## Crates
 
@@ -72,4 +99,6 @@ cargo test -p oxframe-render --features gpu --test golden    # CPU and GPU again
 OXFRAME_UPDATE_GOLDEN=1 cargo test -p oxframe-render --test golden   # regenerate references (CPU)
 ```
 
-Licensed under either of MIT or Apache-2.0 at your option.
+## License
+
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.

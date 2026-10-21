@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT.parent / "oxframe-cli"
 OUT = ROOT / "skills" / "oxframe"
+# The Claude Code plugin (plugins/oxframe) carries the same skill.
+PLUGIN = ROOT / "plugins" / "oxframe"
 
 START = """
 ## No project yet
@@ -97,17 +99,22 @@ def main() -> None:
     meta = frontmatter(files["SKILL.md"])
     if meta.get("name") != "oxframe" or meta.get("description") != DESCRIPTION:
         raise SystemExit("build-skill: SKILL.md frontmatter does not parse back")
+    plugin_json = PLUGIN / ".claude-plugin" / "plugin.json"
+    plugin = re.sub(r'"version": "[^"]*"', f'"version": "{version()}"', plugin_json.read_text())
+    targets = {OUT / n: t for n, t in files.items()}
+    targets |= {PLUGIN / "skills" / "oxframe" / n: t for n, t in files.items()}
+    targets[plugin_json] = plugin
     if "--check" in sys.argv:
-        stale = [n for n, text in files.items() if not (OUT / n).exists() or (OUT / n).read_text() != text]
+        stale = [str(p.relative_to(ROOT)) for p, text in targets.items() if not p.exists() or p.read_text() != text]
         if stale:
             raise SystemExit(
-                f"build-skill: skills/oxframe/{', '.join(stale)} is out of date; run scripts/build-skill.py"
+                f"build-skill: {', '.join(stale)} out of date; run scripts/build-skill.py"
             )
         print("build-skill: skills/oxframe is up to date")
         return
-    OUT.mkdir(parents=True, exist_ok=True)
-    for name, text in files.items():
-        (OUT / name).write_text(text)
+    for path, text in targets.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
     print(f"build-skill: wrote skills/oxframe for oxframe {version()}")
 
 
