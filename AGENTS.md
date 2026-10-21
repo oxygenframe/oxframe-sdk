@@ -66,6 +66,23 @@ playground always estimate and never open files.
 `oxframe render --subtitles out.srt` writes the lines (`.vtt` by
 extension). `--no-audio` still writes them.
 
+## Video
+
+With `oxframe = { ..., features = ["video"] }` and ffmpeg installed:
+
+```rust
+let demo = view.add(Video::new().file("assets/demo.mp4").width(pct(70)).radius(24.0));
+demo.play();                               // returns at once
+wait_for(2.0).await;
+demo.playback_rate().to(0.25, 0.5).await;  // slow motion
+demo.pause();
+```
+
+`time()` is a signal (seconds into the clip); `seek(t)` jumps. The frame is
+a function of scene time, so renders are deterministic. Sound plays only at
+rate 1; `.muted(true)` drops it. A missing file is a dark box and a
+`video_unavailable` error in `check`. The playground cannot play videos.
+
 ## Nodes of your own
 
 With `oxframe = { ..., features = ["unstable-node-api"] }`:

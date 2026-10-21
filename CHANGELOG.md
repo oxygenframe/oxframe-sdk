@@ -6,6 +6,30 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.15.0 — 2026-10-21
+
+Video clips in a scene, behind the `video` feature.
+
+### Added
+
+- `Video::new().file("assets/demo.mp4")` shows a clip as a node, sized
+  with `.width(pct(70))` like an image, with `.radius(24.0)` corners,
+  effects and the camera. `demo.play()`, `demo.pause()` and
+  `demo.seek(2.0)` control it; `demo.playback_rate()` and `demo.time()`
+  are signals, so `demo.playback_rate().to(0.25, 0.5)` slows it down.
+- The frame shown is a function of the scene's time, so a render and a
+  seek show the same frame. Frames are decoded with ffmpeg and cached;
+  WebM (VP9) and ProRes 4444 keep their alpha.
+- The clip's sound goes to the mixer while it plays at rate 1;
+  `.muted(true)` leaves it out.
+- `check` reports `video_unavailable` when a clip cannot be opened.
+- The `video` example.
+
+### Fixed
+
+- The mixer read the first track of a file; for a video that is the
+  picture. It now takes the first audio track.
+
 ## 0.14.0 — 2026-10-21
 
 Nodes of your own, behind the `unstable-node-api` feature.
