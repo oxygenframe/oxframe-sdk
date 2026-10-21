@@ -1395,3 +1395,163 @@ mod tests {
         assert!(d.iter().any(|(k, v)| k == "text" && v == "abc"));
     }
 }
+
+/// Handle to a video clip. Derefs to [`Node`].
+///
+/// ```ignore
+/// let demo = view.add(Video::new().file("assets/demo.mp4").width(pct(70)).radius(24.0));
+/// demo.play();
+/// wait_for(2.0).await;
+/// demo.playback_rate().to(0.25, 0.5).await;
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Video(Node);
+
+impl Video {
+    /// A video node; set the clip with `.file(path)`.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> crate::builder::VideoBuilder {
+        crate::builder::VideoBuilder::new()
+    }
+
+    pub(crate) fn from_id(id: NodeId) -> Self {
+        Self(Node(id))
+    }
+
+    /// The untyped node handle.
+    pub fn node(self) -> Node {
+        self.0
+    }
+
+    fn parts(
+        self,
+    ) -> (
+        std::rc::Rc<crate::video::VideoData>,
+        Signal<f64>,
+        Signal<f64>,
+    ) {
+        with_graph(|g| match &g.node(self.0.id()).kind {
+            NodeKind::Video {
+                data, time, rate, ..
+            } => (data.clone(), time.clone(), rate.clone()),
+            _ => unreachable!("handle does not point to a Video"),
+        })
+    }
+
+    /// Seconds into the clip that the node shows. Set or animate it to
+    /// scrub; `play` advances it.
+    pub fn time(self) -> Signal<f64> {
+        self.parts().1
+    }
+
+    /// Clip seconds per scene second while playing. `.to(0.25, 0.5)` slows
+    /// to quarter speed. The clip's sound plays only at rate 1.
+    pub fn playback_rate(self) -> Signal<f64> {
+        self.parts().2
+    }
+
+    /// Length of the clip in seconds (0 when it could not be opened).
+    pub fn duration(self) -> f64 {
+        self.parts().0.source.info().duration
+    }
+
+    /// The clip is playing.
+    pub fn is_playing(self) -> bool {
+        self.parts().0.playback.playing.get()
+    }
+
+    /// Plays from the current `time` until `pause` or the end of the clip.
+    /// Returns at once; the clip plays alongside the scene.
+    pub fn play(self) {
+        let (data, time, rate) = self.parts();
+        let pb = data.playback.clone();
+        if pb.playing.get() {
+            return;
+        }
+        pb.playing.set(true);
+        let generation = pb.generation.get().wrapping_add(1);
+        pb.generation.set(generation);
+        let duration = data.source.info().duration;
+        // The task runs on its own; dropping the handle does not cancel it.
+        drop(oxframe_core::spawn(async move {
+            loop {
+                let live = pb.playing.get() && pb.generation.get() == generation;
+                sync_sound(&data, &time, &rate, live);
+                if !live {
+                    break;
+                }
+                oxframe_core::next_frame().await;
+                if !(pb.playing.get() && pb.generation.get() == generation) {
+                    continue;
+                }
+                let t = time.get() + rate.get() * oxframe_core::dt();
+                if duration > 0.0 && t >= duration {
+                    time.set(duration);
+                    pb.playing.set(false);
+                } else {
+                    time.set(t.max(0.0));
+                }
+            }
+        }));
+    }
+
+    /// Stops at the current frame.
+    pub fn pause(self) {
+        let (data, time, rate) = self.parts();
+        data.playback.playing.set(false);
+        sync_sound(&data, &time, &rate, false);
+    }
+
+    /// Jumps to `seconds` into the clip, playing or not.
+    pub fn seek(self, seconds: f64) {
+        let (data, time, _) = self.parts();
+        time.set(seconds.max(0.0));
+        data.playback.jumped.set(true);
+    }
+}
+
+/// Starts or ends the recorded sound of a clip so it follows the picture:
+/// a segment runs while the clip plays at rate 1, unmuted; a pause, a seek
+/// or another rate ends it, and the next frame at rate 1 starts a new one
+/// from the clip's position.
+fn sync_sound(data: &crate::video::VideoData, time: &Signal<f64>, rate: &Signal<f64>, live: bool) {
+    let pb = &data.playback;
+    let now = oxframe_core::time();
+    let audible =
+        live && !data.muted && data.source.info().has_audio && (rate.get() - 1.0).abs() < 1e-9;
+    if let Some((id, at, from)) = pb.segment.get()
+        && (!audible || pb.jumped.get())
+    {
+        oxframe_core::end_sound(id, from + (now - at));
+        pb.segment.set(None);
+    }
+    pb.jumped.set(false);
+    if audible && pb.segment.get().is_none() {
+        let from = time.get();
+        let id = oxframe_core::record_sound(oxframe_core::SoundClip {
+            file: data.path.to_string_lossy().into_owned(),
+            at: now,
+            volume: 1.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            trim_start: from,
+            trim_end: None,
+            priority: false,
+            speech: false,
+        });
+        pb.segment.set(Some((id, now, from)));
+    }
+}
+
+impl Deref for Video {
+    type Target = Node;
+    fn deref(&self) -> &Node {
+        &self.0
+    }
+}
+
+impl From<Video> for Node {
+    fn from(h: Video) -> Node {
+        h.0
+    }
+}

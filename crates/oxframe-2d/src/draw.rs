@@ -453,6 +453,50 @@ pub(crate) fn primitives(
             out.extend(ctx.finish());
         }
         NodeKind::Shader { .. } => {}
+        NodeKind::Video {
+            data, time, radius, ..
+        } => {
+            let (w, h) = size;
+            let rect = kurbo::Rect::new(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0);
+            let r = radius.get().max(0.0);
+            if r > 0.0 {
+                let clip = kurbo::RoundedRect::from_rect(rect, r).to_path(0.1);
+                out.push(Primitive::PushLayer(Layer::clip(clip)));
+            }
+            match data.source.frame(data.index_at(time.get())) {
+                Some(image) => out.push(Primitive::Image {
+                    image,
+                    rect,
+                    opacity,
+                }),
+                None => {
+                    // No frames: a dark box with a play mark, so the layout
+                    // still shows where the clip goes.
+                    let dark = Color::rgba(0.08, 0.08, 0.1, 1.0);
+                    if let Some(c) = faded(dark, opacity) {
+                        out.push(Primitive::Fill {
+                            path: rect.to_path(0.1),
+                            paint: Paint::Solid(c),
+                        });
+                    }
+                    let s = w.min(h) * 0.12;
+                    let mut tri = BezPath::new();
+                    tri.move_to((-s * 0.6, -s));
+                    tri.line_to((s, 0.0));
+                    tri.line_to((-s * 0.6, s));
+                    tri.close_path();
+                    if let Some(c) = faded(Color::rgba(1.0, 1.0, 1.0, 0.5), opacity) {
+                        out.push(Primitive::Fill {
+                            path: tri,
+                            paint: Paint::Solid(c),
+                        });
+                    }
+                }
+            }
+            if r > 0.0 {
+                out.push(Primitive::PopLayer);
+            }
+        }
         NodeKind::Particles {
             seed,
             gravity,

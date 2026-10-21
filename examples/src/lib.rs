@@ -42,6 +42,7 @@ pub mod text;
 pub mod theme;
 pub mod transitions;
 pub mod typography;
+pub mod video;
 pub mod voice;
 pub mod waves;
 
@@ -60,6 +61,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("chart", chart::project),
         ("charts", charts::project),
         ("gauge", gauge::project),
+        ("video", video::project),
         ("components", components::project),
         ("particles", particles::project),
         ("quicksort", quicksort::project),

@@ -289,8 +289,12 @@ fn decode(path: &Path) -> Result<(u32, Vec<f32>), MixError> {
             message: e.to_string(),
         })?;
     let mut format = probed.format;
+    // A video file's first track is the picture; take the first one that
+    // has a sample rate, which only audio tracks have.
     let track = format
-        .default_track()
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.sample_rate.is_some())
         .ok_or_else(|| MixError::Read {
             file: path.display().to_string(),
             message: "no audio track".into(),

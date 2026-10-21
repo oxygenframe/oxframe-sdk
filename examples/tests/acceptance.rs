@@ -20,6 +20,8 @@ fn gallery_has_no_check_errors() {
             .issues
             .iter()
             .filter(|i| i.severity == oxframe::lint::Severity::Error)
+            // The video example needs ffmpeg; CI on macOS and Windows has none.
+            .filter(|i| i.rule != "video_unavailable" || ffmpeg_on_path())
             .map(|i| {
                 format!(
                     "{name} {} {:.2}..{:.2} {}: {}",
@@ -150,4 +152,14 @@ fn every_example_builds_and_renders() {
             assert_eq!(img.data.len(), 160 * 90 * 4, "{name}");
         }
     }
+}
+
+fn ffmpeg_on_path() -> bool {
+    let name = if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
+    std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|d| d.join(name).is_file()))
 }

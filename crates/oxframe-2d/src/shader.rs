@@ -215,8 +215,21 @@ fn budget_ms() -> f64 {
     BUDGET_MS.with(Cell::get)
 }
 
-/// Compile and parameter problems for this node. Empty when it is not a shader.
+/// Compile and parameter problems for this node, and a video that could
+/// not be opened. Empty for other nodes.
 pub(crate) fn problems(n: &NodeData) -> Vec<ShaderDiag> {
+    if let NodeKind::Video { data, .. } = &n.kind {
+        return data
+            .problem
+            .iter()
+            .map(|p| ShaderDiag {
+                node: label(n),
+                source: n.source.clone(),
+                rule: "video_unavailable",
+                hint: format!("{}: {p}", data.path.display()),
+            })
+            .collect();
+    }
     let NodeKind::Shader {
         code,
         uniforms,
@@ -477,7 +490,7 @@ fn read_file(path: &std::path::Path) -> Result<String, String> {
 fn label(n: &NodeData) -> String {
     n.name
         .clone()
-        .unwrap_or_else(|| format!("Shader#{}", n.id.0))
+        .unwrap_or_else(|| format!("{}#{}", n.kind.name(), n.id.0))
 }
 
 #[cfg(target_arch = "wasm32")]

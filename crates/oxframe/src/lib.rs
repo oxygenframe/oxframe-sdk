@@ -39,6 +39,8 @@ mod preview;
 mod project;
 mod scene;
 mod transition;
+#[cfg(all(feature = "video", not(target_arch = "wasm32")))]
+mod video;
 mod voice;
 #[cfg(feature = "wasm")]
 pub mod wasm;
@@ -61,7 +63,7 @@ pub use oxframe_2d::{
     LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId,
     Normal, OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect, RichSpan, SANS, SafeArea,
     SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign,
-    Theme, Txt, View, Warning, Xl, Xs, pct, span, waves,
+    Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
 };
 pub use oxframe_components::{
     Axes, Bars, BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, Interval,
@@ -118,8 +120,8 @@ pub mod prelude {
         LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, NumberLine,
         OnAccent, Particles, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Shader,
         Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme,
-        TitleCard, Transition, Txt, Vec2, View, Warning, Xl, Xs, all, any, color, ease, loop_while,
-        next_frame, pct, presets, random, random_range, repeat, sequence, shaders, sound, span,
-        spawn, stagger, transition, tune, voice, wait_for, wait_until, waves,
+        TitleCard, Transition, Txt, Vec2, Video, View, Warning, Xl, Xs, all, any, color, ease,
+        loop_while, next_frame, pct, presets, random, random_range, repeat, sequence, shaders,
+        sound, span, spawn, stagger, transition, tune, voice, wait_for, wait_until, waves,
     };
 }

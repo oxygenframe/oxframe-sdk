@@ -36,12 +36,14 @@ mod svg;
 mod text;
 mod theme;
 mod trim;
+pub mod video;
+pub use video::{VideoInfo, VideoSource, set_video_opener};
 
 pub use builder::{
     BaseProps, CameraBuilder, CircleBuilder, CodeBuilder, CustomBuilder, EffectBuilder,
     GridBuilder, GroupBuilder, ImgBuilder, LayoutBuilder, LineBuilder, NodeBuilder,
     ParticlesBuilder, PathBuilder, PolygonBuilder, RectBuilder, ShaderBuilder, StarBuilder,
-    TxtBuilder,
+    TxtBuilder, VideoBuilder,
 };
 pub use builder::{lens_drops, ripple, waves};
 pub use draw::{
@@ -53,7 +55,7 @@ pub use graph::{
 };
 pub use handles::{
     Camera, Circle, Code, CodeText, CodeTween, Custom, Effect, Grid, Group, Img, Layout, Line,
-    Node, Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Shader, Star, Svg, Txt, View,
+    Node, Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Shader, Star, Svg, Txt, Video, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use node_api::Draw;

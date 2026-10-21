@@ -192,6 +192,18 @@ pub enum NodeKind {
         radius: f64,
         state: crate::sim::ParticlesState,
     },
+    /// A video clip: the frame at `time`, in a box like an image.
+    Video {
+        data: Rc<crate::video::VideoData>,
+        width: Signal<f64>,
+        height: Signal<f64>,
+        /// Seconds into the clip.
+        time: Signal<f64>,
+        /// Clip seconds per scene second while playing.
+        rate: Signal<f64>,
+        /// Corner radius of the box.
+        radius: Signal<f64>,
+    },
     /// Pixels from a WGSL `shade` function. No children in this version.
     /// Presets are run here; a custom `shade` is type-checked.
     Shader {
@@ -226,6 +238,7 @@ impl NodeKind {
             Self::Custom { type_name, .. } => type_name,
             Self::Particles { .. } => "Particles",
             Self::Shader { .. } => "Shader",
+            Self::Video { .. } => "Video",
         }
     }
 }
@@ -392,6 +405,19 @@ impl NodeData {
     pub fn outline(&self, size: (f64, f64)) -> Option<BezPath> {
         const TOLERANCE: f64 = 0.1;
         match &self.kind {
+            NodeKind::Video { radius, .. } => {
+                let (w, h) = size;
+                Some(
+                    kurbo::RoundedRect::new(
+                        -w / 2.0,
+                        -h / 2.0,
+                        w / 2.0,
+                        h / 2.0,
+                        radius.get().max(0.0),
+                    )
+                    .to_path(TOLERANCE),
+                )
+            }
             NodeKind::Group
             | NodeKind::Svg { .. }
             | NodeKind::Camera { .. }
@@ -1170,6 +1196,7 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         } => m(),
         NodeKind::Custom { width, height, .. } => (*width, *height),
         NodeKind::Shader { width, height, .. } => (width.get(), height.get()),
+        NodeKind::Video { width, height, .. } => (width.get(), height.get()),
         NodeKind::Group => {
             let mut bb: Option<kurbo::Rect> = None;
             for &c in &n.children {
@@ -1195,6 +1222,7 @@ fn resizable(kind: &NodeKind) -> bool {
             | NodeKind::Grid { .. }
             | NodeKind::Svg { .. }
             | NodeKind::Shader { .. }
+            | NodeKind::Video { .. }
     )
 }
 

@@ -1515,3 +1515,113 @@ pub fn ripple() -> EffectBuilder {
         speed: 6.0,
     }
 }
+
+// ------------------------------------------------------------------ Video
+
+/// Builder for a [`Video`](crate::Video) node.
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct VideoBuilder {
+    base: BaseProps,
+    path: Option<std::path::PathBuf>,
+    width: Option<Span>,
+    height: Option<Span>,
+    radius: f64,
+    muted: bool,
+    rate: f64,
+    start: f64,
+}
+
+impl VideoBuilder {
+    pub(crate) fn new() -> Self {
+        Self {
+            base: BaseProps::default(),
+            path: None,
+            width: None,
+            height: None,
+            radius: 0.0,
+            muted: false,
+            rate: 1.0,
+            start: 0.0,
+        }
+    }
+
+    /// The clip, relative to the project root: MP4 (H.264), WebM (VP9, with
+    /// alpha) or ProRes 4444 (with alpha).
+    pub fn file(mut self, path: impl AsRef<std::path::Path>) -> Self {
+        self.path = Some(path.as_ref().to_path_buf());
+        self
+    }
+
+    /// Width in pixels or `pct()` of the parent. Height follows the clip's
+    /// aspect unless also set.
+    pub fn width(mut self, v: impl Into<Span>) -> Self {
+        self.width = Some(v.into());
+        self
+    }
+
+    /// Height in pixels or `pct()` of the parent.
+    pub fn height(mut self, v: impl Into<Span>) -> Self {
+        self.height = Some(v.into());
+        self
+    }
+
+    /// Corner radius of the frame.
+    pub fn radius(mut self, v: f64) -> Self {
+        self.radius = v;
+        self
+    }
+
+    /// Leaves the clip's sound out of the mix.
+    pub fn muted(mut self, v: bool) -> Self {
+        self.muted = v;
+        self
+    }
+
+    /// Starting playback rate; `playback_rate()` animates it.
+    pub fn playback_rate(mut self, v: f64) -> Self {
+        self.rate = v;
+        self
+    }
+
+    /// Starts the clip at `seconds` into the file.
+    pub fn start_at(mut self, seconds: f64) -> Self {
+        self.start = seconds.max(0.0);
+        self
+    }
+}
+
+impl NodeBuilder for VideoBuilder {
+    type Handle = crate::Video;
+    base_accessor!();
+    fn build(self, g: &SceneGraph, parent: NodeId) -> crate::Video {
+        let path = self.path.unwrap_or_default();
+        let (source, problem) = crate::video::open(&path);
+        let info = source.info();
+        let aspect = f64::from(info.width.max(1)) / f64::from(info.height.max(1));
+        let px = |span: Option<Span>, axis: Axis| {
+            span.map(|s| place::span_signal(g, parent, axis, s, String::new()).get())
+        };
+        let (w, h) = match (px(self.width, Axis::X), px(self.height, Axis::Y)) {
+            (Some(w), Some(h)) => (w, h),
+            (Some(w), None) => (w, w / aspect),
+            (None, Some(h)) => (h * aspect, h),
+            (None, None) => (f64::from(info.width), f64::from(info.height)),
+        };
+        let n = g.next_id();
+        let kind = NodeKind::Video {
+            data: std::rc::Rc::new(crate::video::VideoData {
+                source,
+                path,
+                problem,
+                muted: self.muted,
+                playback: std::rc::Rc::new(crate::video::Playback::default()),
+            }),
+            width: Signal::new(w).with_name(format!("Video#{n}.width")),
+            height: Signal::new(h).with_name(format!("Video#{n}.height")),
+            time: Signal::new(self.start).with_name(format!("Video#{n}.time")),
+            rate: Signal::new(self.rate).with_name(format!("Video#{n}.playback_rate")),
+            radius: Signal::new(self.radius).with_name(format!("Video#{n}.radius")),
+        };
+        crate::Video::from_id(insert(g, parent, kind, self.base))
+    }
+}

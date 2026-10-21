@@ -167,6 +167,8 @@ impl Engine {
         if project.scenes.is_empty() {
             return Err(EngineError::NoScenes);
         }
+        #[cfg(all(feature = "video", not(target_arch = "wasm32")))]
+        crate::video::install();
         let mut scenes = Vec::with_capacity(project.scenes.len());
         for def in &project.scenes {
             let meta_path = match &project.meta_dir {

@@ -40,8 +40,23 @@ pub struct VoiceLine {
 }
 
 /// Records `clip` on the running scene. Called by `sound()`.
-pub fn record_sound(clip: SoundClip) {
-    runtime::with(|rt| rt.sounds.borrow_mut().push(clip));
+pub fn record_sound(clip: SoundClip) -> usize {
+    runtime::with(|rt| {
+        let mut sounds = rt.sounds.borrow_mut();
+        sounds.push(clip);
+        sounds.len() - 1
+    })
+}
+
+/// Sets the end point in the file of clip `index` (from [`record_sound`]),
+/// for a clip whose length is known only later, such as the sound of a
+/// video that is paused.
+pub fn end_sound(index: usize, trim_end: f64) {
+    runtime::with(|rt| {
+        if let Some(clip) = rt.sounds.borrow_mut().get_mut(index) {
+            clip.trim_end = Some(trim_end.max(clip.trim_start));
+        }
+    });
 }
 
 /// Records a spoken line. Called by `voice()`.

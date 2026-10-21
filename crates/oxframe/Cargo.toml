@@ -22,6 +22,8 @@ gpu = ["oxframe-render/gpu"]
 # `#[derive(Node)]` and `Draw` for nodes of your own. The API may change
 # until it has outside users.
 unstable-node-api = []
+# `Video` nodes decode their clips with ffmpeg (native only).
+video = []
 
 [dependencies]
 oxframe-core.workspace = true

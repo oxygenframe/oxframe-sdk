@@ -24,7 +24,11 @@ jobs:
       # The core, preview and export never depend on drawing (2D, renderers, fonts).
       - run: ./scripts/check-layering.sh
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Video nodes decode with ffmpeg; the video example and tests need it.
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: cargo test --workspace
+      - run: cargo clippy -p oxframe --all-targets --features video,unstable-node-api -- -D warnings
+      - run: cargo test -p oxframe --features video --lib video
       # Acceptance numbers (seek ≤ 100 ms) are only meaningful optimized.
       - run: cargo test --release -p oxframe-examples --test acceptance
         env: { OXFRAME_SEEK_BUDGET_MS: "400" }
