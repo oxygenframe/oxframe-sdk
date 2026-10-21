@@ -15,6 +15,7 @@ crates.io и переписывает `apps/site/src/lib/versions.json`
 
 ## Чеклист
 
+- [ ] Документация сайта описывает новые фичи этой версии до тега. `./scripts/release-check.sh` это проверяет: имена API из секции `CHANGELOG.md` (в бэктиках) есть в текущих доках, не в архиве, а на страницах Going further, где фича видна на картинке, стоит `<LiveExample>`.
 - [ ] В `CHANGELOG.md` есть секция этой версии, `version` в `Cargo.toml` ей равен.
 - [ ] `cargo test --workspace --locked` проходит.
 - [ ] `oxframe-cli` на той же версии: `Cargo.toml`, `SDK_VERSION` в `src/init.rs`, `CHANGELOG.md`.

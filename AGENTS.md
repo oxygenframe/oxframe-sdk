@@ -11,7 +11,10 @@ All crates and `oxframe-cli` share one version (see CHANGELOG.md).
    docker): the compile service's image is run with no network and must
    build a real scene. It also checks that the marketing pages quote only
    the timings in `oxframe-web/apps/site/src/lib/measurements.json`. It
-   also renders this version's changelog as an MP4
+   requires the current site docs to mention every public API this
+   version's changelog names in backticks (`scripts/check-docs.py`), and a
+   live player on the Going further pages that show a picture. Update those
+   docs before tagging. It also renders this version's changelog as an MP4
    (`target/release-check/release.mp4`) through the sibling
    `release-video-action` checkout, the CLI, and this SDK. CI alone cannot
    catch an API change that breaks the other two repositories or the images.

@@ -8,6 +8,9 @@
 # docs, and the compile service's sandbox template. This catches that.
 # The last step renders this version's changelog as an MP4, the same way
 # release-video-action does, using the CLI and this SDK checkout.
+# Before that, the current site docs (not an archived snapshot) must name
+# every public API this version's changelog puts in backticks, and the
+# Going further pages that teach by picture must include a live player.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 sdk=$PWD
@@ -30,6 +33,9 @@ step "CLI: tests, and a new project built and previewed on this SDK"
 
 step "Site claims match the recorded measurements"
 (cd "$web/apps/site" && bun scripts/check-claims.ts)
+
+step "Docs describe this version's features"
+python3 "$sdk/scripts/check-docs.py"
 
 step "Site and compile service on this SDK (examples, docs, sandbox template, e2e)"
 (cd "$web" && OXFRAME_SDK_PATH="$sdk" bun run verify)
