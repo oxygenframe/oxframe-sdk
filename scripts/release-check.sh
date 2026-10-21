@@ -29,7 +29,7 @@ cargo build --target wasm32-unknown-unknown -p oxframe-core -p oxframe-2d -p oxf
 cargo clippy --target wasm32-unknown-unknown -p oxframe --features wasm -- -D warnings
 
 step "CLI: tests, and a new project built and previewed on this SDK"
-(cd "$cli" && cargo test && OXFRAME_SDK_PATH="$sdk" cargo test --test e2e -- --ignored)
+(cd "$cli" && env -u CARGO_TARGET_DIR cargo test && env -u CARGO_TARGET_DIR OXFRAME_SDK_PATH="$sdk" cargo test --test e2e -- --ignored)
 
 step "Site claims match the recorded measurements"
 (cd "$web/apps/site" && bun scripts/check-claims.ts)
