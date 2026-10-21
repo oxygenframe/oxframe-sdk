@@ -71,7 +71,8 @@ not read shader pixels yet.
       }
 
 - The draw list has three markers, ReadFrame, BeginEffect and EndEffect.
-  A renderer skips them (`Primitive::is_marker`); the engine handles them.
+  A renderer skips them (Primitive::is_marker on docs.rs); the engine
+  handles them.
 - The pass and inspect node structs have a new `shader` field.
 
 ## 0.11.1 — 2026-10-21
