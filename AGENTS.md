@@ -82,6 +82,20 @@ the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
 waves preset is what gets painted. A custom `shade` is type-checked on
 every draw.
 
+Preset catalog, the first stop before any WGSL:
+
+| You want | Use |
+| --- | --- |
+| A sea or a moving water background | `shaders::waves()` |
+| Spray, sparks, rain | `Particles` (`.burst()`) or `Custom` with `ctx.rng(seed)` |
+| A wet camera lens | `shaders::lens_drops()`, last, `.fullscreen()` |
+| Rings on a node | `node.effect(shaders::ripple())` |
+| A scene change through water | `Transition::shader(shaders::water_wipe())` |
+| Anything else | `Custom`; custom WGSL is checked, not run |
+
+`examples/src/ocean.rs` uses all of them in the target scene of hybrid
+rendering. `oxframe mcp` has `render_graph`, the passes at one time.
+
 Shaders that read drawn pixels:
 
 - `shaders::lens_drops()` wets the lens over what was drawn before it.

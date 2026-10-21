@@ -21,6 +21,7 @@ pub mod learn_08_signals;
 pub mod learn_09_drawing;
 pub mod learn_10_random;
 pub mod morph;
+pub mod ocean;
 pub mod particles;
 pub mod quicksort;
 pub mod relative;
@@ -65,6 +66,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("release", release::project),
         ("spray", spray::project),
         ("splash", splash::project),
+        ("ocean", ocean::project),
         ("sounds", sounds::project),
         ("voice", voice::project),
         ("waves", waves::project),

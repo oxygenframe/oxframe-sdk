@@ -65,7 +65,11 @@ mkdir -p "$outdir"
 (
   cd "$outdir"
   # A token would upload onto the existing GitHub release. This step only writes the file.
+  # The action builds a project in TMPDIR (3-4 GB with its target); keep it
+  # under $outdir, which the next run removes, instead of leaving it in /tmp.
+  mkdir -p "$outdir/tmp"
   env -u GITHUB_TOKEN -u GH_TOKEN \
+    TMPDIR="$outdir/tmp" \
     RELEASE_BODY="$notes" \
     RELEASE_TAG="v$version" \
     RELEASE_REPO="oxygenframe/oxframe-sdk" \
