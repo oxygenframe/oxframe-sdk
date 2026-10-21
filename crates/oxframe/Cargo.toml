@@ -19,6 +19,9 @@ wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:cons
 # vello renderer for `render` and `preview` (falls back to the CPU renderer
 # at runtime when no adapter is available).
 gpu = ["oxframe-render/gpu"]
+# `#[derive(Node)]` and `Draw` for nodes of your own. The API may change
+# until it has outside users.
+unstable-node-api = []
 
 [dependencies]
 oxframe-core.workspace = true

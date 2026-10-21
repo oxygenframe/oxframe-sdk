@@ -51,6 +51,10 @@ pub use scene::{SceneDef, SourceLocation};
 pub use transition::{Transition, transition};
 pub use voice::{Synthesis, TimedWord, TtsProvider, TtsRequest, voice};
 
+/// Nodes of your own: `#[derive(Node)]` on a struct that implements
+/// [`Draw`]. Behind the `unstable-node-api` feature.
+#[cfg(feature = "unstable-node-api")]
+pub use oxframe_2d::Draw;
 pub use oxframe_2d::{
     Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Custom, Danger,
     Direction, DrawCtx, DrawRng, Edge, Effect, Fast, Grid, Group, Img, Ink, Input, Justify, Layout,
@@ -73,6 +77,8 @@ pub use oxframe_core::{
     tunable, wait_for, wait_until, with_rng,
 };
 pub use oxframe_core::{Blend, Dir, LayerPose, ShaderTransition};
+#[cfg(feature = "unstable-node-api")]
+pub use oxframe_macros::Node;
 pub use oxframe_macros::{color, ease, scene, tune};
 
 pub use oxframe_2d as nodes;
@@ -102,6 +108,8 @@ pub mod shaders {
 
 /// Everything a scene usually needs: `use oxframe::prelude::*;`.
 pub mod prelude {
+    #[cfg(feature = "unstable-node-api")]
+    pub use crate::Draw;
     pub use crate::{
         Accent, Aspect, Audio, Axes, Background, BezPath, Blend, BlendMode, BulletList, Callout,
         Camera, ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,

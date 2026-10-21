@@ -328,7 +328,12 @@ pub(crate) fn add<B: NodeBuilder>(parent: NodeId, builder: B) -> B::Handle {
 }
 
 /// Inserts the node and then its declared children.
-fn insert(graph: &SceneGraph, parent: NodeId, kind: NodeKind, mut base: BaseProps) -> NodeId {
+pub(crate) fn insert(
+    graph: &SceneGraph,
+    parent: NodeId,
+    kind: NodeKind,
+    mut base: BaseProps,
+) -> NodeId {
     let children = std::mem::take(&mut base.children);
     let id = graph.insert(Some(parent), kind, base);
     for c in children {
@@ -1154,6 +1159,9 @@ impl NodeBuilder for CustomBuilder {
             draw: self.draw,
             width,
             height,
+            measure: None,
+            state: None,
+            type_name: "Custom",
         };
         Custom::from_id(insert(graph, parent, kind, self.base))
     }

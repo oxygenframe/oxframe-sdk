@@ -9,6 +9,7 @@ pub mod charts;
 pub mod code_steps;
 pub mod components;
 pub mod effects;
+pub mod gauge;
 pub mod intro;
 pub mod layout;
 pub mod learn_01_hello;
@@ -58,6 +59,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("layout", layout::project),
         ("chart", chart::project),
         ("charts", charts::project),
+        ("gauge", gauge::project),
         ("components", components::project),
         ("particles", particles::project),
         ("quicksort", quicksort::project),

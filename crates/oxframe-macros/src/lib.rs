@@ -194,3 +194,195 @@ pub fn tune(input: TokenStream) -> TokenStream {
     let d = &rest[0];
     quote!(::oxframe::tunable(#name, (#d) as f64)).into()
 }
+
+/// A node of your own from a struct that implements `Draw`.
+///
+/// Fields marked `#[signal]` become animatable: the builder gets a setter
+/// of the same name, and the handle (`<Name>Handle`) a method that returns
+/// the field's `Signal`. Other fields are set once on the builder. Every
+/// field type needs `Default` and `Clone`; signal fields also `Lerp`.
+///
+/// ```ignore
+/// #[derive(Node)]
+/// pub struct Gauge {
+///     #[signal] value: f64,
+///     #[signal] size: f64,
+/// }
+///
+/// impl Draw for Gauge {
+///     fn draw(&self, ctx: &mut DrawCtx) {
+///         ctx.arc((0.0, 0.0), self.size / 2.0, 135.0, 270.0 * self.value).stroke(Accent, 16.0);
+///     }
+///     fn size(&self) -> (f64, f64) { (self.size, self.size) }
+/// }
+///
+/// let g = view.add(Gauge::new().size(200.0));   // GaugeHandle
+/// g.value().to(0.8, 1.0).await;
+/// ```
+#[proc_macro_derive(Node, attributes(signal))]
+pub fn derive_node(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    match expand_node(input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+fn expand_node(input: syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let name = &input.ident;
+    let vis = &input.vis;
+    if !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.generics,
+            "#[derive(Node)] does not support generic structs",
+        ));
+    }
+    let syn::Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            name,
+            "#[derive(Node)] needs a struct",
+        ));
+    };
+    let syn::Fields::Named(fields) = &data.fields else {
+        return Err(syn::Error::new_spanned(
+            name,
+            "#[derive(Node)] needs a struct with named fields",
+        ));
+    };
+    let builder = format_ident!("{name}Builder");
+    let handle = format_ident!("{name}Handle");
+    let state = format_ident!("__{name}Signals");
+    let type_name = name.to_string();
+
+    let mut builder_fields = Vec::new();
+    let mut builder_defaults = Vec::new();
+    let mut setters = Vec::new();
+    let mut state_fields = Vec::new();
+    let mut state_init = Vec::new();
+    let mut snapshot = Vec::new();
+    let mut handle_methods = Vec::new();
+    let mut getters = Vec::new();
+    for f in &fields.named {
+        let ident = f.ident.as_ref().expect("named field");
+        let ty = &f.ty;
+        let signal = f.attrs.iter().any(|a| a.path().is_ident("signal"));
+        let doc = format!("Sets `{ident}`.");
+        builder_fields.push(quote! { #ident: #ty });
+        builder_defaults.push(quote! { #ident: ::core::default::Default::default() });
+        setters.push(quote! {
+            #[doc = #doc]
+            #vis fn #ident(mut self, v: impl ::core::convert::Into<#ty>) -> Self {
+                self.#ident = v.into();
+                self
+            }
+        });
+        if signal {
+            let label = format!("{name}.{ident}");
+            let hdoc = format!("`{ident}` as an animatable signal.");
+            let gdoc = format!("The current `{ident}`.");
+            state_fields.push(quote! { #ident: ::oxframe::Signal<#ty> });
+            state_init.push(quote! {
+                #ident: ::oxframe::Signal::new(self.#ident).with_name(#label)
+            });
+            snapshot.push(quote! { #ident: s.#ident.get() });
+            handle_methods.push(quote! {
+                #[doc = #hdoc]
+                #vis fn #ident(self) -> ::oxframe::Signal<#ty> {
+                    ::oxframe::nodes::node_api::state::<#state>(self.0).#ident.clone()
+                }
+            });
+            getters.push(quote! {
+                #[doc = #gdoc]
+                #vis fn #ident(&self) -> #ty {
+                    ::core::clone::Clone::clone(&self.#ident)
+                }
+            });
+        } else {
+            state_fields.push(quote! { #ident: #ty });
+            state_init.push(quote! { #ident: self.#ident });
+            snapshot.push(quote! { #ident: ::core::clone::Clone::clone(&s.#ident) });
+        }
+    }
+    let bdoc = format!("Builder for [`{name}`]; pass it to `add`.");
+    let hdoc = format!("Handle to a [`{name}`] node. Derefs to `Node`.");
+    Ok(quote! {
+        #[doc = #bdoc]
+        #[must_use = "a builder does nothing until it is passed to `add`"]
+        #vis struct #builder {
+            base: ::oxframe::nodes::BaseProps,
+            #(#builder_fields,)*
+        }
+
+        impl #name {
+            /// Starts a node with every field at its default.
+            #[allow(clippy::new_ret_no_self)]
+            #vis fn new() -> #builder {
+                #builder {
+                    base: ::core::default::Default::default(),
+                    #(#builder_defaults,)*
+                }
+            }
+            #(#getters)*
+        }
+
+        impl #builder {
+            #(#setters)*
+        }
+
+        #[doc(hidden)]
+        #vis struct #state {
+            #(#state_fields,)*
+        }
+
+        #[doc = #hdoc]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #vis struct #handle(::oxframe::Node);
+
+        impl #handle {
+            #(#handle_methods)*
+            /// The untyped node handle.
+            #vis fn node(self) -> ::oxframe::Node {
+                self.0
+            }
+        }
+
+        impl ::core::ops::Deref for #handle {
+            type Target = ::oxframe::Node;
+            fn deref(&self) -> &::oxframe::Node {
+                &self.0
+            }
+        }
+
+        impl ::core::convert::From<#handle> for ::oxframe::Node {
+            fn from(h: #handle) -> ::oxframe::Node {
+                h.0
+            }
+        }
+
+        impl ::oxframe::NodeBuilder for #builder {
+            type Handle = #handle;
+            fn base(&mut self) -> &mut ::oxframe::nodes::BaseProps {
+                &mut self.base
+            }
+            fn build(
+                self,
+                graph: &::oxframe::nodes::SceneGraph,
+                parent: ::oxframe::NodeId,
+            ) -> #handle {
+                let state = ::std::rc::Rc::new(#state { #(#state_init,)* });
+                let s = state.clone();
+                let snapshot: ::std::rc::Rc<dyn Fn() -> #name> =
+                    ::std::rc::Rc::new(move || #name { #(#snapshot,)* });
+                let id = ::oxframe::nodes::node_api::add(
+                    graph,
+                    parent,
+                    self.base,
+                    #type_name,
+                    snapshot,
+                    state,
+                );
+                #handle(::oxframe::Node::from_id(id))
+            }
+        }
+    })
+}

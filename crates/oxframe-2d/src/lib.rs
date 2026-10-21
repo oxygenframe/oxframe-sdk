@@ -26,6 +26,7 @@ mod flex;
 mod graph;
 mod handles;
 mod image;
+pub mod node_api;
 mod passes;
 mod place;
 pub mod post;
@@ -55,6 +56,7 @@ pub use handles::{
     Node, Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Shader, Star, Svg, Txt, View,
 };
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
+pub use node_api::Draw;
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use post::{Input, Shade, ShadeOp, apply as apply_shade};

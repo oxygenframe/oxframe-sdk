@@ -590,6 +590,29 @@ impl DrawCtx {
     pub fn path(&mut self, path: BezPath) -> Pen<'_> {
         Pen { ctx: self, path }
     }
+
+    /// An arc of a circle around `center`, starting at `start` degrees
+    /// (0 is to the right, clockwise like rotation) and turning `sweep`
+    /// degrees. Stroke it for a gauge or a ring.
+    pub fn arc(
+        &mut self,
+        center: impl Into<Point>,
+        radius: f64,
+        start: f64,
+        sweep: f64,
+    ) -> Pen<'_> {
+        let arc = kurbo::Arc::new(
+            center.into(),
+            (radius.max(0.0), radius.max(0.0)),
+            start.to_radians(),
+            sweep.to_radians(),
+            0.0,
+        );
+        Pen {
+            path: BezPath::from_iter(arc.path_elements(0.1)),
+            ctx: self,
+        }
+    }
 }
 
 /// A generator from [`DrawCtx::rng`].

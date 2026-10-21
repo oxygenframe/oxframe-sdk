@@ -173,6 +173,13 @@ pub enum NodeKind {
         draw: crate::draw::DrawFn,
         width: f64,
         height: f64,
+        /// The box from the node's current values ([`Draw::size`](crate::Draw::size)).
+        /// `None` keeps `width` and `height`.
+        measure: Option<crate::node_api::SizeFn>,
+        /// The signals of a `#[derive(Node)]` node, for its handle.
+        state: Option<Rc<dyn std::any::Any>>,
+        /// `"Custom"`, or the type name of a derived node, for `check`.
+        type_name: &'static str,
     },
     /// Particles integrated from bursts. The box is a point; the dots are
     /// drawn in the node's coordinates.
@@ -216,7 +223,7 @@ impl NodeKind {
             Self::Layout { .. } => "Layout",
             Self::Grid { .. } => "Grid",
             Self::Svg { .. } => "Svg",
-            Self::Custom { .. } => "Custom",
+            Self::Custom { type_name, .. } => type_name,
             Self::Particles { .. } => "Particles",
             Self::Shader { .. } => "Shader",
         }
@@ -1158,6 +1165,9 @@ pub(crate) fn measure(nodes: &[NodeData], id: NodeId) -> (f64, f64) {
         NodeKind::Layout { .. } => crate::flex::compute(nodes, id, &|c| measure(nodes, c)).0,
         // A window onto its children, not a shape: no box of its own.
         NodeKind::Camera { .. } | NodeKind::Particles { .. } => (0.0, 0.0),
+        NodeKind::Custom {
+            measure: Some(m), ..
+        } => m(),
         NodeKind::Custom { width, height, .. } => (*width, *height),
         NodeKind::Shader { width, height, .. } => (width.get(), height.get()),
         NodeKind::Group => {
