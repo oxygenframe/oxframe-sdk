@@ -28,6 +28,7 @@ pub mod release;
 pub mod shapes;
 pub mod showcase;
 pub mod sounds;
+pub mod splash;
 pub mod spray;
 pub mod svg;
 pub mod text;
@@ -63,6 +64,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("relative", relative::project),
         ("release", release::project),
         ("spray", spray::project),
+        ("splash", splash::project),
         ("sounds", sounds::project),
         ("voice", voice::project),
         ("waves", waves::project),

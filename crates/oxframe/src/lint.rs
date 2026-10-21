@@ -239,7 +239,11 @@ fn out_of_frame(samples: &[Sample], size: (u32, u32), limits: &Limits) -> Vec<Is
                     time: s.time,
                     node: n,
                 });
-            } else if limits.safe_inset > 0.0 && outside(n.bounds, safe) {
+            } else if limits.safe_inset > 0.0
+                && outside(n.bounds, safe)
+                // A shader is a background: water to the edges is the point.
+                && n.kind != "Shader"
+            {
                 safe_hits.push(Hit {
                     time: s.time,
                     node: n,
@@ -634,7 +638,9 @@ fn covers_text(samples: &[Sample]) -> Vec<Issue> {
         let shaders: Vec<&InspectNode> = s
             .nodes
             .iter()
-            .filter(|n| n.kind == "Shader" && n.opacity > 0.9 && n.order != u32::MAX)
+            // lens_drops bends what is under it instead of painting over it.
+            .filter(|n| n.kind == "Shader" && n.shader != Some("lens_drops"))
+            .filter(|n| n.opacity > 0.9 && n.order != u32::MAX)
             .filter(|n| !seen.contains(&n.name))
             .collect();
         for shader in shaders {
@@ -743,6 +749,7 @@ mod tests {
             text_overflow: 0.0,
             parent_kind: Some("Group"),
             in_camera: false,
+            shader: (kind == "Shader").then_some("waves"),
         }
     }
 
@@ -882,6 +889,34 @@ mod tests {
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, true, &limits());
         assert!(issues.iter().all(|i| i.rule != "dead_time"));
+    }
+
+    #[test]
+    fn a_lens_over_text_is_not_covers_text() {
+        let title = text(1, "Into the wave", [-40.0, -20.0, 40.0, 20.0]);
+        let mut lens = node(2, "Shader", [-960.0, -540.0, 960.0, 540.0]);
+        lens.shader = Some("lens_drops");
+        let issues = lint(
+            &[at(0.0, vec![title, lens])],
+            (1920, 1080),
+            Color::BLACK,
+            false,
+            &limits(),
+        );
+        assert!(issues.iter().all(|i| i.rule != "covers_text"), "{issues:?}");
+    }
+
+    #[test]
+    fn water_to_the_edges_is_not_out_of_the_safe_area() {
+        let sea = node(1, "Shader", [-960.0, 100.0, 960.0, 540.0]);
+        let samples: Vec<_> = (0..20)
+            .map(|i| at(f64::from(i) * 0.1, vec![sea.clone()]))
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(
+            issues.iter().all(|i| i.rule != "out_of_frame"),
+            "{issues:?}"
+        );
     }
 
     #[test]

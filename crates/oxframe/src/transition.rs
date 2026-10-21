@@ -4,14 +4,14 @@
 
 use oxframe_2d::current_theme;
 use oxframe_core::{
-    Blend, Color, CubicBezier, Dir, Image, Kind, LayerPose, Recorded, begin_transition,
-    has_previous, time, wait_for,
+    Blend, Color, CubicBezier, Dir, Image, Kind, LayerPose, Recorded, ShaderTransition,
+    begin_transition, has_previous, time, wait_for,
 };
 
 /// How the previous scene gives way to this one.
 ///
-/// Built later, a shader transition can be added without breaking scenes
-/// that already name [`fade`](Self::fade), [`slide`](Self::slide) and the rest.
+/// [`shader`](Self::shader) paints the blend with a shader preset such as
+/// [`water_wipe`](crate::shaders::water_wipe).
 ///
 /// # Example
 ///
@@ -83,6 +83,15 @@ impl Transition {
     /// effects a custom transition can use.
     pub fn custom(blend: fn(f64) -> Blend) -> Self {
         Self::new(Kind::Custom(blend))
+    }
+
+    /// A shader preset paints the blend from both scenes' pixels.
+    ///
+    /// ```ignore
+    /// transition(Transition::shader(shaders::water_wipe())).await;
+    /// ```
+    pub fn shader(shader: ShaderTransition) -> Self {
+        Self::new(Kind::Shader(shader))
     }
 
     /// Blend length in seconds. Without this, the theme's normal motion is used.
@@ -169,6 +178,77 @@ pub(crate) fn composite(
         paint(&mut buf, from, &blend.from);
     }
     flatten(&buf, w, h, background)
+}
+
+/// Paints a shader transition from `from` and `to` at eased progress `t`
+/// and lays it over `background`.
+pub(crate) fn composite_shader(
+    from: &Image,
+    to: &Image,
+    shader: ShaderTransition,
+    t: f64,
+    background: Color,
+) -> Image {
+    assert_eq!(from.width, to.width, "transition layers differ in width");
+    assert_eq!(from.height, to.height, "transition layers differ in height");
+    let w = from.width.max(1);
+    let h = from.height.max(1);
+    let mut buf = vec![[0.0f32; 4]; (w as usize) * (h as usize)];
+    // water_wipe is the only shader preset so far.
+    composite_water(&mut buf, from, to, shader.wave_height() as f32, t as f32);
+    flatten(&buf, w, h, background)
+}
+
+/// The water_wipe preset. The waterline starts below the frame and ends
+/// above it, so progress 0 is exactly `from` and 1 is exactly `to`.
+fn composite_water(buf: &mut [[f32; 4]], from: &Image, to: &Image, wave: f32, t: f32) {
+    let t = t.clamp(0.0, 1.0);
+    let (w, h) = (from.width as usize, from.height as usize);
+    let (fw, fh) = (w as f32, h as f32);
+    let amp = wave * fh;
+    let band = (fh * 0.01).max(1.5);
+    let depth = fh * 0.12;
+    let tau = std::f32::consts::TAU;
+    for x in 0..w {
+        let fx = x as f32 + 0.5;
+        let swell = (fx / fw * tau * 2.0 + t * 7.0).sin() * 0.7
+            + (fx / fw * tau * 5.0 - t * 4.0).sin() * 0.3;
+        // At 0 the line and its foam sit below the frame, at 1 above it.
+        let line = (1.0 - t) * (fh + 2.0 * amp + 2.0 * band) - amp - band + amp * swell;
+        for y in 0..h {
+            let fy = y as f32 + 0.5;
+            let i = y * w + x;
+            let d = fy - line;
+            let px = if d <= 0.0 {
+                let j = i * 4;
+                straight(&from.data[j..j + 4])
+            } else {
+                // Calm water at the end, so progress 1 is exactly `to`.
+                let fade = (-d / depth).exp() * (1.0 - t);
+                let shift = amp * 0.6 * fade * (fy * 0.045 + fx * 0.012 - t * 9.0).sin();
+                let sx = (fx + shift * 0.5).clamp(0.0, fw - 1.0) as usize;
+                let sy = (fy + shift).clamp(0.0, fh - 1.0) as usize;
+                let j = (sy * w + sx) * 4;
+                let (r, g, b, a) = straight(&to.data[j..j + 4]);
+                let lift = 0.18 * fade;
+                (
+                    r + (1.0 - r) * lift,
+                    g + (1.0 - g) * lift,
+                    b + (1.0 - b) * lift,
+                    a,
+                )
+            };
+            let foam = if d.abs() < band {
+                0.75 * (1.0 - d.abs() / band)
+            } else {
+                0.0
+            };
+            let (r, g, b, a) = px;
+            // Premultiplied, with white foam over the pixel.
+            let mixc = |c: f32| c * a * (1.0 - foam) + foam;
+            buf[i] = [mixc(r), mixc(g), mixc(b), a + (1.0 - a) * foam];
+        }
+    }
 }
 
 fn mix_into(buf: &mut [[f32; 4]], from: &Image, to: &Image, t: f32) {
@@ -393,6 +473,56 @@ mod tests {
             .await;
             wait_for(0.2).await;
         })
+    }
+
+    fn water_in(view: View) -> BoxFuture {
+        Box::pin(async move {
+            cover(&view, BLUE);
+            transition(
+                Transition::shader(crate::shaders::water_wipe())
+                    .duration(1.0)
+                    .ease(presets::LINEAR),
+            )
+            .await;
+            wait_for(0.2).await;
+        })
+    }
+
+    #[test]
+    fn water_wipe_starts_on_the_old_scene_and_ends_on_the_new() {
+        let mut engine = Engine::new(project(vec![
+            scene("a", red_then_wait),
+            scene("b", water_in),
+        ]))
+        .unwrap();
+        let (start, mid, done) = ends(&engine, "water_wipe");
+        let all = |img: &Image, rgb: [u8; 3]| {
+            (0..img.height).all(|y| (0..img.width).all(|x| near(at(img, x, y), rgb)))
+        };
+        assert!(
+            all(&draw(&mut engine, start), [255, 0, 0]),
+            "0% is the old scene"
+        );
+        assert!(
+            all(&draw(&mut engine, done), [0, 0, 255]),
+            "100% is the new scene"
+        );
+        let half = draw(&mut engine, mid);
+        let x = half.width / 2;
+        assert!(
+            near(at(&half, x, 0), [255, 0, 0]),
+            "the water has not reached the top"
+        );
+        assert!(
+            near(at(&half, x, half.height - 1), [0, 0, 255]),
+            "the new scene is under the water"
+        );
+        let inspected = feedback::inspect(
+            project(vec![scene("a", red_then_wait), scene("b", water_in)]),
+            f64::from(mid) / 10.0,
+        )
+        .unwrap();
+        assert_eq!(inspected["transition"]["kind"], "water_wipe");
     }
 
     fn draw(engine: &mut Engine, frame: u32) -> Image {

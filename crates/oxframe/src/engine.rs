@@ -582,7 +582,12 @@ impl Engine {
                 self.layer(from_frame, renderer, size)
             };
             let to = self.layer(frame, renderer, size);
-            let image = crate::transition::composite(&from, &to, &blend, t, background);
+            let image = match rec.shader() {
+                Some(shader) => {
+                    crate::transition::composite_shader(&from, &to, shader, t, background)
+                }
+                None => crate::transition::composite(&from, &to, &blend, t, background),
+            };
             renderer.present_image(&image);
             return image;
         }
@@ -634,7 +639,13 @@ impl Engine {
         // Custom resolves theme colors while painting, after the scene step
         // has already returned.
         oxframe_2d::enter_theme(&theme, || {
-            if present {
+            if graph.has_post() {
+                let image = crate::parts::draw_in_parts(graph, renderer, &options);
+                if present {
+                    renderer.present_image(&image);
+                }
+                image
+            } else if present {
                 renderer.render(graph, &options)
             } else {
                 renderer.render_pixels(graph, &options)

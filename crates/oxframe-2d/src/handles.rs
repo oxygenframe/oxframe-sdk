@@ -192,6 +192,22 @@ impl Node {
         with_graph(|g| g.reparent(self.0, parent.0));
     }
 
+    /// Runs a shader effect on this node's pixels, children included.
+    ///
+    /// ```ignore
+    /// let ring = card.effect(shaders::ripple().strength(0.0));
+    /// ring.strength().to(1.0, 0.6).await;
+    /// ```
+    ///
+    /// A node has one effect; a second call replaces the first. The node
+    /// must not sit inside a group with opacity below 1, a blur, a clip, a
+    /// blend, a shadow or another effect: there its pixels are not
+    /// finished, and `check` reports `input_cycle`.
+    pub fn effect(self, effect: crate::builder::EffectBuilder) -> Effect {
+        with_graph(|g| g.set_effect(self.0, effect.build(self.0)));
+        Effect(self.0)
+    }
+
     /// Direct children, in creation order.
     pub fn children(self) -> Vec<Node> {
         with_graph(|g| g.node(self.0).children.iter().map(|&c| Node(c)).collect())
@@ -352,6 +368,11 @@ impl Shader {
         self.color("foam")
     }
 
+    /// How wet the lens of the lens_drops preset is, 0 to 1.
+    pub fn wetness(self) -> Signal<f64> {
+        self.number("wetness")
+    }
+
     fn number(self, name: &str) -> Signal<f64> {
         with_graph(|g| {
             let NodeKind::Shader { uniforms, .. } = &g.node(self.id()).kind else {
@@ -390,6 +411,36 @@ fn uniform_names(uniforms: &[crate::shader::Uniform]) -> String {
     format!("Available: {}.", names.join(", "))
 }
 
+/// Handle to a node's shader effect, from [`Node::effect`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Effect(NodeId);
+
+impl Effect {
+    /// The node the effect runs on.
+    pub fn node(self) -> Node {
+        Node(self.0)
+    }
+
+    /// 0 leaves the node alone, 1 is the full effect.
+    pub fn strength(self) -> Signal<f64> {
+        self.data().strength
+    }
+
+    /// How fast the effect moves.
+    pub fn speed(self) -> Signal<f64> {
+        self.data().speed
+    }
+
+    fn data(self) -> crate::post::EffectData {
+        with_graph(|g| {
+            g.node(self.0)
+                .effect
+                .clone()
+                .expect("an Effect handle always points to a node with an effect")
+        })
+    }
+}
+
 impl Deref for Shader {
     type Target = Node;
     fn deref(&self) -> &Node {
@@ -399,6 +450,12 @@ impl Deref for Shader {
 
 impl From<Custom> for Node {
     fn from(h: Custom) -> Node {
+        h.0
+    }
+}
+
+impl From<Shader> for Node {
+    fn from(h: Shader) -> Node {
         h.0
     }
 }
@@ -1172,6 +1229,9 @@ mod tests {
                 Primitive::Image { .. } => "image",
                 Primitive::PushLayer(_) => "push",
                 Primitive::PopLayer => "pop",
+                Primitive::ReadFrame(_) => "frame",
+                Primitive::BeginEffect(_) => "effect",
+                Primitive::EndEffect => "end_effect",
             })
             .collect();
         assert_eq!(kinds, vec!["fill", "stroke", "fill", "fill", "image"]);
@@ -1198,6 +1258,9 @@ mod tests {
                 Primitive::Image { .. } => "image",
                 Primitive::PushLayer(_) => "push",
                 Primitive::PopLayer => "pop",
+                Primitive::ReadFrame(_) => "frame",
+                Primitive::BeginEffect(_) => "effect",
+                Primitive::EndEffect => "end_effect",
             })
             .collect()
     }

@@ -2,9 +2,10 @@
 //!
 //! The waves preset is rasterized on the CPU, so a check without a GPU
 //! still paints it. Both backends then draw that image, which keeps the
-//! preset the same on either one. A custom `shade` is type-checked on
-//! every draw (a changed file is picked up without a rebuild) and is not
-//! executed yet: inputs and shader transitions come later.
+//! preset the same on either one. The lens_drops preset reads the frame
+//! drawn before it (see [`crate::post`]). A custom `shade` is type-checked
+//! on every draw (a changed file is picked up without a rebuild) and is
+//! not executed.
 
 use std::cell::Cell;
 
@@ -24,6 +25,35 @@ pub enum ShaderCode {
     /// Read again on every draw, so an edit shows up without a rebuild.
     File(std::path::PathBuf),
 }
+
+/// Which built-in a shader node runs. Stored on a shader node.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Preset {
+    /// User WGSL: checked, not executed.
+    Custom,
+    /// [`waves`](crate::waves): painted inside the node's box.
+    Waves,
+    /// [`lens_drops`](crate::lens_drops): changes the frame drawn before it.
+    LensDrops,
+}
+
+impl Preset {
+    /// `"custom"`, `"waves"` or `"lens_drops"`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Custom => "custom",
+            Self::Waves => "waves",
+            Self::LensDrops => "lens_drops",
+        }
+    }
+}
+
+/// Parameters of the lens_drops preset, all numbers.
+const LENS_PARAMS: [&str; 3] = ["wetness", "seed", "drop_size"];
+
+/// Inputs the lens_drops preset reads.
+const LENS_INPUTS: [&str; 1] = ["scene"];
 
 /// One value passed to `Params`. Stored on a shader node.
 #[doc(hidden)]
@@ -187,11 +217,50 @@ fn budget_ms() -> f64 {
 
 /// Compile and parameter problems for this node. Empty when it is not a shader.
 pub(crate) fn problems(n: &NodeData) -> Vec<ShaderDiag> {
-    let NodeKind::Shader { code, uniforms, .. } = &n.kind else {
+    let NodeKind::Shader {
+        code,
+        uniforms,
+        preset,
+        inputs,
+        ..
+    } = &n.kind
+    else {
         return Vec::new();
     };
     let label = label(n);
     let source = n.source.clone();
+    let diag = |hint: String| {
+        vec![ShaderDiag {
+            node: label.clone(),
+            source: source.clone(),
+            rule: "param_unknown",
+            hint,
+        }]
+    };
+    let known: &[&str] = match preset {
+        Preset::LensDrops => &LENS_INPUTS,
+        Preset::Waves => &[],
+        // Inputs of a custom shade are not executed, so any name is kept.
+        Preset::Custom => &[],
+    };
+    if *preset != Preset::Custom {
+        for (name, _) in inputs {
+            if !known.contains(&name.as_str()) {
+                return diag(unknown("input", name, known));
+            }
+        }
+    }
+    if *preset == Preset::LensDrops {
+        for u in uniforms {
+            if !LENS_PARAMS.contains(&u.name.as_str()) {
+                return diag(unknown("parameter", &u.name, &LENS_PARAMS));
+            }
+            if !matches!(u.value, UniformValue::Num(_)) {
+                return diag(format!("`{}` of lens_drops is a number.", u.name));
+            }
+        }
+        return Vec::new();
+    }
     let text = match load(code) {
         Ok(text) => text,
         Err(hint) => {
@@ -223,12 +292,12 @@ pub(crate) fn raster(
     opacity: f64,
 ) -> Option<Primitive> {
     let NodeKind::Shader {
-        waves, uniforms, ..
+        preset, uniforms, ..
     } = &n.kind
     else {
         return None;
     };
-    if !waves {
+    if *preset != Preset::Waves {
         return None;
     }
     let (w, h) = (size.0.max(1.0), size.1.max(1.0));
@@ -277,6 +346,62 @@ pub(crate) fn raster(
         rect,
         opacity: 1.0,
     })
+}
+
+/// The frame marker of a lens_drops node, or nothing for other shaders.
+///
+/// `area` is the node's box in scene coordinates. The node reads the frame
+/// drawn before it whatever its input is named: a backdrop outside a layer
+/// is the frame.
+pub(crate) fn read_frame(
+    n: &NodeData,
+    size: (f64, f64),
+    tf: Affine,
+    time: f64,
+    opacity: f64,
+) -> Option<crate::post::Shade> {
+    let NodeKind::Shader {
+        preset: Preset::LensDrops,
+        uniforms,
+        ..
+    } = &n.kind
+    else {
+        return None;
+    };
+    let num = |name: &str, default: f64| {
+        uniforms
+            .iter()
+            .find_map(|u| match (&u.name[..], &u.value) {
+                (m, UniformValue::Num(v)) if m == name => Some(v.get()),
+                _ => None,
+            })
+            .unwrap_or(default)
+    };
+    let (w, h) = (size.0.max(0.0), size.1.max(0.0));
+    let area = tf.transform_rect_bbox(kurbo::Rect::new(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0));
+    Some(crate::post::Shade {
+        op: crate::post::ShadeOp::LensDrops {
+            wetness: num("wetness", 0.6),
+            seed: num("seed", 0.0).max(0.0) as u64,
+            scale: num("drop_size", 1.0),
+            time,
+        },
+        opacity,
+        area: Some(area),
+    })
+}
+
+/// `no input `x`. Did you mean `y`? Available: …` for a preset.
+fn unknown(what: &str, name: &str, known: &[&str]) -> String {
+    let list = if known.is_empty() {
+        "none".to_owned()
+    } else {
+        known.join(", ")
+    };
+    match closest(name, known) {
+        Some(n) => format!("no {what} `{name}`. Did you mean `{n}`? Available: {list}."),
+        None => format!("no {what} `{name}`. Available: {list}."),
+    }
 }
 
 /// Wall clock for `shader_slow`.
@@ -540,7 +665,6 @@ fn value_name(value: &UniformValue) -> &'static str {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn closest<'a>(name: &str, options: &[&'a str]) -> Option<&'a str> {
     options
         .iter()
@@ -549,7 +673,6 @@ fn closest<'a>(name: &str, options: &[&'a str]) -> Option<&'a str> {
         .min_by_key(|o| edit(name, o))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn edit(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
@@ -722,6 +845,121 @@ mod tests {
         let diags = graph.shader_diags();
         assert!(diags.iter().all(|d| d.rule != "shader_error"), "{diags:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn rules(graph: &SceneGraph) -> Vec<&'static str> {
+        let _ = graph.draw_list();
+        graph.shader_diags().iter().map(|d| d.rule).collect()
+    }
+
+    fn reads_frame(graph: &SceneGraph) -> bool {
+        graph
+            .draw_list()
+            .iter()
+            .any(|i| matches!(i.prim, Primitive::ReadFrame(_)))
+    }
+
+    #[test]
+    fn lens_drops_read_the_frame() {
+        let graph = paint(|view| {
+            view.add(
+                crate::lens_drops()
+                    .fullscreen()
+                    .input("scene", crate::Input::frame()),
+            );
+        });
+        assert!(graph.has_post());
+        assert!(reads_frame(&graph));
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
+        let passes = crate::pass_graph(&graph.draw_list());
+        assert!(
+            passes
+                .iter()
+                .any(|p| p.kind == crate::PassKind::Effect && p.shader == Some("lens_drops"))
+        );
+    }
+
+    #[test]
+    fn a_misspelled_input_or_parameter_names_the_real_one() {
+        let graph = paint(|view| {
+            view.add(
+                crate::lens_drops()
+                    .input("scen", crate::Input::frame())
+                    .name("lens"),
+            );
+        });
+        let _ = graph.draw_list();
+        let diag = &graph.shader_diags()[0];
+        assert_eq!((diag.rule, diag.node.as_str()), ("param_unknown", "lens"));
+        assert!(diag.hint.contains("`scene`"), "{diag:?}");
+
+        let graph = paint(|view| {
+            view.add(crate::lens_drops().uniform("wetnes", 1.0));
+        });
+        let _ = graph.draw_list();
+        let diag = &graph.shader_diags()[0];
+        assert!(diag.hint.contains("`wetness`"), "{diag:?}");
+
+        let graph = paint(|view| {
+            view.add(crate::waves().input("scene", crate::Input::frame()));
+        });
+        assert_eq!(rules(&graph), ["param_unknown"]);
+    }
+
+    #[test]
+    fn a_lens_inside_a_fading_group_is_an_input_cycle() {
+        let graph = paint(|view| {
+            let group = view.add(crate::Group::new().opacity(0.5));
+            group.add(crate::Rect::new().size(20.0));
+            group.add(crate::lens_drops().fullscreen());
+        });
+        assert_eq!(rules(&graph), ["input_cycle"]);
+        assert!(!reads_frame(&graph), "the lens is skipped");
+    }
+
+    #[test]
+    fn an_effect_inside_an_effect_is_an_input_cycle() {
+        let graph = paint(|view| {
+            let outer = view.add(crate::Group::new());
+            let inner = outer.add(crate::Rect::new().size(20.0));
+            outer.effect(crate::ripple());
+            inner.effect(crate::ripple());
+        });
+        assert_eq!(rules(&graph), ["input_cycle"]);
+        let items = graph.draw_list();
+        let begins = items
+            .iter()
+            .filter(|i| matches!(i.prim, Primitive::BeginEffect(_)))
+            .count();
+        assert_eq!(begins, 1, "only the outer effect runs");
+        let passes = crate::pass_graph(&items);
+        assert!(
+            passes
+                .iter()
+                .any(|p| p.kind == crate::PassKind::Effect && p.shader == Some("ripple"))
+        );
+    }
+
+    #[test]
+    fn effect_signals_animate_the_marker() {
+        let graph = SceneGraph::new(320, 180);
+        let effect = graph.enter(|| {
+            View::current()
+                .add(crate::Rect::new().size(40.0))
+                .effect(crate::ripple().strength(0.0))
+        });
+        let strength = |graph: &SceneGraph| {
+            graph.draw_list().iter().find_map(|i| match &i.prim {
+                Primitive::BeginEffect(s) => match s.op {
+                    crate::post::ShadeOp::Ripple { strength, .. } => Some(strength),
+                    _ => None,
+                },
+                _ => None,
+            })
+        };
+        assert_eq!(strength(&graph), Some(0.0));
+        graph.enter(|| effect.strength().set(0.7));
+        assert_eq!(strength(&graph), Some(0.7));
     }
 
     #[test]

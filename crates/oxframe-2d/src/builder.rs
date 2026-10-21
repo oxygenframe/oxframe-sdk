@@ -891,7 +891,7 @@ impl NodeBuilder for ImgBuilder {
 builder!(
     /// An SVG file, expanded into groups, paths and images.
     SvgBuilder => Svg, kind "Svg", defaults {},
-    fields { bytes: Vec<u8> = Vec::new(), width: Option<f64> = None, height: Option<f64> = None });
+    fields { bytes: Vec<u8> = Vec::new(), width: Option<Span> = None, height: Option<Span> = None });
 
 impl SvgBuilder {
     /// SVG bytes, typically `include_bytes!("../assets/logo.svg")` — the only
@@ -918,15 +918,17 @@ impl SvgBuilder {
         self.src(&bytes)
     }
 
-    /// Width in pixels. Height keeps the view box aspect unless also set.
-    pub fn width(mut self, v: f64) -> Self {
-        self.width = Some(v);
+    /// Width in pixels, or [`pct`](crate::pct) of the parent's width when
+    /// the node is added. Height keeps the view box aspect unless also set.
+    pub fn width(mut self, v: impl Into<Span>) -> Self {
+        self.width = Some(v.into());
         self
     }
 
-    /// Height in pixels. Width keeps the view box aspect unless also set.
-    pub fn height(mut self, v: f64) -> Self {
-        self.height = Some(v);
+    /// Height in pixels, or a percentage of the parent's height when the
+    /// node is added. Width keeps the view box aspect unless also set.
+    pub fn height(mut self, v: impl Into<Span>) -> Self {
+        self.height = Some(v.into());
         self
     }
 }
@@ -943,7 +945,11 @@ impl NodeBuilder for SvgBuilder {
         let size = tree.size();
         let (nw, nh) = (f64::from(size.width()), f64::from(size.height()));
         let aspect = if nh > 0.0 { nw / nh } else { 1.0 };
-        let (w, h) = match (self.width, self.height) {
+        // The paths are scaled once, so a percentage is read now.
+        let px = |span: Option<Span>, axis: Axis| {
+            span.map(|s| place::span_signal(g, parent, axis, s, String::new()).get())
+        };
+        let (w, h) = match (px(self.width, Axis::X), px(self.height, Axis::Y)) {
             (Some(w), Some(h)) => (w, h),
             (Some(w), None) => (w, if aspect > 0.0 { w / aspect } else { w }),
             (None, Some(h)) => (h * aspect, h),
@@ -1250,11 +1256,12 @@ enum Seed {
 pub struct ShaderBuilder {
     base: BaseProps,
     code: crate::shader::ShaderCode,
-    waves: bool,
+    preset: crate::shader::Preset,
     width: Span,
     height: Span,
     fullscreen: bool,
     uniforms: Vec<(String, Seed)>,
+    inputs: Vec<(String, crate::post::Input)>,
 }
 
 impl ShaderBuilder {
@@ -1262,11 +1269,12 @@ impl ShaderBuilder {
         Self {
             base: BaseProps::default(),
             code,
-            waves: false,
+            preset: crate::shader::Preset::Custom,
             width: Span::Px(100.0),
             height: Span::Px(100.0),
             fullscreen: false,
             uniforms: Vec::new(),
+            inputs: Vec::new(),
         }
     }
 
@@ -1274,7 +1282,7 @@ impl ShaderBuilder {
         let mut s = Self::new(crate::shader::ShaderCode::Wgsl(
             crate::shader::waves_wgsl().into(),
         ));
-        s.waves = true;
+        s.preset = crate::shader::Preset::Waves;
         s.uniform("amp", 0.05)
             .uniform("speed", 1.0)
             .uniform_color("deep", Color::rgba(0.102_f32, 0.322_f32, 0.549_f32, 1.0))
@@ -1348,6 +1356,35 @@ impl ShaderBuilder {
         self.uniform_color("foam", value)
     }
 
+    /// Names what the shader reads. `lens_drops` reads `"scene"`, which is
+    /// the frame drawn before it whether or not this is called. A name the
+    /// preset does not read fails `check` (`param_unknown`).
+    pub fn input(mut self, name: impl Into<String>, input: crate::post::Input) -> Self {
+        let name = name.into();
+        if let Some(slot) = self.inputs.iter_mut().find(|(n, _)| *n == name) {
+            slot.1 = input;
+        } else {
+            self.inputs.push((name, input));
+        }
+        self
+    }
+
+    /// How many drops cover the lens of `lens_drops`, 0 to 1. The preset
+    /// default is 0.6; start from 0 to keep the lens dry until a splash.
+    pub fn wetness(self, value: f64) -> Self {
+        self.uniform("wetness", value)
+    }
+
+    /// Drop layout of `lens_drops`. The same seed places the same drops.
+    pub fn seed(self, value: u64) -> Self {
+        self.uniform("seed", value as f64)
+    }
+
+    /// Drop size of `lens_drops`, as a multiple of the default.
+    pub fn drop_size(self, value: f64) -> Self {
+        self.uniform("drop_size", value)
+    }
+
     fn set_uniform(&mut self, name: String, value: Seed) {
         if let Some(slot) = self.uniforms.iter_mut().find(|(n, _)| *n == name) {
             slot.1 = value;
@@ -1392,7 +1429,7 @@ impl NodeBuilder for ShaderBuilder {
             .collect();
         let kind = NodeKind::Shader {
             code: self.code,
-            waves: self.waves,
+            preset: self.preset,
             width: place::span_signal(graph, parent, Axis::X, width, format!("Shader#{n}.width")),
             height: place::span_signal(
                 graph,
@@ -1402,6 +1439,7 @@ impl NodeBuilder for ShaderBuilder {
                 format!("Shader#{n}.height"),
             ),
             uniforms,
+            inputs: self.inputs,
         };
         Shader::from_id(insert(graph, parent, kind, self.base))
     }
@@ -1410,4 +1448,62 @@ impl NodeBuilder for ShaderBuilder {
 /// The waves preset: a crest of `foam` over `deep` water.
 pub fn waves() -> ShaderBuilder {
     ShaderBuilder::preset()
+}
+
+/// The lens_drops preset: water drops on the lens that magnify and flip
+/// what was drawn before this node, inside its box.
+///
+/// Add it last and make it [`fullscreen`](ShaderBuilder::fullscreen) to
+/// wet the whole frame. Animate [`Shader::wetness`](crate::Shader::wetness)
+/// for a splash.
+pub fn lens_drops() -> ShaderBuilder {
+    let mut s = ShaderBuilder::new(crate::shader::ShaderCode::Wgsl(String::new()));
+    s.preset = crate::shader::Preset::LensDrops;
+    s.uniform("wetness", 0.6)
+        .uniform("seed", 0.0)
+        .uniform("drop_size", 1.0)
+}
+
+// ------------------------------------------------------------------ Effect
+
+/// A shader effect for [`Node::effect`](crate::Node::effect).
+#[must_use = "an effect does nothing until it is passed to `effect`"]
+pub struct EffectBuilder {
+    kind: crate::post::EffectKind,
+    strength: f64,
+    speed: f64,
+}
+
+impl EffectBuilder {
+    /// 0 leaves the node alone, 1 is the full effect. Default 1.
+    pub fn strength(mut self, value: f64) -> Self {
+        self.strength = value;
+        self
+    }
+
+    /// How fast the rings travel. Default 6.
+    pub fn speed(mut self, value: f64) -> Self {
+        self.speed = value;
+        self
+    }
+
+    pub(crate) fn build(self, id: NodeId) -> crate::post::EffectData {
+        crate::post::EffectData {
+            kind: self.kind,
+            strength: Signal::new(self.strength).with_name(format!("Effect#{}.strength", id.0)),
+            speed: Signal::new(self.speed).with_name(format!("Effect#{}.speed", id.0)),
+        }
+    }
+}
+
+/// Rings that push a node's colors out from its center, like a drop on
+/// water. The node's outline stays, so a flat fill shows no rings: use it
+/// on text, a gradient, an image or water. Put it on a node with
+/// [`Node::effect`](crate::Node::effect).
+pub fn ripple() -> EffectBuilder {
+    EffectBuilder {
+        kind: crate::post::EffectKind::Ripple,
+        strength: 1.0,
+        speed: 6.0,
+    }
 }

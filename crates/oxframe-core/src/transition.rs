@@ -118,6 +118,56 @@ impl Default for Blend {
     }
 }
 
+/// A transition drawn by a shader preset from both scenes' pixels.
+///
+/// Built with `oxframe::shaders::water_wipe()` and passed to
+/// `Transition::shader`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[must_use = "a shader transition does nothing until it is passed to `Transition::shader`"]
+pub struct ShaderTransition {
+    preset: ShaderPreset,
+    wave: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShaderPreset {
+    WaterWipe,
+}
+
+impl ShaderTransition {
+    /// A wavy waterline rises over the frame. Below it is the incoming
+    /// scene, rippled near the line as if seen through water.
+    pub fn water_wipe() -> Self {
+        Self {
+            preset: ShaderPreset::WaterWipe,
+            wave: 0.04,
+        }
+    }
+
+    /// Height of the waves on the line, as a fraction of the frame
+    /// height. The default is 0.04; 0 is a straight line.
+    pub fn wave(mut self, height: f64) -> Self {
+        self.wave = if height.is_finite() {
+            height.max(0.0)
+        } else {
+            0.0
+        };
+        self
+    }
+
+    /// The wave height set with [`wave`](Self::wave).
+    pub fn wave_height(self) -> f64 {
+        self.wave
+    }
+
+    /// `"water_wipe"`.
+    pub fn name(self) -> &'static str {
+        match self.preset {
+            ShaderPreset::WaterWipe => "water_wipe",
+        }
+    }
+}
+
 /// Which built-in, or a function of progress. Not part of the prelude;
 /// scenes build one through [`crate`] re-exports in `oxframe::Transition`.
 #[derive(Clone, Copy)]
@@ -134,6 +184,8 @@ pub enum Kind {
     ZoomOut,
     /// `progress` in 0..1 (already eased) decides the poses.
     Custom(fn(f64) -> Blend),
+    /// A shader preset paints the frame from both layers.
+    Shader(ShaderTransition),
 }
 
 impl Kind {
@@ -145,6 +197,7 @@ impl Kind {
             Self::ZoomIn => "zoom_in",
             Self::ZoomOut => "zoom_out",
             Self::Custom(_) => "custom",
+            Self::Shader(s) => s.name(),
         }
     }
 
@@ -180,9 +233,18 @@ impl Recorded {
         }
     }
 
-    /// `"fade"`, `"slide"`, `"wipe"`, `"zoom_in"`, `"zoom_out"` or `"custom"`.
+    /// `"fade"`, `"slide"`, `"wipe"`, `"zoom_in"`, `"zoom_out"`, `"custom"`,
+    /// or a shader preset such as `"water_wipe"`.
     pub fn kind_name(self) -> &'static str {
         self.kind.name()
+    }
+
+    /// The shader preset that paints this transition, if it is one.
+    pub fn shader(self) -> Option<ShaderTransition> {
+        match self.kind {
+            Kind::Shader(s) => Some(s),
+            _ => None,
+        }
     }
 
     /// `"left"`, `"right"`, `"up"` or `"down"` for a slide or a wipe.
@@ -257,6 +319,8 @@ pub(crate) fn blend(kind: Kind, t: f64) -> Blend {
             ..Blend::default()
         },
         Kind::Custom(f) => f(t),
+        // Painted from pixels by the engine; the poses are not used.
+        Kind::Shader(_) => Blend::default(),
     }
 }
 

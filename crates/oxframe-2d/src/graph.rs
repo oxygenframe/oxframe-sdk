@@ -186,14 +186,16 @@ pub enum NodeKind {
         state: crate::sim::ParticlesState,
     },
     /// Pixels from a WGSL `shade` function. No children in this version.
-    /// The waves preset is rasterized here; other shaders are type-checked.
+    /// Presets are run here; a custom `shade` is type-checked.
     Shader {
         code: crate::shader::ShaderCode,
-        /// Runs the waves formula. A custom `shade` is checked, not executed.
-        waves: bool,
+        /// Built-in that runs. A custom `shade` is checked, not executed.
+        preset: crate::shader::Preset,
         width: Signal<f64>,
         height: Signal<f64>,
         uniforms: Vec<crate::shader::Uniform>,
+        /// Named inputs from `.input(..)`.
+        inputs: Vec<(String, crate::post::Input)>,
     },
 }
 
@@ -275,6 +277,8 @@ pub struct NodeData {
     pub place: Option<crate::place::Place>,
     /// Position after [`place`](Self::place) is resolved. Draw uses this.
     pub placed: Cell<(f64, f64)>,
+    /// Shader effect on the node's own pixels, from [`Node::effect`](crate::Node::effect).
+    pub effect: Option<crate::post::EffectData>,
 }
 
 impl NodeData {
@@ -648,6 +652,7 @@ impl SceneGraph {
             align_self: Signal::new(base.align_self).with_name(sig("align_self")),
             place: base.place,
             placed: Cell::new((base.x, base.y)),
+            effect: None,
             kind,
         });
         if let Some(p) = parent {
@@ -677,6 +682,26 @@ impl SceneGraph {
         measure(&nodes, id)
     }
 
+    pub(crate) fn set_effect(&self, id: NodeId, effect: crate::post::EffectData) {
+        self.nodes.borrow_mut()[id.0 as usize].effect = Some(effect);
+    }
+
+    /// Some node reads or changes drawn pixels (an effect, or a shader
+    /// that reads the frame). When false, the draw list has no markers and
+    /// a renderer can draw it in one go.
+    pub fn has_post(&self) -> bool {
+        self.nodes.borrow().iter().any(|n| {
+            n.effect.is_some()
+                || matches!(
+                    n.kind,
+                    NodeKind::Shader {
+                        preset: crate::shader::Preset::LensDrops,
+                        ..
+                    }
+                )
+        })
+    }
+
     pub(crate) fn set_place(&self, id: NodeId, place: crate::place::Place) {
         self.nodes.borrow_mut()[id.0 as usize].place = Some(place);
     }
@@ -704,6 +729,7 @@ impl SceneGraph {
             None,
             None,
             self.time.get(),
+            false,
             &mut out,
         );
         *self.shader_diags.borrow_mut() = crate::shader::take_diags();
@@ -924,6 +950,10 @@ impl SceneGraph {
                     }
                     found
                 },
+                shader: match &n.kind {
+                    NodeKind::Shader { preset, .. } => Some(preset.name()),
+                    _ => None,
+                },
             });
         }
         out
@@ -962,6 +992,8 @@ pub struct InspectNode {
     /// Seen through a [`Camera`](crate::Camera): leaving the frame is then
     /// usually the camera's framing, not a layout mistake.
     pub in_camera: bool,
+    /// Preset of a `Shader` node: `"waves"`, `"lens_drops"` or `"custom"`.
+    pub shader: Option<&'static str>,
 }
 
 thread_local! {
@@ -1152,10 +1184,16 @@ fn prim_same(a: &Primitive, b: &Primitive) -> bool {
         ) => r == s && o == p,
         (PushLayer(x), PushLayer(y)) => x == y,
         (PopLayer, PopLayer) => true,
+        (Primitive::ReadFrame(x), Primitive::ReadFrame(y))
+        | (Primitive::BeginEffect(x), Primitive::BeginEffect(y)) => x == y,
+        (Primitive::EndEffect, Primitive::EndEffect) => true,
         _ => false,
     }
 }
 
+/// `inside` is true under an open layer or effect. A marker there could not
+/// be drawn in parts, so the node reports `input_cycle` and draws without it.
+#[allow(clippy::too_many_arguments)]
 fn visit(
     nodes: &[NodeData],
     id: NodeId,
@@ -1163,6 +1201,7 @@ fn visit(
     placement: Option<FlexBox>,
     flex: Option<&FlexMap>,
     time: f64,
+    inside: bool,
     out: &mut Vec<DrawItem>,
 ) {
     let n = &nodes[id.0 as usize];
@@ -1197,6 +1236,34 @@ fn visit(
         || blur > 0.0
         || shadow.is_some()
         || (opacity < 1.0 && !n.children.is_empty());
+    let effect = n.effect.as_ref().and_then(|e| {
+        if inside {
+            cycle(n, "This effect is inside a layer or another effect");
+            return None;
+        }
+        Some(e.shade(tf * Point::ZERO, time))
+    });
+    if let Some(shade) = &effect {
+        out.push(DrawItem {
+            node: id,
+            transform: tf,
+            prim: Primitive::BeginEffect(shade.clone()),
+        });
+    }
+    if let Some(shade) = crate::shader::read_frame(n, size, tf, time, opacity) {
+        if inside || effect.is_some() {
+            cycle(
+                n,
+                "lens_drops reads the frame, but it is inside a layer or an effect",
+            );
+        } else {
+            out.push(DrawItem {
+                node: id,
+                transform: tf,
+                prim: Primitive::ReadFrame(shade),
+            });
+        }
+    }
     if layered {
         out.push(DrawItem {
             node: id,
@@ -1265,7 +1332,8 @@ fn visit(
         });
         for (_, c) in order {
             let placement = map.and_then(|m| m.get(&c).copied());
-            visit(nodes, c, tf, placement, map, time, out);
+            let inside = inside || layered || clipped || effect.is_some();
+            visit(nodes, c, tf, placement, map, time, inside, out);
         }
         if clipped {
             out.push(DrawItem {
@@ -1282,6 +1350,30 @@ fn visit(
             prim: Primitive::PopLayer,
         });
     }
+    if effect.is_some() {
+        out.push(DrawItem {
+            node: id,
+            transform: tf,
+            prim: Primitive::EndEffect,
+        });
+    }
+}
+
+/// Reports `input_cycle` for `n`.
+fn cycle(n: &NodeData, what: &str) {
+    crate::shader::push_diag(crate::shader::ShaderDiag {
+        node: n
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{}#{}", n.kind.name(), n.id.0)),
+        source: n.source.clone(),
+        rule: "input_cycle",
+        hint: format!(
+            "{what} (a group with opacity below 1, a blur, a clip, a blend or a shadow). \
+             Its pixels are not finished there, so the shader is skipped. \
+             Put the effect on that group, or move the node out of it."
+        ),
+    });
 }
 
 impl DrawItem {
@@ -1300,7 +1392,11 @@ impl DrawItem {
                 })
             }
             Primitive::Image { rect, .. } => rect.contains(local),
-            Primitive::PushLayer(_) | Primitive::PopLayer => false,
+            Primitive::PushLayer(_)
+            | Primitive::PopLayer
+            | Primitive::ReadFrame(_)
+            | Primitive::BeginEffect(_)
+            | Primitive::EndEffect => false,
         }
     }
 }

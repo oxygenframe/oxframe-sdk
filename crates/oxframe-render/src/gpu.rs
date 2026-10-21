@@ -399,6 +399,8 @@ impl GpuRenderer {
                     ),
                 },
                 Primitive::PopLayer => self.scene.pop_layer(),
+                // The engine draws around these and never hands them over.
+                Primitive::ReadFrame(_) | Primitive::BeginEffect(_) | Primitive::EndEffect => {}
             }
             i += 1;
         }
@@ -407,12 +409,19 @@ impl GpuRenderer {
 
 impl GpuRenderer {
     /// Encodes the scene and renders it into the internal target texture.
-    fn draw_to_target(&mut self, graph: &SceneGraph, options: &RenderOptions) -> (u32, u32) {
+    fn draw_to_target(
+        &mut self,
+        graph: &SceneGraph,
+        items: &[DrawItem],
+        options: &RenderOptions,
+    ) -> (u32, u32) {
         let (w, h) = (options.width.max(1), options.height.max(1));
         let view = scene_to_pixels(graph.size(), (w, h));
         self.scene.reset();
-        let items = graph.draw_list();
-        self.encode(&items, view, w, h);
+        self.encode(items, view, w, h);
+        let used = crate::image_ids(items);
+        self.images.retain(|id, _| used.contains(id));
+        self.cpu.keep_images(&used);
 
         let bg = options.background;
         let params = RenderParams {
@@ -442,6 +451,17 @@ impl GpuRenderer {
     #[cfg(target_arch = "wasm32")]
     pub fn render_cpu(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image {
         self.cpu.render(graph, options)
+    }
+
+    /// Browser: rasterizes part of a draw list with the CPU renderer.
+    #[cfg(target_arch = "wasm32")]
+    pub fn render_cpu_list(
+        &mut self,
+        graph: &SceneGraph,
+        items: &[DrawItem],
+        options: &RenderOptions,
+    ) -> Image {
+        self.cpu.render_list(graph, items, options)
     }
 
     /// Browser: uploads a straight-alpha image and presents it once.
@@ -493,7 +513,8 @@ impl GpuRenderer {
     /// [`new_for_canvas`](Self::new_for_canvas) and presents it.
     #[cfg(target_arch = "wasm32")]
     pub fn render_to_canvas(&mut self, graph: &SceneGraph, options: &RenderOptions) {
-        let (w, h) = self.draw_to_target(graph, options);
+        let items = graph.draw_list();
+        let (w, h) = self.draw_to_target(graph, &items, options);
         self.present_target(w, h);
     }
 
@@ -547,7 +568,17 @@ impl GpuRenderer {
 
 impl Renderer for GpuRenderer {
     fn render(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image {
-        let (w, h) = self.draw_to_target(graph, options);
+        let items = graph.draw_list();
+        self.render_list(graph, &items, options)
+    }
+
+    fn render_list(
+        &mut self,
+        graph: &SceneGraph,
+        items: &[DrawItem],
+        options: &RenderOptions,
+    ) -> Image {
+        let (w, h) = self.draw_to_target(graph, items, options);
         let Self {
             device,
             queue,

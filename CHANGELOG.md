@@ -6,6 +6,74 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.12.0 — 2026-10-21
+
+Shaders can read what is already drawn. A lens gets wet over the frame, a
+node ripples, and a scene gives way through rising water. All three run
+on the CPU, so `check` and a render without a GPU paint them, and the GPU
+renderer draws the same picture.
+
+### Added
+
+- `shaders::lens_drops()` puts drops on the lens over everything drawn
+  before it, inside its box. Add it last and make it `.fullscreen()`.
+  `.wetness()` is a signal from 0 (dry) to 1, so
+  `lens.wetness().to(1.0, 0.4)` is a splash. `.seed()` places the drops and `.drop_size()` scales
+  them. `.input("scene", Input::frame())` names what it reads;
+  `Input::backdrop()` is the same outside a layer.
+- `Node::effect` runs a shader on a node's own pixels, children included.
+  `shaders::ripple()` sends rings out from the node's center: `.strength()`
+  and `.speed()` are signals on the returned `Effect`. The outline stays,
+  so use it on text, a gradient, an image or water.
+- `Transition::shader` paints a transition with a shader preset.
+  `shaders::water_wipe()` raises a wavy waterline over the frame; below it
+  is the next scene, rippled near the line. `.wave()` sets the wave height.
+- `check` reports `input_cycle` (an error) when a shader would read pixels
+  that are not finished: `lens_drops` or an effect inside a group with
+  opacity below 1, a blur, a clip, a blend, a shadow or another effect.
+  The shader is skipped there. A misspelled input or `lens_drops`
+  parameter is `param_unknown` with the right name.
+- `inspect --graph` shows effect passes with the shader that runs, and
+  `inspect` names the preset of each shader node.
+- `Svg::new().width()` and `.height()` take `pct()`, read when the node is
+  added. A `Shader` handle converts to `Node`, so `Camera::center_on`
+  works on water.
+
+### Fixed
+
+- Renderers kept every image they had drawn. A waves node paints a new
+  image each frame, so a long render grew without bound. They now keep
+  only the images of the current frame.
+- A shader wider than the safe area (water to the edges) is no longer an
+  `out_of_frame` warning, and `lens_drops` over text is not `covers_text`.
+
+### Not in this version
+
+`Input::node`, `Input::image` and `.offscreen()` from the roadmap are not
+built. A custom WGSL `shade` is still checked, not run. `low_contrast` does
+not read shader pixels yet.
+
+### Breaking
+
+- A renderer of your own needs `render_list`, which draws a part of the
+  draw list. Before → after:
+
+      // before
+      fn render(&mut self, graph: &SceneGraph, o: &RenderOptions) -> Image {
+          draw(&graph.draw_list(), o)
+      }
+      // after
+      fn render(&mut self, graph: &SceneGraph, o: &RenderOptions) -> Image {
+          self.render_list(graph, &graph.draw_list(), o)
+      }
+      fn render_list(&mut self, _: &SceneGraph, items: &[DrawItem], o: &RenderOptions) -> Image {
+          draw(items, o)
+      }
+
+- The draw list has three markers, ReadFrame, BeginEffect and EndEffect.
+  A renderer skips them (`Primitive::is_marker`); the engine handles them.
+- The pass and inspect node structs have a new `shader` field.
+
 ## 0.11.1 — 2026-10-21
 
 ### Fixed

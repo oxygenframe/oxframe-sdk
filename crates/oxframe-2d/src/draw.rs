@@ -163,6 +163,26 @@ pub enum Primitive {
     PushLayer(Layer),
     /// Ends the innermost layer and composites it.
     PopLayer,
+    /// A marker for a shader that reads the frame: the engine renders what
+    /// comes before it, runs the shader on those pixels and draws the rest
+    /// over the result. Renderers skip it.
+    ReadFrame(crate::post::Shade),
+    /// A marker for a node whose own pixels a shader changes. Items up to
+    /// the matching [`Primitive::EndEffect`] are drawn alone, shaded, and
+    /// laid back over the frame. Renderers skip it.
+    BeginEffect(crate::post::Shade),
+    /// Ends the node of the matching [`Primitive::BeginEffect`].
+    EndEffect,
+}
+
+impl Primitive {
+    /// A marker that the engine handles instead of a renderer.
+    pub fn is_marker(&self) -> bool {
+        matches!(
+            self,
+            Self::ReadFrame(_) | Self::BeginEffect(_) | Self::EndEffect
+        )
+    }
 }
 
 fn faded(c: Color, opacity: f64) -> Option<Color> {

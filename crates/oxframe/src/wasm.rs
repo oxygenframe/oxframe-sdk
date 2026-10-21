@@ -94,6 +94,17 @@ impl Renderer for CanvasRenderer {
         }
     }
 
+    fn render_list(
+        &mut self,
+        graph: &oxframe_2d::SceneGraph,
+        items: &[oxframe_2d::DrawItem],
+        options: &RenderOptions,
+    ) -> Image {
+        // Effects need the pixels, so parts are drawn on the CPU and the
+        // frame is shown with `present_image`.
+        self.0.render_cpu_list(graph, items, options)
+    }
+
     fn render_pixels(&mut self, graph: &oxframe_2d::SceneGraph, options: &RenderOptions) -> Image {
         // The canvas surface can be acquired once per frame. A transition
         // draws both layers here (CPU, so the pixels are real) and presents

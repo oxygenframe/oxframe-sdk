@@ -81,3 +81,21 @@ the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
 `check`. Saving the file updates the next draw without a rebuild. The
 waves preset is what gets painted. A custom `shade` is type-checked on
 every draw.
+
+Shaders that read drawn pixels:
+
+- `shaders::lens_drops()` wets the lens over what was drawn before it.
+  Add it last: `view.add(shaders::lens_drops().wetness(0.0).fullscreen())`,
+  then `lens.wetness().to(1.0, 0.4).await` for a splash. `.seed()` moves
+  the drops, `.drop_size()` scales them.
+- `node.effect(shaders::ripple())` rings a node from its center. It returns
+  an `Effect`; `.strength()` and `.speed()` are signals. Colors move, the
+  outline stays, so a flat fill shows nothing.
+- `transition(Transition::shader(shaders::water_wipe())).await` raises
+  water into the next scene. Add the next scene's background before it.
+
+Do not put `lens_drops` or an effect inside a group with opacity below 1,
+a blur, a clip, a blend, a shadow or another effect: `check` reports
+`input_cycle` and skips the shader. Put the effect on that group instead.
+Events go through signals (`wetness`, `strength`) at the time they happen,
+not through `ox.time`.

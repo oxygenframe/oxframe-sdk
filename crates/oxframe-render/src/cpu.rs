@@ -222,6 +222,7 @@ fn layer_region(items: &[DrawItem], start: usize, view: Affine, within: Region) 
                 )
             }
             Primitive::Image { rect, .. } => Some(tf.transform_rect_bbox(*rect)),
+            Primitive::ReadFrame(_) | Primitive::BeginEffect(_) | Primitive::EndEffect => None,
         };
         if let Some(r) = r {
             bb = Some(bb.map_or(r, |b| b.union(r)));
@@ -369,7 +370,11 @@ fn draw_prim(dst: &mut Pixmap, prim: &Primitive, tf: Affine, images: &mut BTreeM
             };
             dst.draw_pixmap(0, 0, src.as_ref(), &paint, to_skia_transform(place), None);
         }
-        Primitive::PushLayer(_) | Primitive::PopLayer => {}
+        Primitive::PushLayer(_)
+        | Primitive::PopLayer
+        | Primitive::ReadFrame(_)
+        | Primitive::BeginEffect(_)
+        | Primitive::EndEffect => {}
     }
 }
 
@@ -485,8 +490,25 @@ pub(crate) fn demultiply(pixmap: &Pixmap) -> Vec<u8> {
     data
 }
 
+impl CpuRenderer {
+    /// Drops decoded images that no item in `used` draws.
+    pub(crate) fn keep_images(&mut self, used: &std::collections::BTreeSet<u64>) {
+        self.images.retain(|id, _| used.contains(id));
+    }
+}
+
 impl Renderer for CpuRenderer {
     fn render(&mut self, graph: &SceneGraph, options: &RenderOptions) -> Image {
+        let items = graph.draw_list();
+        self.render_list(graph, &items, options)
+    }
+
+    fn render_list(
+        &mut self,
+        graph: &SceneGraph,
+        items: &[DrawItem],
+        options: &RenderOptions,
+    ) -> Image {
         let (w, h) = (options.width.max(1), options.height.max(1));
         let mut base = match self.pixmap.take() {
             Some(p) if p.width() == w && p.height() == h => p,
@@ -495,8 +517,8 @@ impl Renderer for CpuRenderer {
         let bg = options.background;
         base.fill(skia_color(bg).unwrap_or(tiny_skia::Color::BLACK));
         let view = scene_to_pixels(graph.size(), (w, h));
-        let items = graph.draw_list();
-        self.draw_items(&mut base, &items, view);
+        self.draw_items(&mut base, items, view);
+        self.keep_images(&crate::image_ids(items));
         let data = demultiply(&base);
         self.pixmap = Some(base);
         Image {

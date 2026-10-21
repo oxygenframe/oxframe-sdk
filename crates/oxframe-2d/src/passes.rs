@@ -3,7 +3,8 @@
 //! Vector items stay in one pass. A layer (opacity on a group, a blend, a
 //! blur, a shadow, a clip) becomes a composite pass that runs after the
 //! vector pass of its contents. A shader node is painted into an image in
-//! that vector pass. Effect passes are not built yet.
+//! that vector pass. A shader that reads the frame, or an effect on a
+//! node, is an effect pass: it runs on the pixels drawn before it.
 
 use std::hash::{Hash, Hasher};
 
@@ -20,14 +21,18 @@ pub enum PassKind {
     Vector,
     /// A layer composited over the target after its contents.
     Composite,
+    /// A shader run on drawn pixels: the frame so far (`lens_drops`), or a
+    /// node drawn alone (`ripple`), which is then laid over the frame.
+    Effect,
 }
 
 impl PassKind {
-    /// `"vector"` or `"composite"`.
+    /// `"vector"`, `"composite"` or `"effect"`.
     pub fn name(self) -> &'static str {
         match self {
             Self::Vector => "vector",
             Self::Composite => "composite",
+            Self::Effect => "effect",
         }
     }
 }
@@ -49,6 +54,8 @@ pub struct Pass {
     pub blend: &'static str,
     /// The layer blurs, clips or casts a shadow.
     pub filtered: bool,
+    /// Shader of an effect pass, such as `"lens_drops"` or `"ripple"`.
+    pub shader: Option<&'static str>,
 }
 
 /// Passes for `items`, in the order they must run.
@@ -70,10 +77,37 @@ pub fn pass_graph(items: &[DrawItem]) -> Vec<Pass> {
                         blend: blend_name(layer.blend),
                         filtered: layer.has_filter() || layer.clip.is_some(),
                     }),
+                    shader: None,
                     passes: Vec::new(),
                 });
             }
-            Primitive::PopLayer => {
+            Primitive::BeginEffect(shade) => {
+                flush(&mut stack);
+                stack.push(Scope {
+                    node: item.node,
+                    items: 0,
+                    run: 0,
+                    depth: stack.len() as u32,
+                    layer: None,
+                    shader: Some(shade.op.name()),
+                    passes: Vec::new(),
+                });
+            }
+            Primitive::ReadFrame(shade) => {
+                flush(&mut stack);
+                let scope = stack.last_mut().expect("frame scope");
+                scope.passes.push(Pass {
+                    kind: PassKind::Effect,
+                    node: item.node,
+                    items: 0,
+                    depth: scope.depth,
+                    opacity: shade.opacity,
+                    blend: "normal",
+                    filtered: false,
+                    shader: Some(shade.op.name()),
+                });
+            }
+            Primitive::PopLayer | Primitive::EndEffect => {
                 flush(&mut stack);
                 let Some(mut scope) = stack.pop() else {
                     continue;
@@ -91,13 +125,18 @@ pub fn pass_graph(items: &[DrawItem]) -> Vec<Pass> {
                 parent.items += scope.items;
                 parent.passes.append(&mut scope.passes);
                 parent.passes.push(Pass {
-                    kind: PassKind::Composite,
+                    kind: if scope.shader.is_some() {
+                        PassKind::Effect
+                    } else {
+                        PassKind::Composite
+                    },
                     node: scope.node,
                     items: scope.items,
                     depth: scope.depth - 1,
                     opacity: info.opacity,
                     blend: info.blend,
                     filtered: info.filtered,
+                    shader: scope.shader,
                 });
             }
             _ => {
@@ -118,6 +157,7 @@ pub fn pass_graph(items: &[DrawItem]) -> Vec<Pass> {
             opacity: 1.0,
             blend: "normal",
             filtered: false,
+            shader: None,
         });
     }
     passes
@@ -135,6 +175,7 @@ struct Scope {
     run: u32,
     depth: u32,
     layer: Option<LayerInfo>,
+    shader: Option<&'static str>,
     passes: Vec<Pass>,
 }
 
@@ -146,6 +187,7 @@ impl Scope {
             run: 0,
             depth: 0,
             layer: None,
+            shader: None,
             passes: Vec::new(),
         }
     }
@@ -168,6 +210,7 @@ fn flush(stack: &mut [Scope]) {
         opacity: 1.0,
         blend: "normal",
         filtered: false,
+        shader: None,
     });
 }
 
@@ -237,6 +280,9 @@ pub fn layer_fingerprint(items: &[DrawItem], start: usize) -> u64 {
                 rect.x1.to_bits().hash(&mut hasher);
                 rect.y1.to_bits().hash(&mut hasher);
                 opacity.to_bits().hash(&mut hasher);
+            }
+            Primitive::ReadFrame(_) | Primitive::BeginEffect(_) | Primitive::EndEffect => {
+                6u8.hash(&mut hasher);
             }
         }
     }

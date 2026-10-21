@@ -43,7 +43,7 @@ pub use runtime::{
     SeededRng, begin_transition, dt, ease_named, fps, frame, has_previous, meta_snapshot, now,
     random, random_range, time, tunable, with_rng,
 };
-pub use transition::{Blend, Dir, Kind, LayerPose, Recorded};
+pub use transition::{Blend, Dir, Kind, LayerPose, Recorded, ShaderTransition};
 
 pub use rand;
 pub use signal::Signal;

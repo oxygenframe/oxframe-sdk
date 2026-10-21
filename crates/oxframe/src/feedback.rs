@@ -386,6 +386,7 @@ fn scene_json(
             "text": n.text,
             "order": n.order,
             "in_camera": n.in_camera,
+            "shader": n.shader,
         })).collect::<Vec<_>>(),
     });
     if let Some(tr) = engine.transition_at(frame) {
@@ -416,6 +417,7 @@ fn scene_json(
                         "opacity": pass.opacity,
                         "blend": pass.blend,
                         "filtered": pass.filtered,
+                        "shader": pass.shader,
                     })
                 })
                 .collect::<Vec<_>>()
@@ -1006,6 +1008,26 @@ mod tests {
             "{:?}",
             report.issues
         );
+    }
+
+    #[test]
+    fn a_lens_in_a_fading_group_fails_check() {
+        fn fading(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let group = view.add(crate::Group::new().opacity(0.5));
+                group.add(crate::Rect::new().size(80.0));
+                group.add(crate::shaders::lens_drops().fullscreen().name("lens"));
+                crate::wait_for(0.2).await;
+            })
+        }
+        let report = report(project(fading), &Options::default()).unwrap();
+        let issue = report
+            .issues
+            .iter()
+            .find(|i| i.rule == "input_cycle")
+            .unwrap_or_else(|| panic!("{:?}", report.issues));
+        assert_eq!(issue.node, "lens");
+        assert_eq!(issue.severity, lint::Severity::Error);
     }
 
     #[test]
