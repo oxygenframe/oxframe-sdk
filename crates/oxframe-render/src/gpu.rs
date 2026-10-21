@@ -75,6 +75,28 @@ struct Target {
     padded_row: u32,
 }
 
+/// One Vulkan, Metal or DX12 instance for the whole process. Dropping the
+/// last instance unloads the Vulkan driver, and a renderer created on
+/// another thread at that moment crashed inside it (parallel tests on
+/// Mesa). GL is left out: its context cannot be shared across threads, so
+/// a GL-only machine gets a fresh instance per renderer, as before.
+#[cfg(not(target_arch = "wasm32"))]
+fn shared_instance() -> wgpu::Instance {
+    static INSTANCE: std::sync::OnceLock<wgpu::Instance> = std::sync::OnceLock::new();
+    INSTANCE
+        .get_or_init(|| {
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
+            desc.backends = wgpu::Backends::PRIMARY;
+            wgpu::Instance::new(desc)
+        })
+        .clone()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn shared_instance() -> wgpu::Instance {
+    wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle())
+}
+
 impl GpuRenderer {
     /// Creates a renderer on the best available adapter (blocks).
     ///
@@ -92,8 +114,13 @@ impl GpuRenderer {
     ///
     /// If there is no GPU or the device cannot be created.
     pub async fn new_async() -> Result<Self, GpuError> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-        Self::with_instance(instance, None).await
+        match Self::with_instance(shared_instance(), None).await {
+            Err(GpuError::NoAdapter(_)) => {
+                let all = wgpu::InstanceDescriptor::new_without_display_handle();
+                Self::with_instance(wgpu::Instance::new(all), None).await
+            }
+            r => r,
+        }
     }
 
     /// Browser: renders into `canvas` (WebGPU). Frames are presented with

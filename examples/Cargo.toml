@@ -8,7 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-oxframe = { workspace = true, features = ["unstable-node-api", "video"] }
+oxframe = { workspace = true, features = ["unstable-node-api", "video", "icons"] }
 
 [dev-dependencies]
 criterion.workspace = true

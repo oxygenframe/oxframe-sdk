@@ -1,0 +1,25 @@
+[package]
+name = "oxframe-icons"
+description = "icon!() for oxframe: Lucide, Tabler and Simple Icons, only the ones you use end up in the binary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# The code is MIT OR Apache-2.0; the icon data keeps the sets' licenses (data/LICENSE-*).
+license = "(MIT OR Apache-2.0) AND ISC AND MIT AND CC0-1.0"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-icons"
+include = ["src/**", "data/**", "Cargo.toml", "README.md"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+
+[lints]
+workspace = true

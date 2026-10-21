@@ -59,11 +59,11 @@ pub use voice::{Synthesis, TimedWord, TtsProvider, TtsRequest, voice};
 pub use oxframe_2d::Draw;
 pub use oxframe_2d::{
     Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Custom, Danger,
-    Direction, DrawCtx, DrawRng, Edge, Effect, Fast, Grid, Group, Img, Ink, Input, Justify, Layout,
-    LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node, NodeBuilder, NodeId,
-    Normal, OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect, RichSpan, SANS, SafeArea,
-    SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign,
-    Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
+    Direction, DrawCtx, DrawRng, Edge, Effect, Fast, Grid, Group, Icon, IconStyle, Img, Ink, Input,
+    Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
+    NodeBuilder, NodeId, Normal, OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect,
+    RichSpan, SANS, SafeArea, SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success,
+    Surface, Svg, Text, TextAlign, Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
 };
 pub use oxframe_components::{
     Axes, Bars, BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, Interval,
@@ -79,6 +79,10 @@ pub use oxframe_core::{
     tunable, wait_for, wait_until, with_rng,
 };
 pub use oxframe_core::{Blend, Dir, LayerPose, ShaderTransition};
+/// An icon by set and name: `icon!("lucide:server")`, `icon!("tabler:database")`,
+/// `icon!("simple:github")`. Behind the `icons` feature.
+#[cfg(feature = "icons")]
+pub use oxframe_icons::icon;
 #[cfg(feature = "unstable-node-api")]
 pub use oxframe_macros::Node;
 pub use oxframe_macros::{color, ease, scene, tune};
@@ -112,16 +116,18 @@ pub mod shaders {
 pub mod prelude {
     #[cfg(feature = "unstable-node-api")]
     pub use crate::Draw;
+    #[cfg(feature = "icons")]
+    pub use crate::icon;
     pub use crate::{
         Accent, Aspect, Audio, Axes, Background, BezPath, Blend, BlendMode, BulletList, Callout,
         Camera, ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,
-        Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Img,
-        Input, Interval, Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line, LineCap,
-        LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal, NumberLine,
-        OnAccent, Particles, Path, Point, Polygon, Project, Rect, RichSpan, SANS, SafeArea, Shader,
-        Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text, TextAlign, Theme,
-        TitleCard, Transition, Txt, Vec2, Video, View, Warning, Xl, Xs, all, any, color, ease,
-        loop_while, next_frame, pct, presets, random, random_range, repeat, sequence, shaders,
-        sound, span, spawn, stagger, transition, tune, voice, wait_for, wait_until, waves,
+        Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Icon,
+        IconStyle, Img, Input, Interval, Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line,
+        LineCap, LineJoin, LowerThird, MONO, Md, Motion, Muted, Node, NodeBuilder, Normal,
+        NumberLine, OnAccent, Particles, Path, Point, Polygon, Project, Rect, RichSpan, SANS,
+        SafeArea, Shader, Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg, Text,
+        TextAlign, Theme, TitleCard, Transition, Txt, Vec2, Video, View, Warning, Xl, Xs, all, any,
+        color, ease, loop_while, next_frame, pct, presets, random, random_range, repeat, sequence,
+        shaders, sound, span, spawn, stagger, transition, tune, voice, wait_for, wait_until, waves,
     };
 }

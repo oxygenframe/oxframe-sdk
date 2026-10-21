@@ -2,6 +2,7 @@
 //! `src/bin` call `project().main()`, so every example supports
 //! `cargo run -p oxframe-examples --bin <name> -- render|preview|info`.
 
+pub mod architecture;
 pub mod benchmark;
 pub mod camera;
 pub mod chart;
@@ -61,6 +62,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("chart", chart::project),
         ("charts", charts::project),
         ("gauge", gauge::project),
+        ("architecture", architecture::project),
         ("video", video::project),
         ("components", components::project),
         ("particles", particles::project),

@@ -27,6 +27,7 @@ PLAYERS = (
     "camera/+page.svelte",
     "charts/+page.svelte",
     "custom-nodes/+page.svelte",
+    "icons/+page.svelte",
     "timing/+page.svelte",
     "rendering/+page.svelte",
 )

@@ -83,6 +83,21 @@ a function of scene time, so renders are deterministic. Sound plays only at
 rate 1; `.muted(true)` drops it. A missing file is a dark box and a
 `video_unavailable` error in `check`. The playground cannot play videos.
 
+## Icons
+
+With `oxframe = { ..., features = ["icons"] }`:
+
+```rust
+let db = view.add(icon!("lucide:database").size(64.0).color(Accent));
+db.color().to(Danger, 0.3).await;
+let flow = view.add(FlowDiagram::new().edge("api", "db").icon("db", icon!("lucide:database")));
+```
+
+Sets: `lucide:`, `tabler:` (`-filled` for fills), `simple:` (brand logos).
+The data lives in `crates/oxframe-icons/data` (built by
+`scripts/build-icons.py`); the proc macro copies only the named icons into
+the binary. A wrong name is a compile error with the closest names.
+
 ## Nodes of your own
 
 With `oxframe = { ..., features = ["unstable-node-api"] }`:

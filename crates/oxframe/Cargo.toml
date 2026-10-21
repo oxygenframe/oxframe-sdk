@@ -24,6 +24,9 @@ gpu = ["oxframe-render/gpu"]
 unstable-node-api = []
 # `Video` nodes decode their clips with ffmpeg (native only).
 video = []
+# `icon!("lucide:server")`: Lucide, Tabler and Simple Icons. Only the icons
+# a project names end up in its binary.
+icons = ["dep:oxframe-icons"]
 
 [dependencies]
 oxframe-core.workspace = true
@@ -33,6 +36,7 @@ oxframe-text.workspace = true
 oxframe-render.workspace = true
 oxframe-protocol.workspace = true
 oxframe-macros.workspace = true
+oxframe-icons = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 oxframe-preview.workspace = true

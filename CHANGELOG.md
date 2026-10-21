@@ -6,6 +6,31 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.16.0 — 2026-10-21
+
+Icons from Lucide, Tabler and Simple Icons, behind the `icons` feature.
+
+### Added
+
+- `icon!("lucide:server")` adds an icon by set and name: `lucide:`,
+  `tabler:` (with `-filled` variants) and `simple:` for brand logos. Only
+  the icons a project names are put into its binary. A name that does not
+  exist fails to compile and lists the closest names.
+- `.size()`, `.color()` and `.stroke_width()` on the builder; the `Icon`
+  handle has `color()` and `stroke_width()` as signals, `Icon::paths` for
+  `draw_on`, and `Icon::style` (`IconStyle::Stroke` or `IconStyle::Fill`).
+  The color defaults to the theme's text color.
+- `Icon::from_svg` makes the same node from a 24 by 24 SVG of your own.
+- `FlowDiagram` puts an icon at the start of a card with
+  `.icon(name, icon!(..))`; `flow.icon(name)` returns its handle.
+- The `architecture` example.
+
+### Fixed
+
+- Creating GPU renderers on several threads at once could crash inside the
+  Vulkan driver. Renderers now share one Vulkan, Metal or DX12 instance;
+  a GL-only machine still gets one per renderer.
+
 ## 0.15.0 — 2026-10-21
 
 Video clips in a scene, behind the `video` feature.

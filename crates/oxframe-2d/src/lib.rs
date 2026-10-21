@@ -25,6 +25,7 @@ mod draw;
 mod flex;
 mod graph;
 mod handles;
+mod icon;
 mod image;
 pub mod node_api;
 mod passes;
@@ -57,6 +58,7 @@ pub use handles::{
     Camera, Circle, Code, CodeText, CodeTween, Custom, Effect, Grid, Group, Img, Layout, Line,
     Node, Particles, Path, Polygon, Rect, SLIDE_DISTANCE, Shader, Star, Svg, Txt, Video, View,
 };
+pub use icon::{Icon, IconBuilder, IconStyle};
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use node_api::Draw;
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph};
