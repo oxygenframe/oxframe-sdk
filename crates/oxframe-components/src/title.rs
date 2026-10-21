@@ -258,15 +258,12 @@ mod tests {
     fn a_long_row_wraps_inside_the_frame_and_rows_do_not_overlap() {
         let graph = SceneGraph::new(1920, 1080);
         graph.enter(|| {
-            let list = View::current().add(BulletList::new([
+            View::current().add(BulletList::new([
                 "Short",
                 "A row much longer than the frame is wide, so that it has to wrap onto a second \
                  line or it would run off both edges of the picture",
                 "Last",
             ]));
-            for _ in 0..3 {
-                let _ = list.next();
-            }
         });
         let lines: Vec<_> = graph
             .inspect_nodes()
