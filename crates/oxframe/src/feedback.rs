@@ -387,6 +387,7 @@ fn scene_json(
             "order": n.order,
             "in_camera": n.in_camera,
             "shader": n.shader,
+            "params": n.params.iter().cloned().collect::<std::collections::BTreeMap<String, f64>>(),
         })).collect::<Vec<_>>(),
     });
     if let Some(tr) = engine.transition_at(frame) {

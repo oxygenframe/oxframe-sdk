@@ -6,6 +6,22 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.12.1 — 2026-10-21
+
+### Added
+
+- `oxframe inspect` lists each shader node's numeric parameters (`amp`,
+  `wetness`, …) and the strength and speed of an effect, under `params`.
+- Guide lessons 11 to 13 as examples: scenes and transitions, sound and
+  voice, shaders and effects.
+- The `ocean` example: the target scene of hybrid rendering.
+
+### Fixed
+
+- `check` reported `dead_time` while a shader parameter or an effect was
+  animating, such as a growing wave or a wetting lens. Those changes now
+  count as motion.
+
 ## 0.12.0 — 2026-10-21
 
 Shaders can read what is already drawn. A lens gets wet over the frame, a

@@ -954,6 +954,7 @@ impl SceneGraph {
                     NodeKind::Shader { preset, .. } => Some(preset.name()),
                     _ => None,
                 },
+                params: params_of(n),
             });
         }
         out
@@ -994,6 +995,29 @@ pub struct InspectNode {
     pub in_camera: bool,
     /// Preset of a `Shader` node: `"waves"`, `"lens_drops"` or `"custom"`.
     pub shader: Option<&'static str>,
+    /// Numeric shader parameters (`amp`, `wetness`, …) and the strength and
+    /// speed of an effect on the node (`effect.strength`). Empty otherwise.
+    pub params: Vec<(String, f64)>,
+}
+
+/// Values that change a shader's picture without moving its box.
+fn params_of(n: &NodeData) -> Vec<(String, f64)> {
+    let mut out = Vec::new();
+    if let NodeKind::Shader { uniforms, .. } = &n.kind {
+        for u in uniforms {
+            match &u.value {
+                crate::shader::UniformValue::Num(v) | crate::shader::UniformValue::Bool(v) => {
+                    out.push((u.name.clone(), v.get()));
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(e) = &n.effect {
+        out.push(("effect.strength".into(), e.strength.get()));
+        out.push(("effect.speed".into(), e.speed.get()));
+    }
+    out
 }
 
 thread_local! {

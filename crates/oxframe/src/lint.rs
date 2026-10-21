@@ -586,6 +586,10 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                 n.text.as_deref().unwrap_or(""),
                 n.fill
             ));
+            // A swell or a splash is a shader parameter, not a moved box.
+            for (name, v) in &n.params {
+                out.push_str(&format!(":{name}={v:.3}"));
+            }
         }
         out
     };
@@ -750,6 +754,7 @@ mod tests {
             parent_kind: Some("Group"),
             in_camera: false,
             shader: (kind == "Shader").then_some("waves"),
+            params: Vec::new(),
         }
     }
 
@@ -889,6 +894,19 @@ mod tests {
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, true, &limits());
         assert!(issues.iter().all(|i| i.rule != "dead_time"));
+    }
+
+    #[test]
+    fn a_rising_wave_is_not_dead_time() {
+        let samples: Vec<_> = (0..40)
+            .map(|i| {
+                let mut sea = node(1, "Shader", [-200.0, 0.0, 200.0, 200.0]);
+                sea.params = vec![("amp".into(), 0.05 + f64::from(i) * 0.002)];
+                at(f64::from(i) * 0.1, vec![sea])
+            })
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(issues.iter().all(|i| i.rule != "dead_time"), "{issues:?}");
     }
 
     #[test]
