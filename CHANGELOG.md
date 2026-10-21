@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Fixed
+
+- A long `BulletList` row ran off both edges of the frame. Rows now wrap
+  inside 70 % of the frame width, start right of the mark, and take the
+  height they need. Short lists look as before.
+
 ## 0.12.1 — 2026-10-21
 
 ### Added

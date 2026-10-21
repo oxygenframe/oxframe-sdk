@@ -201,21 +201,45 @@ impl NodeBuilder for BulletListBuilder {
     fn base(&mut self) -> &mut BaseProps {
         &mut self.base
     }
-    fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> BulletList {
+    fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> BulletList {
         let root = host::root(parent, self.base);
-        let n = self.items.len().max(1) as f64;
-        let pitch = 72.0;
-        let y0 = -(n - 1.0) * pitch / 2.0;
-        let mut reveals = Vec::new();
+        // A long row wraps inside 70 % of the frame instead of running off
+        // both edges; the text starts right of the mark.
+        const MARK: f64 = 18.0;
+        const INDENT: f64 = 34.0;
+        const GAP: f64 = 24.0;
+        let wrap = (g.frame_size().0 * 0.7 - INDENT).max(200.0);
+        let probe = root.add(Txt::new().text("Ag").body().opacity(0.0));
+        let line_height = probe.size().1.max(MARK);
+        probe.remove();
+        let mut rows = Vec::new();
         for (i, text) in self.items.into_iter().enumerate() {
-            let row: Group = root.add(
-                Group::new()
-                    .y(y0 + i as f64 * pitch)
-                    .opacity(0.0)
-                    .name(format!("item{}", i + 1)),
+            let row: Group = root.add(Group::new().opacity(0.0).name(format!("item{}", i + 1)));
+            let mark = row.add(Rect::new().size(MARK).fill(Accent).name("mark"));
+            let line = row.add(
+                Txt::new()
+                    .text(text)
+                    .body()
+                    .max_width(wrap)
+                    .anchor((-1.0, -1.0))
+                    .name("line"),
             );
-            row.add(Rect::new().size(18.0).fill(Accent).x(-220.0).name("mark"));
-            row.add(Txt::new().text(text).body().x(16.0).name("line"));
+            let (w, h) = line.size();
+            rows.push((row, mark, line, w, h.max(line_height)));
+        }
+        let widest = rows.iter().map(|r| r.3).fold(0.0, f64::max);
+        let left = -(INDENT + widest) / 2.0;
+        let total: f64 =
+            rows.iter().map(|r| r.4).sum::<f64>() + GAP * rows.len().saturating_sub(1) as f64;
+        let mut top = -total / 2.0;
+        let mut reveals = Vec::new();
+        for (row, mark, line, _, h) in rows {
+            row.y().set(top);
+            line.x().set(left + INDENT);
+            mark.x().set(left + MARK / 2.0);
+            // Level with the first line of a wrapped row.
+            mark.y().set(line_height / 2.0);
+            top += h + GAP;
             reveals.push(row.node());
         }
         BulletList {
