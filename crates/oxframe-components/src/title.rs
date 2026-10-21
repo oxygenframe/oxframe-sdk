@@ -247,3 +247,47 @@ impl NodeBuilder for BulletListBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use oxframe_2d::{NodeBuilder, SceneGraph, View};
+
+    use super::*;
+
+    #[test]
+    fn a_long_row_wraps_inside_the_frame_and_rows_do_not_overlap() {
+        let graph = SceneGraph::new(1920, 1080);
+        graph.enter(|| {
+            let list = View::current().add(BulletList::new([
+                "Short",
+                "A row much longer than the frame is wide, so that it has to wrap onto a second \
+                 line or it would run off both edges of the picture",
+                "Last",
+            ]));
+            for _ in 0..3 {
+                let _ = list.next();
+            }
+        });
+        let lines: Vec<_> = graph
+            .inspect_nodes()
+            .into_iter()
+            .filter(|n| n.kind == "Txt")
+            .map(|n| n.bounds)
+            .collect();
+        assert_eq!(lines.len(), 3);
+        for b in &lines {
+            assert!(
+                b[0] >= -960.0 && b[2] <= 960.0,
+                "row leaves the frame: {b:?}"
+            );
+        }
+        assert!(lines[1][2] - lines[1][0] <= 1920.0 * 0.7, "{:?}", lines[1]);
+        assert!(
+            lines[1][3] - lines[1][1] > lines[0][3] - lines[0][1],
+            "the long row wraps"
+        );
+        for pair in lines.windows(2) {
+            assert!(pair[0][3] <= pair[1][1], "rows overlap: {pair:?}");
+        }
+    }
+}
