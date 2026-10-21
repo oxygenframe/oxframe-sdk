@@ -16,13 +16,17 @@ mod code;
 mod flow;
 mod host;
 mod lower;
+mod matrix;
+mod table;
 mod title;
 
-pub use axes::{Axes, AxesBuilder, Bars, Interval, NumberLine, Plot, Series};
+pub use axes::{Axes, AxesBuilder, Bars, Interval, Mat2, NumberLine, Plot, Series, Vector};
 pub use callout::{Callout, CalloutBuilder};
 pub use code::{CodeExplainer, CodeExplainerBuilder};
 pub use flow::{FlowDiagram, FlowDiagramBuilder};
 pub use lower::{ChapterMarker, ChapterMarkerBuilder, LowerThird, LowerThirdBuilder};
+pub use matrix::{Matrix, MatrixBuilder};
+pub use table::{Table, TableBuilder, TableRow};
 pub use title::{
     BulletList, BulletListBuilder, EndCard, EndCardBuilder, TitleCard, TitleCardBuilder,
 };

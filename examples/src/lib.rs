@@ -27,6 +27,9 @@ pub mod learn_11_scenes;
 pub mod learn_12_sound;
 pub mod learn_13_shaders;
 pub mod learn_14_charts;
+pub mod learn_15_matrices;
+pub mod linear_map;
+pub mod matrix_multiply;
 pub mod morph;
 pub mod ocean;
 pub mod particles;
@@ -39,6 +42,7 @@ pub mod sounds;
 pub mod splash;
 pub mod spray;
 pub mod svg;
+pub mod table_sort;
 pub mod text;
 pub mod theme;
 pub mod transitions;
@@ -63,6 +67,9 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("charts", charts::project),
         ("gauge", gauge::project),
         ("architecture", architecture::project),
+        ("matrix_multiply", matrix_multiply::project),
+        ("table_sort", table_sort::project),
+        ("linear_map", linear_map::project),
         ("video", video::project),
         ("components", components::project),
         ("particles", particles::project),
@@ -96,6 +103,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("learn_12_sound", learn_12_sound::project),
         ("learn_13_shaders", learn_13_shaders::project),
         ("learn_14_charts", learn_14_charts::project),
+        ("learn_15_matrices", learn_15_matrices::project),
         ("benchmark", benchmark::project),
     ]
 }

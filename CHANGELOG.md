@@ -6,6 +6,30 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.17.0 — 2026-10-21
+
+Matrices, vectors and tables.
+
+### Added
+
+- `Matrix::new([[1, 2], [3, 4]])` draws values in square brackets. Each
+  cell is a `Txt` from `cell(r, c)`, `row(r)` or `column(c)`;
+  `row_frame`, `column_frame` and `cell_frame` give hidden outlines to
+  fade in. `.cell_width(px)` leaves room for longer values.
+- `axes.vector(x, y)` draws an arrow from the origin whose tip is two
+  signals; `v.to(x, y, seconds)` moves it and `.label("v")` follows it.
+- `axes.apply_matrix(m, seconds)` maps the plane through a 2 × 2 matrix:
+  a transformed grid is drawn over the original, and plots, series,
+  vectors and placed nodes move with it. `axes.matrix()` is the `Mat2`
+  signal; `Mat2::after` multiplies and `Mat2::det` gives the determinant.
+- `Table::new` takes the column titles and `.row(..)` adds rows.
+  `insert_row`, `push_row` and `remove_row` slide the other rows into
+  place, `sort_by_column` and `sort_by` move every row to its sorted
+  place, and `table.row(i)` is a `TableRow` with a background to
+  highlight it.
+- Guide lesson 15, and the `matrix_multiply`, `linear_map` and
+  `table_sort` examples.
+
 ## 0.16.0 — 2026-10-21
 
 Icons from Lucide, Tabler and Simple Icons, behind the `icons` feature.

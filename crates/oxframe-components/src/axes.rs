@@ -5,17 +5,21 @@
 //! node follow it on the same frame. Ticks sit at multiples of a round step
 //! (1, 2 or 5 times a power of ten), so labels slide with the data instead
 //! of jumping between values.
+//!
+//! [`Axes::apply_matrix`] maps the plane through a 2 × 2 matrix: plots,
+//! series, vectors and placed nodes move with it and a transformed grid is
+//! drawn over the original one, as in a linear-algebra explainer.
 
 use std::cell::{Cell, RefCell};
 use std::ops::{Deref, Range};
 use std::rc::Rc;
 
 use oxframe_2d::{
-    Accent, BaseProps, Circle, Custom, Group, IntoPaint, Muted, Node, NodeBuilder, NodeId, Path,
-    Rect, Span, Text, Txt, pct,
+    Accent, BaseProps, Circle, Custom, Group, IntoPaint, Line, Muted, Node, NodeBuilder, NodeId,
+    Path, Rect, Span, Text, Txt, pct,
 };
 use oxframe_core::kurbo::{BezPath, Point, Vec2};
-use oxframe_core::{Color, Lerp, Signal};
+use oxframe_core::{Color, Lerp, Signal, Tween, all};
 
 /// A data range, `min` to `max`. Animates with `.to(-10.0..10.0, 1.0)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,11 +117,84 @@ struct Shared {
     /// Bars: x is categories, so the y axis sits at the left edge and the x
     /// axis has no numeric ticks.
     categories: Cell<bool>,
+    /// Applied to data points before they are mapped into the box.
+    matrix: Signal<Mat2>,
 }
 
 impl Shared {
+    /// Where a data point is drawn: through the matrix, then into the box.
     fn c2p(&self, x: f64, y: f64) -> Vec2 {
+        let (x, y) = self.matrix.get().apply(x, y);
+        self.fixed(x, y)
+    }
+
+    /// Where a data point sits on the axes themselves (ticks, labels).
+    fn fixed(&self, x: f64, y: f64) -> Vec2 {
         map(self.x.get(), self.y.get(), self.width, self.height, x, y)
+    }
+}
+
+/// A 2 × 2 matrix, row by row: `Mat2([[a, b], [c, d]])` maps `(x, y)` to
+/// `(a x + b y, c x + d y)`. Animates entry by entry, as Manim does.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Mat2(pub [[f64; 2]; 2]);
+
+impl Mat2 {
+    /// Leaves every point where it is.
+    pub const IDENTITY: Mat2 = Mat2([[1.0, 0.0], [0.0, 1.0]]);
+
+    /// The image of `(x, y)`.
+    pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        let [[a, b], [c, d]] = self.0;
+        (a * x + b * y, c * x + d * y)
+    }
+
+    /// `self` after `first`: the matrix product `self · first`.
+    pub fn after(&self, first: &Mat2) -> Mat2 {
+        let ([[a, b], [c, d]], [[e, f], [g, h]]) = (self.0, first.0);
+        Mat2([
+            [a * e + b * g, a * f + b * h],
+            [c * e + d * g, c * f + d * h],
+        ])
+    }
+
+    /// The determinant: how areas scale.
+    pub fn det(&self) -> f64 {
+        let [[a, b], [c, d]] = self.0;
+        a * d - b * c
+    }
+
+    fn inverse(&self) -> Option<Mat2> {
+        let det = self.det();
+        if det.abs() < 1e-9 {
+            return None;
+        }
+        let [[a, b], [c, d]] = self.0;
+        Some(Mat2([[d / det, -b / det], [-c / det, a / det]]))
+    }
+}
+
+impl Default for Mat2 {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
+impl From<[[f64; 2]; 2]> for Mat2 {
+    fn from(m: [[f64; 2]; 2]) -> Self {
+        Mat2(m)
+    }
+}
+
+impl Lerp for Mat2 {
+    fn lerp(&self, to: &Self, t: f64) -> Self {
+        let mut out = self.0;
+        for (r, row) in out.iter_mut().enumerate() {
+            for (c, v) in row.iter_mut().enumerate() {
+                *v = v.lerp(&to.0[r][c], t);
+            }
+        }
+        Mat2(out)
     }
 }
 
@@ -341,9 +418,134 @@ impl Axes {
         }
     }
 
+    /// The matrix the plane is mapped through; the identity at first.
+    pub fn matrix(&self) -> Signal<Mat2> {
+        self.shared.matrix.clone()
+    }
+
+    /// Maps the plane through `m` (row by row, `[[a, b], [c, d]]`) over
+    /// `duration` seconds, after any matrix applied before. Plots, series,
+    /// vectors and placed nodes move with it, and the grid deforms. Placed
+    /// nodes keep their own shape; only their position follows.
+    pub fn apply_matrix(&self, m: impl Into<Mat2>, duration: f64) -> Tween<Mat2> {
+        let target = m.into().after(&self.shared.matrix.get());
+        self.shared.matrix.to(target, duration)
+    }
+
+    /// An arrow from the origin to data point `(x, y)`. The tip is two
+    /// signals, [`Vector::x`] and [`Vector::y`], and follows the ranges and
+    /// [`apply_matrix`](Self::apply_matrix). Accent, 6 px.
+    #[track_caller]
+    pub fn vector(&self, x: f64, y: f64) -> Vector {
+        oxframe_2d::add_site(|| self.vector_at(x, y))
+    }
+
+    fn vector_at(&self, x: f64, y: f64) -> Vector {
+        let (xs, ys) = (
+            Signal::new(x).with_name("Vector.x"),
+            Signal::new(y).with_name("Vector.y"),
+        );
+        let line = self.node.add(
+            Line::new()
+                .points([(0.0, 0.0), (0.0, 0.0)])
+                .end_arrow(true)
+                .stroke(Accent)
+                .line_width(6.0)
+                .name("vector"),
+        );
+        let (s, tx, ty) = (self.shared.clone(), xs.clone(), ys.clone());
+        line.points()
+            .bind(move || vec![s.c2p(0.0, 0.0), s.c2p(tx.get(), ty.get())]);
+        Vector {
+            line,
+            x: xs,
+            y: ys,
+            axes: self.clone(),
+        }
+    }
+
     /// The untyped node handle.
     pub fn node(&self) -> Node {
         self.node
+    }
+}
+
+/// An arrow on [`Axes`] from the origin to a data point. Derefs to its
+/// [`Line`], so `.stroke()`, `.draw_on()` and `.fade_out()` work.
+#[derive(Clone)]
+pub struct Vector {
+    line: Line,
+    x: Signal<f64>,
+    y: Signal<f64>,
+    axes: Axes,
+}
+
+impl Vector {
+    /// Data x of the tip.
+    pub fn x(&self) -> Signal<f64> {
+        self.x.clone()
+    }
+
+    /// Data y of the tip.
+    pub fn y(&self) -> Signal<f64> {
+        self.y.clone()
+    }
+
+    /// Moves the tip to data point `(x, y)` over `duration` seconds.
+    pub fn to(
+        &self,
+        x: f64,
+        y: f64,
+        duration: f64,
+    ) -> impl std::future::Future<Output = ()> + 'static {
+        let tweens = [self.x.to(x, duration), self.y.to(y, duration)];
+        async move {
+            all(tweens).await;
+        }
+    }
+
+    /// The color of the arrow.
+    pub fn stroke(self, paint: impl IntoPaint) -> Self {
+        self.line.stroke().set(paint.into_paint());
+        self
+    }
+
+    /// A label just past the tip that follows it, such as `"v"`.
+    pub fn label(&self, text: impl Into<String>) -> Txt {
+        let txt = self
+            .axes
+            .node
+            .add(Txt::new().text(text).body().name("vector_label"));
+        let place = {
+            let (s, x, y) = (self.axes.shared.clone(), self.x.clone(), self.y.clone());
+            move || {
+                let (o, tip) = (s.c2p(0.0, 0.0), s.c2p(x.get(), y.get()));
+                let d = tip - o;
+                let len = d.hypot();
+                let dir = if len > 1e-6 {
+                    d / len
+                } else {
+                    Vec2::new(1.0, 0.0)
+                };
+                tip + dir * 30.0
+            }
+        };
+        let p = place.clone();
+        txt.x().bind(move || p().x);
+        txt.y().bind(move || place().y);
+        txt
+    }
+
+    /// The arrow's line node.
+    pub fn line(&self) -> Line {
+        self.line
+    }
+}
+
+impl Deref for Vector {
+    type Target = Line;
+    fn deref(&self) -> &Line {
+        &self.line
     }
 }
 
@@ -681,6 +883,7 @@ impl NodeBuilder for AxesBuilder {
             height,
             y_axis: self.y_axis,
             categories: Cell::new(false),
+            matrix: Signal::new(Mat2::IDENTITY).with_name("Axes.matrix"),
         });
         let (grid, y_axis) = (self.grid, self.y_axis);
         let s = shared.clone();
@@ -719,6 +922,7 @@ fn draw_frame(ctx: &mut oxframe_2d::DrawCtx, s: &Shared, grid: bool, y_axis: boo
             let y = p(0.0, k as f64 * ys).y;
             ctx.line((-hw, y), (hw, y)).stroke(Muted, 1.0);
         }
+        transformed_grid(ctx, s, xs, ys);
     }
     ctx.line((-hw - 12.0, ax_y), (hw + 18.0, ax_y))
         .stroke(Text, 3.0);
@@ -736,6 +940,84 @@ fn draw_frame(ctx: &mut oxframe_2d::DrawCtx, s: &Shared, grid: bool, y_axis: boo
             ctx.line((ax_x - 8.0, y), (ax_x + 8.0, y)).stroke(Text, 2.0);
         }
     }
+}
+
+/// The grid lines through the matrix, clipped to the box. Nothing while the
+/// matrix is the identity, so plain axes draw as before.
+fn transformed_grid(ctx: &mut oxframe_2d::DrawCtx, s: &Shared, xs: f64, ys: f64) {
+    let m = s.matrix.get();
+    if m == Mat2::IDENTITY {
+        return;
+    }
+    let (xr, yr) = (s.x.get(), s.y.get());
+    let (hw, hh) = (s.width / 2.0, s.height / 2.0);
+    // The data rectangle whose image covers the box: the box corners pulled
+    // back through the matrix. A singular matrix squashes the plane onto a
+    // line; the original range is drawn then.
+    let corners = [
+        (xr.min, yr.min),
+        (xr.min, yr.max),
+        (xr.max, yr.min),
+        (xr.max, yr.max),
+    ];
+    let (mut x0, mut x1, mut y0, mut y1) = (xr.min, xr.max, yr.min, yr.max);
+    if let Some(inv) = m.inverse() {
+        for (x, y) in corners {
+            let (u, v) = inv.apply(x, y);
+            x0 = x0.min(u);
+            x1 = x1.max(u);
+            y0 = y0.min(v);
+            y1 = y1.max(v);
+        }
+    }
+    // A sheared grid can need many lines; keep it bounded.
+    let (x0, x1) = (x0.max(xr.min - 40.0 * xs), x1.min(xr.max + 40.0 * xs));
+    let (y0, y1) = (y0.max(yr.min - 40.0 * ys), y1.min(yr.max + 40.0 * ys));
+    let paint = Accent.into_paint().with_alpha(0.55);
+    let mut segment = |a: (f64, f64), b: (f64, f64), width: f64| {
+        if let Some((p, q)) = clip_to_box(s.c2p(a.0, a.1), s.c2p(b.0, b.1), hw, hh) {
+            ctx.line(p, q).stroke(paint, width);
+        }
+    };
+    for k in (x0 / xs).ceil() as i64..=(x1 / xs).floor() as i64 {
+        let x = k as f64 * xs;
+        segment((x, y0), (x, y1), if k == 0 { 3.0 } else { 1.5 });
+    }
+    for k in (y0 / ys).ceil() as i64..=(y1 / ys).floor() as i64 {
+        let y = k as f64 * ys;
+        segment((x0, y), (x1, y), if k == 0 { 3.0 } else { 1.5 });
+    }
+}
+
+/// The part of segment `a`–`b` inside the box `±hw` × `±hh` (Liang–Barsky).
+fn clip_to_box(a: Vec2, b: Vec2, hw: f64, hh: f64) -> Option<((f64, f64), (f64, f64))> {
+    let d = b - a;
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (p, q) in [
+        (-d.x, a.x + hw),
+        (d.x, hw - a.x),
+        (-d.y, a.y + hh),
+        (d.y, hh - a.y),
+    ] {
+        if p.abs() < 1e-12 {
+            if q < 0.0 {
+                return None;
+            }
+            continue;
+        }
+        let t = q / p;
+        if p < 0.0 {
+            t0 = t0.max(t);
+        } else {
+            t1 = t1.min(t);
+        }
+        if t0 > t1 {
+            return None;
+        }
+    }
+    let p = a + d * t0;
+    let q = a + d * t1;
+    Some(((p.x, p.y), (q.x, q.y)))
 }
 
 fn arrow(ctx: &mut oxframe_2d::DrawCtx, tip: Point, dir: Vec2) {
@@ -793,14 +1075,14 @@ fn labels(root: &Group, s: &Rc<Shared>, horizontal: bool) {
             .bind(move || if p().is_some() { 1.0 } else { 0.0 });
         let (p, s2) = (pick.clone(), s.clone());
         txt.x().bind(move || match p() {
-            Some((v, _)) if horizontal => s2.c2p(v, axis_cross(&s2).1).x,
+            Some((v, _)) if horizontal => s2.fixed(v, axis_cross(&s2).1).x,
             Some(_) => axis_cross(&s2).0 - 14.0,
             None => 0.0,
         });
         let (p, s2) = (pick, s.clone());
         txt.y().bind(move || match p() {
             Some(_) if horizontal => axis_cross(&s2).1 + 30.0,
-            Some((v, _)) => s2.c2p(axis_cross_data(&s2).0, v).y,
+            Some((v, _)) => s2.fixed(axis_cross_data(&s2).0, v).y,
             None => 0.0,
         });
     }
@@ -809,7 +1091,7 @@ fn labels(root: &Group, s: &Rc<Shared>, horizontal: bool) {
 /// Where the axes cross, in scene coordinates.
 fn axis_cross(s: &Shared) -> (f64, f64) {
     let (x, y) = axis_cross_data(s);
-    let p = s.c2p(x, y);
+    let p = s.fixed(x, y);
     (p.x, if s.height > 0.0 { p.y } else { 0.0 })
 }
 
@@ -871,6 +1153,55 @@ mod tests {
                     .height(400.0),
             )
         })
+    }
+
+    #[test]
+    fn a_matrix_moves_vectors_and_placed_nodes_but_not_the_ticks() {
+        let near = |a: Vec2, b: Vec2| assert!((a - b).hypot() < 1e-9, "{a:?} != {b:?}");
+        let graph = SceneGraph::new(1920, 1080);
+        let axes = axes(&graph);
+        graph.enter(|| {
+            // 800 px over 10 units, 400 px over 4: 80 and 100 px per unit.
+            let v = axes.vector(1.0, 1.0);
+            let dot = View::current().add(Circle::new().size(10.0));
+            axes.place(dot, 2.0, 0.0);
+            near(v.points().get()[1], Vec2::new(80.0, -100.0));
+            axes.matrix().set(Mat2([[1.0, 1.0], [0.0, 1.0]]));
+            // Shear: (1, 1) → (2, 1), (2, 0) stays.
+            near(v.points().get()[1], Vec2::new(160.0, -100.0));
+            assert!((dot.x().get() - 160.0).abs() < 1e-9);
+            near(axes.c2p(1.0, 1.0), Vec2::new(160.0, -100.0));
+            near(axes.shared.fixed(1.0, 1.0), Vec2::new(80.0, -100.0));
+            v.x().set(-1.0);
+            near(v.points().get()[1], Vec2::new(0.0, -100.0));
+        });
+    }
+
+    #[test]
+    fn matrices_compose_and_animate_entry_by_entry() {
+        let shear = Mat2([[1.0, 1.0], [0.0, 1.0]]);
+        let rot = Mat2([[0.0, -1.0], [1.0, 0.0]]);
+        assert_eq!(rot.after(&shear), Mat2([[0.0, -1.0], [1.0, 1.0]]));
+        assert_eq!(rot.det(), 1.0);
+        assert_eq!(
+            Mat2::IDENTITY.lerp(&shear, 0.5),
+            Mat2([[1.0, 0.5], [0.0, 1.0]])
+        );
+        let inv = shear.inverse().unwrap();
+        assert_eq!(inv.after(&shear), Mat2::IDENTITY);
+        assert!(Mat2([[1.0, 2.0], [2.0, 4.0]]).inverse().is_none());
+    }
+
+    #[test]
+    fn grid_lines_are_clipped_to_the_box() {
+        let inside = clip_to_box(Vec2::new(-10.0, 0.0), Vec2::new(10.0, 0.0), 50.0, 50.0);
+        assert_eq!(inside, Some(((-10.0, 0.0), (10.0, 0.0))));
+        let across = clip_to_box(Vec2::new(-100.0, 0.0), Vec2::new(100.0, 0.0), 50.0, 50.0);
+        assert_eq!(across, Some(((-50.0, 0.0), (50.0, 0.0))));
+        assert_eq!(
+            clip_to_box(Vec2::new(-100.0, 80.0), Vec2::new(100.0, 80.0), 50.0, 50.0),
+            None
+        );
     }
 
     #[test]

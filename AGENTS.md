@@ -83,6 +83,23 @@ a function of scene time, so renders are deterministic. Sound plays only at
 rate 1; `.muted(true)` drops it. A missing file is a dark box and a
 `video_unavailable` error in `check`. The playground cannot play videos.
 
+## Matrices, vectors, tables
+
+```rust
+let a = view.add(Matrix::new([[1, 2], [3, 4]]).font_size(64.0));
+a.row_frame(0).fade_in().await;          // also column_frame, cell_frame
+a.cell(0, 1).text().set("7".into());
+let v = axes.vector(2.0, 1.0);           // tip: v.x(), v.y(), v.to(x, y, s)
+axes.apply_matrix([[1.0, 1.0], [0.0, 1.0]], 1.5).await;
+let t = view.add(Table::new(["Name", "Time"]).row(["a", "3 ms"]));
+t.insert_row(0, ["b", "1 ms"]).await;
+t.sort_by_column(1, 0.8).await;
+```
+
+`apply_matrix` composes with what was applied before; `axes.matrix()` is
+the `Mat2` signal. Ticks and labels stay put; placed nodes move but keep
+their shape.
+
 ## Icons
 
 With `oxframe = { ..., features = ["icons"] }`:
