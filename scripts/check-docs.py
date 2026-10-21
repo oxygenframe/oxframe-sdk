@@ -25,6 +25,7 @@ PLAYERS = (
     "nodes/+page.svelte",
     "effects/+page.svelte",
     "camera/+page.svelte",
+    "charts/+page.svelte",
     "timing/+page.svelte",
     "rendering/+page.svelte",
 )

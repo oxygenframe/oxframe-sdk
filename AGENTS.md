@@ -66,6 +66,25 @@ playground always estimate and never open files.
 `oxframe render --subtitles out.srt` writes the lines (`.vtt` by
 extension). `--no-audio` still writes them.
 
+## Charts
+
+```rust
+let axes = view.add(Axes::new().x_range(-5.0..5.0).y_range(-2.0..2.0));
+let wave = axes.plot(|x| x.sin()).stroke(Accent);
+wave.draw_on().await;
+let x = Signal::new(-5.0);
+axes.point_on(&wave, x.clone());
+x.to(5.0, 2.0).await;
+wave.to_fn(|x| (2.0 * x).sin(), 1.0).await;
+axes.x_range().to(-10.0..10.0, 1.0).await;
+```
+
+A plot is a function of x, sampled every frame: it follows the ranges, and
+`tan` keeps its gaps. Bars: `axes.bars([0.0, 0.0]).labels(["a", "b"])`, then
+`bars.value(0).to(3.2, 1.0)`; set the x range to `-0.5..n - 0.5`.
+`axes.place(node, x, y)` keeps any node at a data point. `NumberLine::new(0.0..10.0)`
+is a single axis. There is no pie chart: draw slices with `Custom`.
+
 ## Shaders
 
 Start with `shaders::waves()`. `.amp()`, `.speed()`, `.deep()` and

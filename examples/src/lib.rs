@@ -24,6 +24,7 @@ pub mod learn_10_random;
 pub mod learn_11_scenes;
 pub mod learn_12_sound;
 pub mod learn_13_shaders;
+pub mod learn_14_charts;
 pub mod morph;
 pub mod ocean;
 pub mod particles;
@@ -88,6 +89,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("learn_11_scenes", learn_11_scenes::project),
         ("learn_12_sound", learn_12_sound::project),
         ("learn_13_shaders", learn_13_shaders::project),
+        ("learn_14_charts", learn_14_charts::project),
         ("benchmark", benchmark::project),
     ]
 }

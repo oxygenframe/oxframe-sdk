@@ -6,13 +6,40 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.13.0 — 2026-10-21
+
+Charts: axes, number lines, function plots and bars, all following
+animated ranges.
+
+### Added
+
+- `Axes::new()` is a plotting box with a grid, axes, ticks and labels.
+  `.x_range(-5.0..5.0)` and `.y_range(-2.0..2.0)` set the data ranges,
+  `.width()` and `.height()` the box, `.no_grid()` drops the grid.
+  `axes.x_range()` is a signal of `Interval`, so
+  `axes.x_range().to(-10.0..10.0, 1.0)` zooms; ticks stay on round steps
+  and each label keeps its value while the range slides.
+- `axes.plot(|x| x.sin())` draws a function as a `Plot`. It is sampled
+  again every frame, finer where it bends, broken at jumps (no line across
+  the gaps of `tan`) and cut at the box. `.stroke(Accent)` and `.width(4.0)`
+  style it, `.draw_on()` draws it, and `plot.to_fn(|x| x.cos(), 1.0)`
+  morphs it into another function.
+- `axes.point_on(&plot, x)` keeps a dot on the curve at a signal `x`.
+  `axes.c2p(x, y)` gives the scene point of a data point, and
+  `axes.place(node, x, y)` keeps a node there.
+- `axes.bars([3.0, 7.5])` draws bars with their values above them;
+  `bars.value(0).to(9.0, 1.0)` grows one, `.labels(["a", "b"])` names them.
+  `axes.line_series(..)` and `axes.scatter(..)` draw data points.
+- `NumberLine::new(0.0..10.0)` is a single axis with the same methods.
+- Guide lesson 14 (charts) and the `charts` example.
 
 ### Fixed
 
 - A long `BulletList` row ran off both edges of the frame. Rows now wrap
   inside 70 % of the frame width, start right of the mark, and take the
   height they need. Short lists look as before.
+- `check` pointed at the component's own source for nodes a component
+  adds. It now names the line of your `add` call.
 
 ## 0.12.1 — 2026-10-21
 
