@@ -250,7 +250,7 @@ impl NodeBuilder for BulletListBuilder {
 
 #[cfg(test)]
 mod tests {
-    use oxframe_2d::{NodeBuilder, SceneGraph, View};
+    use oxframe_2d::{SceneGraph, View};
 
     use super::*;
 
