@@ -36,6 +36,7 @@ step "Site claims match the recorded measurements"
 
 step "Docs describe this version's features"
 python3 "$sdk/scripts/check-docs.py"
+python3 "$sdk/scripts/build-skill.py" --check
 
 step "Site and compile service on this SDK (examples, docs, sandbox template, e2e)"
 (cd "$web" && OXFRAME_SDK_PATH="$sdk" bun run verify)

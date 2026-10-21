@@ -20,6 +20,9 @@ All crates and `oxframe-cli` share one version (see CHANGELOG.md).
    catch an API change that breaks the other two repositories or the images.
 2. Bump `[workspace.package] version` and the internal dependency versions,
    add the CHANGELOG.md section (breaking changes with "before → after").
+   Run `python3 scripts/build-skill.py` (the skill at `skills/oxframe/`,
+   installed with `npx skills add oxygenframe/oxframe-sdk`); release-check
+   fails while it is out of date.
 3. Commit, tag `vX.Y.Z`, push the tag: the release workflow publishes to
    crates.io. Wait until the crates are there.
 4. CLI: bump its version and `SDK_VERSION`, publish, tag.
