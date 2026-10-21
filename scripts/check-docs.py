@@ -30,6 +30,7 @@ PLAYERS = (
     "icons/+page.svelte",
     "matrices/+page.svelte",
     "presentations/+page.svelte",
+    "3d/+page.svelte",
     "timing/+page.svelte",
     "rendering/+page.svelte",
 )

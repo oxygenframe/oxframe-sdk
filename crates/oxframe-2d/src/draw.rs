@@ -635,6 +635,16 @@ impl DrawCtx {
         Pen { ctx: self, path }
     }
 
+    /// A picture stretched over `rect`, in the node's coordinates. Draws
+    /// with the node's opacity, like the shapes.
+    pub fn image(&mut self, rect: kurbo::Rect, image: Rc<crate::image::RasterImage>) {
+        self.prims.push(Primitive::Image {
+            image,
+            rect,
+            opacity: self.opacity,
+        });
+    }
+
     /// An arc of a circle around `center`, starting at `start` degrees
     /// (0 is to the right, clockwise like rotation) and turning `sweep`
     /// degrees. Stroke it for a gauge or a ring.

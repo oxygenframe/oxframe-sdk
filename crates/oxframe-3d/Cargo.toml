@@ -1,0 +1,25 @@
+[package]
+name = "oxframe-3d"
+description = "3D scenes for oxframe: meshes, camera, lights and a deterministic software renderer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-3d"
+
+[features]
+default = ["gltf"]
+# Models from binary glTF (.glb).
+gltf = ["dep:gltf", "dep:base64"]
+
+[dependencies]
+oxframe-core.workspace = true
+gltf = { version = "1", default-features = false, features = ["utils"], optional = true }
+base64 = { version = "0.22", optional = true }
+
+[lints]
+workspace = true

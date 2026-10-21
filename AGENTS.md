@@ -83,6 +83,24 @@ a function of scene time, so renders are deterministic. Sound plays only at
 rate 1; `.muted(true)` drops it. A missing file is a dark box and a
 `video_unavailable` error in `check`. The playground cannot play videos.
 
+## 3D
+
+With `oxframe = { ..., features = ["3d"] }`:
+
+```rust
+let world = Scene3d::new();
+let cube = world.add(Mesh::cube().color(Accent).roughness(0.35));
+let frame = view.add(View3d::new(&world).size(760.0, 520.0));
+cube.rotation().to(Vec3::new(0.0, 360.0, 0.0), 6.0).await;   // degrees
+world.camera().position().to(Vec3::new(2.2, 1.8, 3.0), 2.0).await;
+let to_view = frame.projector();                              // for bindings
+label.x().bind(move || to_view(Vec3::new(0.0, 0.5, 0.0)).x);
+```
+
+Y is up; a cube is 1 unit. `oxframe-3d` depends only on the core
+(`scripts/check-layering.sh`). Rendering is on the CPU, deterministic;
+there are no shadows yet.
+
 ## Presentations
 
 ```rust

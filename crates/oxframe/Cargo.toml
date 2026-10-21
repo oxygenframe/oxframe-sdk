@@ -27,6 +27,9 @@ video = []
 # `icon!("lucide:server")`: Lucide, Tabler and Simple Icons. Only the icons
 # a project names end up in its binary.
 icons = ["dep:oxframe-icons"]
+# 3D scenes shown in the 2D scene with `View3d` (software renderer, also in
+# the browser).
+3d = ["dep:oxframe-3d"]
 
 [dependencies]
 oxframe-core.workspace = true
@@ -37,6 +40,7 @@ oxframe-render.workspace = true
 oxframe-protocol.workspace = true
 oxframe-macros.workspace = true
 oxframe-icons = { workspace = true, optional = true }
+oxframe-3d = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 oxframe-preview.workspace = true

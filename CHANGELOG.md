@@ -6,6 +6,32 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.19.0 — 2026-10-21
+
+3D scenes inside 2D ones, behind the `3d` feature.
+
+### Added
+
+- `Scene3d` is a world of meshes: `Mesh::cube()`, `Mesh::sphere()`,
+  `Mesh::plane()`, `Mesh::cylinder()`, `Mesh::group()` and models from a
+  binary glTF (`Mesh::glb_file`). `.color()`, `.metallic()`,
+  `.roughness()`, `.emissive()` and `.opacity()` set the material.
+- `scene.add(mesh)` returns an `Object3d` whose position, rotation,
+  scale, color and opacity are signals, so `.to()` animates them;
+  `object.add(mesh)` makes a child that moves with its parent.
+- `scene.camera()` (position, target, field of view) and
+  `scene.light(Light::directional(..))` or `Light::point(..)` are signals
+  too; with no light, a default sunlight shades each face differently.
+- `View3d::new(&scene).size(640.0, 400.0)` shows the scene as a 2D node:
+  position, opacity, effects, the 2D camera and layout work as for any
+  node. `view.projector()` maps a 3D point into the view, so a 2D label
+  follows a corner of a model.
+- The renderer is a software rasterizer with a depth buffer and 2 × 2
+  supersampling: the same scene gives the same pixels in a render, in
+  `check`, in CI without a GPU and in the browser playground.
+- `DrawCtx::image` draws a picture from a node of your own.
+- The `cube_3d` example.
+
 ## 0.18.0 — 2026-10-21
 
 Presentations from the same scenes.

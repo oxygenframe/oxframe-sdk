@@ -9,6 +9,7 @@ pub mod chart;
 pub mod charts;
 pub mod code_steps;
 pub mod components;
+pub mod cube_3d;
 pub mod effects;
 pub mod gauge;
 pub mod intro;
@@ -71,6 +72,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("matrix_multiply", matrix_multiply::project),
         ("table_sort", table_sort::project),
         ("slides", slides::project),
+        ("cube_3d", cube_3d::project),
         ("linear_map", linear_map::project),
         ("video", video::project),
         ("components", components::project),

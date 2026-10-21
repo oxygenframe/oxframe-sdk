@@ -43,6 +43,8 @@ mod scene;
 mod transition;
 #[cfg(all(feature = "video", not(target_arch = "wasm32")))]
 mod video;
+#[cfg(feature = "3d")]
+mod view3d;
 mod voice;
 #[cfg(feature = "wasm")]
 pub mod wasm;
@@ -67,6 +69,10 @@ pub use oxframe_2d::{
     RichSpan, SANS, SafeArea, SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success,
     Surface, Svg, Text, TextAlign, Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
 };
+/// 3D scenes: a world of meshes, a camera and lights, shown in the 2D
+/// scene by [`View3d`]. Behind the `3d` feature.
+#[cfg(feature = "3d")]
+pub use oxframe_3d::{Camera3d, Geometry, Light, Light3d, Mesh, Object3d, Quat, Scene3d, Vec3};
 pub use oxframe_components::{
     Axes, Bars, BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, Interval,
     LowerThird, Mat2, Matrix, NumberLine, Plot, Series, Table, TableRow, TitleCard, Vector,
@@ -89,6 +95,8 @@ pub use oxframe_icons::icon;
 #[cfg(feature = "unstable-node-api")]
 pub use oxframe_macros::Node;
 pub use oxframe_macros::{color, ease, scene, tune};
+#[cfg(feature = "3d")]
+pub use view3d::{View3d, View3dBuilder};
 
 pub use oxframe_2d as nodes;
 pub use oxframe_core as core;
@@ -134,5 +142,7 @@ pub mod prelude {
         random_range, repeat, sequence, shaders, sound, span, spawn, stagger, transition, tune,
         voice, wait_for, wait_until, waves,
     };
+    #[cfg(feature = "3d")]
+    pub use crate::{Light, Mesh, Object3d, Quat, Scene3d, Vec3, View3d};
     pub use crate::{notes, slide_break};
 }
