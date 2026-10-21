@@ -7,7 +7,6 @@
 //! executed yet: inputs and shader transitions come later.
 
 use std::cell::Cell;
-use std::time::Instant;
 
 use kurbo::{Affine, Point};
 use oxframe_core::{Color, Signal};
@@ -237,7 +236,7 @@ pub(crate) fn raster(
     let iw = ((w * scale).round() as u32).clamp(1, 1920);
     let ih = ((h * scale).round() as u32).clamp(1, 1080);
     let (amp, speed, deep, foam) = wave_uniforms(uniforms);
-    let started = Instant::now();
+    let started = Stopwatch::start();
     let mut rgba = vec![0u8; iw as usize * ih as usize * 4];
     for py in 0..ih {
         for px in 0..iw {
@@ -255,7 +254,7 @@ pub(crate) fn raster(
             rgba[i + 3] = byte(c.a);
         }
     }
-    let ms = started.elapsed().as_secs_f64() * 1000.0;
+    let ms = started.millis();
     if ms > budget_ms() {
         push_diag(ShaderDiag {
             node: label(n),
@@ -278,6 +277,41 @@ pub(crate) fn raster(
         rect,
         opacity: 1.0,
     })
+}
+
+/// Wall clock for `shader_slow`.
+///
+/// `Instant::now()` panics on `wasm32-unknown-unknown`, which ended the
+/// playground's waves example in "unreachable executed". A check never runs
+/// in the browser, so there the watch reads 0 and `shader_slow` stays quiet.
+#[cfg(not(target_arch = "wasm32"))]
+struct Stopwatch(std::time::Instant);
+
+#[cfg(target_arch = "wasm32")]
+struct Stopwatch;
+
+impl Stopwatch {
+    fn start() -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Self(std::time::Instant::now())
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Self
+        }
+    }
+
+    fn millis(&self) -> f64 {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.0.elapsed().as_secs_f64() * 1000.0
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            0.0
+        }
+    }
 }
 
 fn wave_uniforms(uniforms: &[Uniform]) -> (f64, f64, Color, Color) {

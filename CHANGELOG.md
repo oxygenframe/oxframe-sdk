@@ -6,6 +6,16 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.11.1 — 2026-10-21
+
+### Fixed
+
+- The waves example stopped with "unreachable executed" in the browser
+  playground. The timer that reports a slow shader read the clock, and
+  the clock panics in WebAssembly. It is now skipped there, so the
+  example plays. Native builds, `oxframe dev` and the CLI were not
+  affected, so there is no new CLI release.
+
 ## 0.11.0 — 2026-10-21
 
 A scene can paint a wave as a node. The preset renders in a check with no
