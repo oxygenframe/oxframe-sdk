@@ -47,6 +47,7 @@ console_error_panic_hook = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 oxframe-export.workspace = true
+flate2 = "1"
 oxframe-preview = { workspace = true, features = ["server"] }
 
 [lints]

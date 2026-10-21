@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 use oxframe_core::{FrameSource, Image};
 use oxframe_protocol::{
     AudioClipInfo, Command, ErrorKind, Event, FrameFormat, FrameHeader, MarkerInfo, Meta, NodeInfo,
-    PROTOCOL_VERSION, SceneInfo, SignalValue,
+    PROTOCOL_VERSION, SceneInfo, SignalValue, SlideInfo,
 };
 
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
@@ -90,6 +90,10 @@ pub trait PreviewEngine: FrameSource {
     fn waveform(&mut self, buckets: usize) -> Option<Vec<f32>>;
     /// Sound effects, for the timeline bars.
     fn audio_clips(&self) -> Vec<AudioClipInfo> {
+        Vec::new()
+    }
+    /// Stops for `oxframe present`.
+    fn slides(&self) -> Vec<SlideInfo> {
         Vec::new()
     }
     /// Mixed preview audio: sample rate and mono s16le samples.
@@ -261,6 +265,7 @@ impl<E: PreviewEngine> Session<E> {
                 None
             },
             audio_clips: self.engine.audio_clips(),
+            slides: self.engine.slides(),
         })];
         if with_audio && let Some((rate, samples)) = self.engine.audio_pcm() {
             out.push(Output::Frame(encode_pcm(rate, &samples)));

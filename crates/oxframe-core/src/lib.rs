@@ -22,6 +22,7 @@ mod paint;
 mod path;
 mod runtime;
 mod signal;
+mod slides;
 mod sound;
 mod transition;
 mod tween;
@@ -47,6 +48,7 @@ pub use transition::{Blend, Dir, Kind, LayerPose, Recorded, ShaderTransition};
 
 pub use rand;
 pub use signal::Signal;
+pub use slides::{SlideMark, notes, slide_break};
 pub use sound::{SoundClip, VoiceLine, end_sound, record_sound, record_voice};
 pub use tween::{Seconds, Tween};
 

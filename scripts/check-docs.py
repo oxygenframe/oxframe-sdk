@@ -29,6 +29,7 @@ PLAYERS = (
     "custom-nodes/+page.svelte",
     "icons/+page.svelte",
     "matrices/+page.svelte",
+    "presentations/+page.svelte",
     "timing/+page.svelte",
     "rendering/+page.svelte",
 )

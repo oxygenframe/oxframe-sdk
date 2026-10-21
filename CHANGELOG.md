@@ -6,6 +6,26 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.18.0 — 2026-10-21
+
+Presentations from the same scenes.
+
+### Added
+
+- `slide_break().await` marks a stop. A render plays straight through it;
+  `oxframe present` (CLI 0.18.0) pauses there until the next key press.
+  The last frame of every scene is a stop too.
+- `notes("…")` adds speaker notes for the part that ends at the next stop.
+- `render --slides talk.pdf` writes a PDF with the frame of every stop,
+  one per page, without ffmpeg.
+- The timeline sent to the editor lists the stops.
+- The `slides` example.
+
+### Fixed
+
+- Rendering with `--subtitles` from `oxframe render` now works: the CLI
+  passes the flag to the project (CLI 0.18.0).
+
 ## 0.17.0 — 2026-10-21
 
 Matrices, vectors and tables.

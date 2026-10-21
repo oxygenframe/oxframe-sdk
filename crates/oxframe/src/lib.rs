@@ -35,6 +35,8 @@ pub mod feedback;
 pub mod lint;
 mod parts;
 #[cfg(not(target_arch = "wasm32"))]
+mod pdf;
+#[cfg(not(target_arch = "wasm32"))]
 mod preview;
 mod project;
 mod scene;
@@ -79,6 +81,7 @@ pub use oxframe_core::{
     tunable, wait_for, wait_until, with_rng,
 };
 pub use oxframe_core::{Blend, Dir, LayerPose, ShaderTransition};
+pub use oxframe_core::{SlideMark, notes, slide_break};
 /// An icon by set and name: `icon!("lucide:server")`, `icon!("tabler:database")`,
 /// `icon!("simple:github")`. Behind the `icons` feature.
 #[cfg(feature = "icons")]
@@ -131,4 +134,5 @@ pub mod prelude {
         random_range, repeat, sequence, shaders, sound, span, spawn, stagger, transition, tune,
         voice, wait_for, wait_until, waves,
     };
+    pub use crate::{notes, slide_break};
 }

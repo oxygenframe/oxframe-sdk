@@ -138,6 +138,10 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         /// Sound effects on the timeline.
         audio_clips: Vec<AudioClipInfo>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        /// Stops for `oxframe present`, in order: every `slide_break` and
+        /// the end of every scene.
+        slides: Vec<SlideInfo>,
     },
     /// The node tree of the current frame's scene.
     Tree {
@@ -239,6 +243,19 @@ pub struct AudioClipInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Spoken text, when this clip is a line.
     pub text: Option<String>,
+}
+
+/// A stop of the presentation (`oxframe present`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+pub struct SlideInfo {
+    /// Scene the stop belongs to.
+    pub scene: String,
+    /// Global frame shown while the presentation waits here.
+    pub frame: u32,
+    #[serde(default)]
+    /// Speaker notes for the part that ends at this stop; may be empty.
+    pub notes: String,
 }
 
 /// A marker on the timeline.

@@ -83,6 +83,24 @@ a function of scene time, so renders are deterministic. Sound plays only at
 rate 1; `.muted(true)` drops it. A missing file is a dark box and a
 `video_unavailable` error in `check`. The playground cannot play videos.
 
+## Presentations
+
+```rust
+title.enter().await;
+slide_break().await;                 // `oxframe present` waits here
+notes("Each point on the next click.");
+for _ in 0..3 { points.next().await; wait_for(1.5).await; slide_break().await; }
+```
+
+Hold with `wait_for` before each break: the video plays through the stops,
+and `check` reports `too_fast` text otherwise.
+
+A render plays through the stops. Every scene ends with a stop; a break at
+the very end of a scene is the same stop, so do not exit on the last
+point (the next scene's transition takes it away). Notes belong to the part
+that ends at the next stop. `oxframe render --slides talk.pdf` writes one
+page per stop.
+
 ## Matrices, vectors, tables
 
 ```rust

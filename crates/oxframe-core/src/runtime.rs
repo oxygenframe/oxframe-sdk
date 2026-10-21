@@ -35,6 +35,8 @@ pub(crate) struct Runtime {
     pub sounds: RefCell<Vec<crate::SoundClip>>,
     /// Spoken lines scheduled by `voice()`, in scene time.
     pub voices: RefCell<Vec<crate::VoiceLine>>,
+    /// Stops and notes for `oxframe present`, in scene time.
+    pub slides: RefCell<Vec<crate::SlideMark>>,
 }
 
 impl Runtime {
@@ -52,6 +54,7 @@ impl Runtime {
             transition: RefCell::new(None),
             sounds: RefCell::new(Vec::new()),
             voices: RefCell::new(Vec::new()),
+            slides: RefCell::new(Vec::new()),
         })
     }
 

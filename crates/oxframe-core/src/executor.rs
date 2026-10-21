@@ -122,6 +122,11 @@ impl Executor {
     pub fn voices(&self) -> Vec<crate::VoiceLine> {
         self.rt.voices.borrow().clone()
     }
+
+    /// Stops and notes the scene recorded, in the order it recorded them.
+    pub fn slides(&self) -> Vec<crate::SlideMark> {
+        self.rt.slides.borrow().clone()
+    }
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use oxframe_2d::{SceneGraph, View};
 use oxframe_core::{Color, Executor, Recorded, SoundClip};
-use oxframe_protocol::{MarkerInfo, Meta, MetaError, SceneInfo};
+use oxframe_protocol::{MarkerInfo, Meta, MetaError, SceneInfo, SlideInfo};
 use oxframe_render::{Image, RenderOptions, Renderer};
 
 use crate::{Project, SceneDef};
@@ -140,6 +140,8 @@ struct SceneState {
     clips: Vec<SoundClip>,
     /// Spoken lines recorded while measuring, in scene time.
     lines: Vec<oxframe_core::VoiceLine>,
+    /// Stops and notes recorded while measuring, in scene time.
+    slides: Vec<oxframe_core::SlideMark>,
     /// Last frame of this scene, transparent, reused while the next scene blends.
     held: Option<(u32, u32, Image)>,
     run: Option<SceneRun>,
@@ -188,6 +190,7 @@ impl Engine {
                 incoming: None,
                 clips: Vec::new(),
                 lines: Vec::new(),
+                slides: Vec::new(),
                 held: None,
                 run: None,
             });
@@ -241,6 +244,7 @@ impl Engine {
         scene.incoming = run.exec.transition();
         scene.clips = run.exec.sounds();
         scene.lines = run.exec.voices();
+        scene.slides = run.exec.slides();
         if run.exec.take_meta_changed() {
             scene.meta = run.exec.meta();
             if self.project.write_meta && self.project.inline_meta.is_none() {
@@ -304,6 +308,56 @@ impl Engine {
                 })
             })
             .collect()
+    }
+
+    /// Stops for `oxframe present`: every `slide_break` and the last frame
+    /// of every scene, in order. Notes go to the first stop after the time
+    /// they were written, so `slide_break().await; notes("…")` annotates
+    /// the part that follows the break.
+    pub fn slides(&self) -> Vec<SlideInfo> {
+        let fps = f64::from(self.project.fps);
+        let mut out = Vec::new();
+        for s in &self.scenes {
+            if s.frames == 0 {
+                continue;
+            }
+            let last = s.frames - 1;
+            // (frame in scene, notes) per stop, the scene's end included.
+            let mut stops: Vec<(u32, String)> = s
+                .slides
+                .iter()
+                .filter_map(|m| match m {
+                    oxframe_core::SlideMark::Break { at } => {
+                        Some(((at * fps).round().max(0.0) as u32).min(last))
+                    }
+                    oxframe_core::SlideMark::Notes { .. } => None,
+                })
+                .map(|f| (f, String::new()))
+                .collect();
+            stops.push((last, String::new()));
+            stops.sort_by_key(|(f, _)| *f);
+            stops.dedup_by_key(|(f, _)| *f);
+            for m in &s.slides {
+                if let oxframe_core::SlideMark::Notes { at, text } = m {
+                    let f = (at * fps).round().max(0.0) as u32;
+                    let i = stops
+                        .iter()
+                        .position(|(stop, _)| *stop > f)
+                        .unwrap_or(stops.len() - 1);
+                    let notes = &mut stops[i].1;
+                    if !notes.is_empty() {
+                        notes.push('\n');
+                    }
+                    notes.push_str(text);
+                }
+            }
+            out.extend(stops.into_iter().map(|(f, notes)| SlideInfo {
+                scene: s.def.name.to_owned(),
+                frame: s.start + f,
+                notes,
+            }));
+        }
+        out
     }
 
     /// Soundtrack file and offset (seconds), if the project has one.
@@ -757,4 +811,70 @@ fn save_meta(path: &PathBuf, meta: &Meta) -> Result<(), EngineError> {
             path: path.clone(),
             error,
         })
+}
+
+#[cfg(test)]
+mod slide_tests {
+    use std::collections::BTreeMap;
+
+    use oxframe_core::{BoxFuture, Color, notes, slide_break, wait_for};
+    use oxframe_protocol::Meta;
+
+    use super::Engine;
+    use crate::project::Project;
+    use crate::scene::{SceneDef, SourceLocation};
+    use oxframe_2d::View;
+
+    fn scene(name: &'static str, factory: fn(View) -> BoxFuture) -> SceneDef {
+        SceneDef::new(
+            name,
+            SourceLocation {
+                file: "src/engine.rs",
+                manifest_dir: env!("CARGO_MANIFEST_DIR"),
+            },
+            factory,
+        )
+    }
+
+    fn talk(_: View) -> BoxFuture {
+        Box::pin(async {
+            notes("Welcome.");
+            wait_for(1.0).await;
+            slide_break().await;
+            slide_break().await;
+            notes("The second part.");
+            notes("Mention the demo.");
+            wait_for(1.0).await;
+        })
+    }
+
+    fn outro(_: View) -> BoxFuture {
+        Box::pin(async {
+            wait_for(0.5).await;
+        })
+    }
+
+    #[test]
+    fn breaks_and_scene_ends_are_stops_with_their_notes() {
+        let engine = Engine::new(
+            Project::new("talk")
+                .size(32, 18)
+                .fps(10)
+                .background(Color::BLACK)
+                .write_meta(false)
+                .inline_meta(BTreeMap::<String, Meta>::new())
+                .scene(scene("talk", talk))
+                .scene(scene("outro", outro)),
+        )
+        .unwrap();
+        let stops = engine.slides();
+        let frames: Vec<u32> = stops.iter().map(|s| s.frame).collect();
+        // A break at 1 s (twice, one stop), the last frame of `talk` (2 s at
+        // 10 fps is frames 0..=20) and the last of `outro` (21 + 5).
+        assert_eq!(frames, [10, 20, 26]);
+        assert_eq!(stops[0].notes, "Welcome.");
+        assert_eq!(stops[1].notes, "The second part.\nMention the demo.");
+        assert_eq!(stops[2].scene, "outro");
+        assert_eq!(stops[2].notes, "");
+    }
 }

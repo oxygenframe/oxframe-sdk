@@ -153,6 +153,10 @@ impl PreviewEngine for PreviewAdapter {
         self.waveform.clone().flatten()
     }
 
+    fn slides(&self) -> Vec<oxframe_protocol::SlideInfo> {
+        self.engine.slides()
+    }
+
     fn audio_clips(&self) -> Vec<AudioClipInfo> {
         let mut clips: Vec<AudioClipInfo> = self
             .engine

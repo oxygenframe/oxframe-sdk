@@ -38,6 +38,7 @@ pub mod relative;
 pub mod release;
 pub mod shapes;
 pub mod showcase;
+pub mod slides;
 pub mod sounds;
 pub mod splash;
 pub mod spray;
@@ -69,6 +70,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("architecture", architecture::project),
         ("matrix_multiply", matrix_multiply::project),
         ("table_sort", table_sort::project),
+        ("slides", slides::project),
         ("linear_map", linear_map::project),
         ("video", video::project),
         ("components", components::project),

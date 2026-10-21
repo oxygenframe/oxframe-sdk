@@ -32,6 +32,8 @@ commands:
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
              --no-audio          do not mux the project's soundtrack
              --subtitles <path>  also write the spoken lines as .srt or .vtt
+             --slides <path>     instead, a PDF with the frame of every stop
+                                 (slide_break and scene ends), no ffmpeg
   check    write out/check/storyboard.png and report.json (CPU, exits 1 on errors)
              --out <dir>         output directory (default: out/check)
              --frames            also write each storyboard frame at full size
@@ -123,6 +125,8 @@ struct RenderArgs {
     ffmpeg: Option<PathBuf>,
     no_audio: bool,
     subtitles: Option<PathBuf>,
+    /// `--slides out.pdf`: a page per presentation stop.
+    slides: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +194,7 @@ impl RenderArgs {
                 "--ffmpeg" => a.ffmpeg = Some(value()?.into()),
                 "--no-audio" => a.no_audio = true,
                 "--subtitles" => a.subtitles = Some(value()?.into()),
+                "--slides" => a.slides = Some(value()?.into()),
                 other => return Err(format!("unknown option `{other}`")),
             }
         }
@@ -221,6 +226,9 @@ impl Drop for RemoveOnDrop {
 }
 
 fn render(project: Project, args: RenderArgs) -> i32 {
+    if let Some(path) = &args.slides {
+        return slides(project, &args, path);
+    }
     if !args.at.is_empty() {
         return snapshot(project, &args);
     }
@@ -482,6 +490,32 @@ fn info(project: Project) -> i32 {
         "markers": engine.markers(),
     });
     println!("{}", serde_json::to_string_pretty(&json).expect("json"));
+    EXIT_OK
+}
+
+/// `render --slides out.pdf`: the frame of every presentation stop, one
+/// per page.
+fn slides(project: Project, args: &RenderArgs, path: &std::path::Path) -> i32 {
+    let engine = match Engine::new(project) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return EXIT_ERROR;
+        }
+    };
+    let stops = engine.slides();
+    let size = args.size.unwrap_or(engine.size());
+    let (renderer, _) = make_renderer(args.cpu);
+    let mut source = PreviewAdapter::new(engine, renderer);
+    let frames: Vec<_> = stops.iter().map(|s| source.render(s.frame, size)).collect();
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Err(e) = std::fs::write(path, crate::pdf::pages(&frames)) {
+        eprintln!("error: cannot write {}: {e}", path.display());
+        return EXIT_ENV;
+    }
+    println!("{} pages={}", path.display(), frames.len());
     EXIT_OK
 }
 
