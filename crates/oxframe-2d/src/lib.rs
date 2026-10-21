@@ -48,7 +48,7 @@ pub use draw::{
     StrokeStyle,
 };
 pub use graph::{
-    Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph,
+    Direction, InspectNode, Justify, LayoutAlign, NodeData, NodeId, NodeKind, SceneGraph, add_site,
 };
 pub use handles::{
     Camera, Circle, Code, CodeText, CodeTween, Custom, Effect, Grid, Group, Img, Layout, Line,

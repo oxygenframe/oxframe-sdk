@@ -10,6 +10,7 @@
 
 #![warn(missing_docs)]
 
+mod axes;
 mod callout;
 mod code;
 mod flow;
@@ -17,6 +18,7 @@ mod host;
 mod lower;
 mod title;
 
+pub use axes::{Axes, AxesBuilder, Bars, Interval, NumberLine, Plot, Series};
 pub use callout::{Callout, CalloutBuilder};
 pub use code::{CodeExplainer, CodeExplainerBuilder};
 pub use flow::{FlowDiagram, FlowDiagramBuilder};

@@ -1024,8 +1024,31 @@ thread_local! {
     static ADD_AT: Cell<Option<(&'static str, u32)>> = const { Cell::new(None) };
 }
 
+/// Records where an `add` happens. An add inside another one (a component
+/// building its parts) keeps the outer site: `check` points at the user's
+/// line, not at the component's code.
 pub(crate) fn push_add_at(file: &'static str, line: u32) -> Option<(&'static str, u32)> {
-    ADD_AT.with(|c| c.replace(Some((file, line))))
+    ADD_AT.with(|c| {
+        let prev = c.get();
+        if prev.is_none() {
+            c.set(Some((file, line)));
+        }
+        prev
+    })
+}
+
+/// Runs `f` so that the nodes it adds report the caller's file and line in
+/// `check` and `inspect`.
+///
+/// For methods that add nodes after the node itself was added, such as a
+/// plot on a set of axes. Mark the method `#[track_caller]`.
+#[track_caller]
+pub fn add_site<R>(f: impl FnOnce() -> R) -> R {
+    let loc = std::panic::Location::caller();
+    let prev = push_add_at(loc.file(), loc.line());
+    let out = f();
+    pop_add_at(prev);
+    out
 }
 
 pub(crate) fn pop_add_at(prev: Option<(&'static str, u32)>) {
