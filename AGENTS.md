@@ -66,6 +66,32 @@ playground always estimate and never open files.
 `oxframe render --subtitles out.srt` writes the lines (`.vtt` by
 extension). `--no-audio` still writes them.
 
+## Nodes of your own
+
+With `oxframe = { ..., features = ["unstable-node-api"] }`:
+
+```rust
+#[derive(Node)]
+pub struct Gauge {
+    #[signal] value: f64,
+    #[signal] size: f64,
+}
+impl Draw for Gauge {
+    fn draw(&self, ctx: &mut DrawCtx) {
+        ctx.arc((0.0, 0.0), self.size / 2.0, 135.0, 270.0 * self.value).stroke(Accent, 16.0);
+    }
+    fn size(&self) -> (f64, f64) { (self.size, self.size) }
+}
+let g = view.add(Gauge::new().size(200.0)); // GaugeHandle
+g.value().to(0.8, 1.0).await;
+```
+
+`draw` must depend only on the fields and `ctx.time()`. `size` is the box
+for layout and `check`. Reach for this when no built-in node fits and the
+shape is drawn, not composed: a composite of existing nodes is a function
+that adds them to a `Group`. `oxframe init --template node my-node` makes a
+crate for one.
+
 ## Charts
 
 ```rust

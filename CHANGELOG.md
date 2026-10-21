@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.14.0 — 2026-10-21
+
+Nodes of your own, behind the `unstable-node-api` feature.
+
+### Added
+
+- `#[derive(Node)]` on a struct that implements `Draw` makes it a node.
+  Fields marked `#[signal]` get a setter on the builder (`Gauge::new()`)
+  and a signal on the handle (`GaugeHandle`), so `gauge.value().to(0.8, 1.0)`
+  animates them. Other fields are set once.
+- `Draw::draw` paints with the same `DrawCtx` as `Custom`, and
+  `Draw::size` gives the box that layout, `Camera::fit` and `check` use.
+  The node gets position, opacity, effects, flex properties and theme
+  colors like any built-in one, and `check` names it by its type.
+- `DrawCtx::arc` strokes or fills an arc, for gauges and rings.
+- `oxframe init --template node my-node` makes a crate with a node, a demo
+  scene and a reference test.
+- The `gauge` example.
+
 ## 0.13.0 — 2026-10-21
 
 Charts: axes, number lines, function plots and bars, all following
