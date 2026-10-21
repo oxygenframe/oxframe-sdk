@@ -6,6 +6,26 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.20.0 — 2026-10-21
+
+Parallel rendering.
+
+### Added
+
+- `render --jobs 4` renders a video in 2-second segments, several at
+  once, each in its own process; the segments are joined without
+  re-encoding and the soundtrack is added once. The default is one job per
+  core, at most eight. A PNG sequence is split the same way.
+- The file does not depend on the number of jobs: `--jobs 1` and
+  `--jobs 8` write the same bytes. A 7-second 3D scene renders 2.7 times
+  faster on 8 cores.
+- `oxframe_export::concat` joins segments encoded with the same settings.
+
+### Changed
+
+- A video longer than two seconds now has a key frame every two seconds
+  (where the segments meet), so files are a little larger than before.
+
 ## 0.19.0 — 2026-10-21
 
 3D scenes inside 2D ones, behind the `3d` feature.

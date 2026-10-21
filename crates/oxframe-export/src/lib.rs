@@ -343,15 +343,8 @@ pub fn ffmpeg_args(o: &ExportOptions) -> Vec<String> {
     push(&[
         "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &size, "-r", &fps, "-i", "-",
     ]);
-    if let Some(audio) = &o.audio {
-        let file = audio.file.to_string_lossy().into_owned();
-        if audio.offset >= 0.0 {
-            push(&["-itsoffset", &format!("{:.6}", audio.offset), "-i", &file]);
-        } else {
-            push(&["-ss", &format!("{:.6}", -audio.offset), "-i", &file]);
-        }
-        push(&["-map", "0:v:0", "-map", "1:a:0", "-shortest"]);
-    }
+    audio_input(&mut a, o.audio.as_ref());
+    let mut push = |items: &[&str]| a.extend(items.iter().map(|s| s.to_string()));
     match o.format {
         Format::Mp4 => push(&[
             "-c:v",
@@ -389,25 +382,110 @@ pub fn ffmpeg_args(o: &ExportOptions) -> Vec<String> {
         ]),
         Format::Png => {}
     }
-    if o.audio.is_some() {
-        match o.format {
-            Format::Mp4 => push(&["-c:a", "aac", "-b:a", "192k"]),
-            Format::Webm => push(&["-c:a", "libopus", "-b:a", "160k"]),
-            Format::ProRes => push(&["-c:a", "pcm_s16le"]),
-            Format::Png => {}
-        }
-        // Pad audio with silence so `-shortest` never cuts the video.
-        // `whole_dur` stops the pad at the last frame; an open-ended pad
-        // ignores `-shortest` and the file runs on.
-        if let Some(seconds) = o.duration {
-            let filter = format!("apad=whole_dur={seconds:.6}");
-            push(&["-af", &filter, "-t", &format!("{seconds:.6}")]);
-        } else {
-            push(&["-af", "apad"]);
-        }
-    }
+    audio_output(&mut a, o.audio.is_some(), o.format, o.duration);
     a.push(o.out.to_string_lossy().into_owned());
     a
+}
+
+/// The soundtrack as input 1, mapped next to the video of input 0.
+fn audio_input(a: &mut Vec<String>, audio: Option<&Audio>) {
+    let Some(audio) = audio else { return };
+    let mut push = |items: &[&str]| a.extend(items.iter().map(|s| s.to_string()));
+    let file = audio.file.to_string_lossy().into_owned();
+    if audio.offset >= 0.0 {
+        push(&["-itsoffset", &format!("{:.6}", audio.offset), "-i", &file]);
+    } else {
+        push(&["-ss", &format!("{:.6}", -audio.offset), "-i", &file]);
+    }
+    push(&["-map", "0:v:0", "-map", "1:a:0", "-shortest"]);
+}
+
+/// The audio codec for `format`, padded to the video's length.
+fn audio_output(a: &mut Vec<String>, audio: bool, format: Format, duration: Option<f64>) {
+    if !audio {
+        return;
+    }
+    let mut push = |items: &[&str]| a.extend(items.iter().map(|s| s.to_string()));
+    match format {
+        Format::Mp4 => push(&["-c:a", "aac", "-b:a", "192k"]),
+        Format::Webm => push(&["-c:a", "libopus", "-b:a", "160k"]),
+        Format::ProRes => push(&["-c:a", "pcm_s16le"]),
+        Format::Png => {}
+    }
+    // Pad audio with silence so `-shortest` never cuts the video.
+    // `whole_dur` stops the pad at the last frame; an open-ended pad
+    // ignores `-shortest` and the file runs on.
+    if let Some(seconds) = duration {
+        let filter = format!("apad=whole_dur={seconds:.6}");
+        push(&["-af", &filter, "-t", &format!("{seconds:.6}")]);
+    } else {
+        push(&["-af", "apad"]);
+    }
+}
+
+/// Command line for [`concat()`] (without the program name): the segments
+/// listed in `list` joined without re-encoding, plus the soundtrack.
+pub fn concat_args(list: &Path, o: &ExportOptions) -> Vec<String> {
+    let mut a: Vec<String> = [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    a.push(list.to_string_lossy().into_owned());
+    if o.audio.is_some() {
+        audio_input(&mut a, o.audio.as_ref());
+    } else {
+        a.extend(["-map", "0:v:0"].map(String::from));
+    }
+    a.extend(["-c:v", "copy"].map(String::from));
+    if o.format == Format::Mp4 {
+        a.extend(["-movflags", "+faststart"].map(String::from));
+    }
+    audio_output(&mut a, o.audio.is_some(), o.format, o.duration);
+    a.push(o.out.to_string_lossy().into_owned());
+    a
+}
+
+/// Joins video files encoded with the same settings (`segments`, in
+/// order) into `opts.out` without re-encoding them, and adds
+/// `opts.audio`. Used by parallel rendering: each segment is encoded on
+/// its own, and the result does not depend on how many ran at once.
+///
+/// # Errors
+///
+/// If ffmpeg is missing or fails (its log is included).
+pub fn concat(segments: &[PathBuf], opts: &ExportOptions) -> Result<(), ExportError> {
+    let ffmpeg = find_ffmpeg(opts.ffmpeg.as_deref())?;
+    let list = opts.out.with_extension("segments.txt");
+    let mut text = String::new();
+    for seg in segments {
+        let path = std::fs::canonicalize(seg)?;
+        // The concat list quotes paths with single quotes.
+        let quoted = path.to_string_lossy().replace('\'', "'\\''");
+        text.push_str(&format!("file '{quoted}'\n"));
+    }
+    std::fs::write(&list, text)?;
+    let output = Command::new(ffmpeg).args(concat_args(&list, opts)).output();
+    let _ = std::fs::remove_file(&list);
+    let output = output?;
+    if !output.status.success() {
+        let log = String::from_utf8_lossy(&output.stderr);
+        let tail: Vec<&str> = log.lines().rev().take(15).collect();
+        return Err(ExportError::Ffmpeg {
+            status: output.status.to_string(),
+            log: tail.into_iter().rev().collect::<Vec<_>>().join("\n"),
+        });
+    }
+    Ok(())
 }
 
 /// Peak envelope of an audio file for the editor's waveform: `buckets`

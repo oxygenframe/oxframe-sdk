@@ -1,0 +1,10 @@
+{
+  "audio": {
+    "file": "/home/hovs/projects/motion-dev/oxframe-sdk/examples/assets/tone.wav",
+    "offset": 0.0
+  },
+  "eases": {},
+  "markers": {},
+  "tunables": {},
+  "version": 1
+}

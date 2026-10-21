@@ -34,6 +34,9 @@ commands:
              --subtitles <path>  also write the spoken lines as .srt or .vtt
              --slides <path>     instead, a PDF with the frame of every stop
                                  (slide_break and scene ends), no ffmpeg
+             --jobs <n>          render 2-second segments in n processes at once
+                                 (default: cores, at most 8); the output is the
+                                 same for any n
   check    write out/check/storyboard.png and report.json (CPU, exits 1 on errors)
              --out <dir>         output directory (default: out/check)
              --frames            also write each storyboard frame at full size
@@ -127,6 +130,11 @@ struct RenderArgs {
     subtitles: Option<PathBuf>,
     /// `--slides out.pdf`: a page per presentation stop.
     slides: Option<PathBuf>,
+    /// Segments rendered at once.
+    jobs: Option<usize>,
+    /// `--frames a..b`: global frames `a` to `b` (exclusive). Set by the
+    /// parent process for one segment of a parallel render.
+    frames: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,11 +203,273 @@ impl RenderArgs {
                 "--no-audio" => a.no_audio = true,
                 "--subtitles" => a.subtitles = Some(value()?.into()),
                 "--slides" => a.slides = Some(value()?.into()),
+                "--jobs" => {
+                    let v = value()?;
+                    a.jobs =
+                        Some(v.parse::<usize>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                            format!("bad --jobs `{v}`, expected a positive number")
+                        })?);
+                }
+                "--frames" => {
+                    let v = value()?;
+                    let (s, e) = v
+                        .split_once("..")
+                        .and_then(|(s, e)| Some((s.parse().ok()?, e.parse().ok()?)))
+                        .ok_or_else(|| format!("bad --frames `{v}`, expected a..b"))?;
+                    a.frames = Some((s, e));
+                }
                 other => return Err(format!("unknown option `{other}`")),
             }
         }
         Ok(a)
     }
+}
+
+/// Length of a segment of a parallel render. Every segment starts with a
+/// key frame, so shorter ones cost bitrate; longer ones leave cores idle on
+/// short videos.
+const SEGMENT_SECONDS: u32 = 2;
+
+/// Segments rendered at once by default: one per core, at most 8 (each
+/// process holds a full engine).
+fn default_jobs() -> usize {
+    std::thread::available_parallelism()
+        .map_or(1, std::num::NonZero::get)
+        .min(8)
+}
+
+struct SegmentJob {
+    frames: std::ops::Range<u32>,
+    segment: u32,
+    fps: u32,
+    size: (u32, u32),
+    format: Format,
+    out: PathBuf,
+    audio: Option<Audio>,
+    ffmpeg: Option<PathBuf>,
+    seconds: f64,
+    jobs: usize,
+}
+
+struct RemoveDirOnDrop(PathBuf);
+
+impl Drop for RemoveDirOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The arguments this process was started with, for one segment: the same
+/// project and settings (theme, size, renderer), with its own frames and
+/// output and no sound (the sound is added once, after joining).
+fn segment_args(
+    range: &std::ops::Range<u32>,
+    out: &std::path::Path,
+    format: Format,
+) -> Vec<String> {
+    let replaced = [
+        "--out",
+        "--range",
+        "--jobs",
+        "--subtitles",
+        "--slides",
+        "--frames",
+        "--format",
+    ];
+    let mut args = Vec::new();
+    let mut it = std::env::args().skip(1);
+    while let Some(a) = it.next() {
+        if replaced.contains(&a.as_str()) {
+            it.next();
+        } else if a != "--no-audio" {
+            args.push(a);
+        }
+    }
+    let name = match format {
+        Format::Png => "png",
+        f => f.extension(),
+    };
+    args.extend([
+        "--frames".to_owned(),
+        format!("{}..{}", range.start, range.end),
+        "--out".to_owned(),
+        out.to_string_lossy().into_owned(),
+        "--format".to_owned(),
+        name.to_owned(),
+        "--no-audio".to_owned(),
+        "--jobs".to_owned(),
+        "1".to_owned(),
+    ]);
+    args
+}
+
+/// Renders `job.frames` in segments, each in a child process of this
+/// binary, at most `job.jobs` at once, then joins them.
+fn render_segments(job: &SegmentJob) -> i32 {
+    use std::process::{Command, Stdio};
+
+    let segments: Vec<std::ops::Range<u32>> = (job.frames.start..job.frames.end)
+        .step_by(job.segment as usize)
+        .map(|a| a..(a + job.segment).min(job.frames.end))
+        .collect();
+    let parent = job
+        .out
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), std::path::Path::to_path_buf);
+    let tmp = parent.join(format!(".oxframe-render-{}", std::process::id()));
+    if let Err(e) = std::fs::create_dir_all(&tmp) {
+        eprintln!("error: cannot create {}: {e}", tmp.display());
+        return EXIT_ENV;
+    }
+    let _cleanup = RemoveDirOnDrop(tmp.clone());
+    let seg_out = |i: usize| match job.format {
+        Format::Png => tmp.join(format!("seg{i:05}")),
+        f => tmp.join(format!("seg{i:05}.{}", f.extension())),
+    };
+    let exe = match std::env::current_exe() {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("error: cannot find this program to start segments: {e}");
+            return EXIT_ENV;
+        }
+    };
+    let jobs = job.jobs.clamp(1, segments.len());
+    eprintln!(
+        "rendering {} frames at {}x{} @ {} fps in {} segments, {jobs} at a time → {}",
+        job.frames.len(),
+        job.size.0,
+        job.size.1,
+        job.fps,
+        segments.len(),
+        job.out.display()
+    );
+    let started = Instant::now();
+    let mut next = 0;
+    let mut done = 0;
+    let mut running: Vec<(usize, std::process::Child, std::thread::JoinHandle<String>)> =
+        Vec::new();
+    let failure = 'run: loop {
+        while running.len() < jobs && next < segments.len() {
+            let spawned = Command::new(&exe)
+                .args(segment_args(&segments[next], &seg_out(next), job.format))
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn();
+            let mut child = match spawned {
+                Ok(c) => c,
+                Err(e) => {
+                    break 'run Some(break_with(
+                        &mut running,
+                        &format!("cannot start a segment: {e}"),
+                    ));
+                }
+            };
+            let mut stderr = child.stderr.take().expect("piped stderr");
+            let log = std::thread::spawn(move || {
+                let mut s = String::new();
+                let _ = std::io::Read::read_to_string(&mut stderr, &mut s);
+                s
+            });
+            running.push((next, child, log));
+            next += 1;
+        }
+        if running.is_empty() {
+            break 'run None;
+        }
+        let mut finished = None;
+        for (k, (_, child, _)) in running.iter_mut().enumerate() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    finished = Some((k, status));
+                    break;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    finished = None;
+                    eprintln!("error: {e}");
+                }
+            }
+        }
+        let Some((k, status)) = finished else {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            continue;
+        };
+        let (i, _, log) = running.swap_remove(k);
+        let log = log.join().unwrap_or_default();
+        if !status.success() {
+            let tail: Vec<&str> = log.lines().rev().take(12).collect();
+            let msg = format!(
+                "segment {} (frames {}..{}) failed:\n{}",
+                i + 1,
+                segments[i].start,
+                segments[i].end,
+                tail.into_iter().rev().collect::<Vec<_>>().join("\n")
+            );
+            break 'run Some(break_with(&mut running, &msg));
+        }
+        done += 1;
+        eprintln!("  segment {done}/{}", segments.len());
+    };
+    if let Some(code) = failure {
+        return code;
+    }
+
+    if job.format == Format::Png {
+        if let Err(e) = std::fs::create_dir_all(&job.out) {
+            eprintln!("error: cannot create {}: {e}", job.out.display());
+            return EXIT_ENV;
+        }
+        for (i, range) in segments.iter().enumerate() {
+            for k in 0..range.len() {
+                let from = seg_out(i).join(format!("{k:06}.png"));
+                let n = range.start - job.frames.start + k as u32;
+                let to = job.out.join(format!("{n:06}.png"));
+                if let Err(e) = std::fs::rename(&from, &to) {
+                    eprintln!("error: cannot move {}: {e}", from.display());
+                    return EXIT_ENV;
+                }
+            }
+        }
+    } else {
+        let files: Vec<PathBuf> = (0..segments.len()).map(seg_out).collect();
+        let opts = ExportOptions {
+            out: job.out.clone(),
+            format: job.format,
+            width: job.size.0,
+            height: job.size.1,
+            fps: job.fps,
+            audio: job.audio.clone(),
+            ffmpeg: job.ffmpeg.clone(),
+            duration: Some(job.seconds),
+        };
+        if let Err(e) = oxframe_export::concat(&files, &opts) {
+            eprintln!("error: {e}");
+            return EXIT_ENV;
+        }
+    }
+    let secs = started.elapsed().as_secs_f64();
+    eprintln!(
+        "done in {secs:.2}s ({:.1} frames/s, {jobs} jobs): {}",
+        job.frames.len() as f64 / secs.max(1e-9),
+        job.out.display()
+    );
+    EXIT_OK
+}
+
+/// Stops the other segments and reports `message`.
+fn break_with(
+    running: &mut Vec<(usize, std::process::Child, std::thread::JoinHandle<String>)>,
+    message: &str,
+) -> i32 {
+    for (_, child, _) in running.iter_mut() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    running.clear();
+    eprintln!("error: {message}");
+    EXIT_ENV
 }
 
 /// GPU renderer if compiled in and an adapter exists, else CPU.
@@ -357,6 +627,9 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         };
         frames = first.max(frames.start)..last.min(frames.end);
     }
+    if let Some((a, b)) = args.frames {
+        frames = a.min(engine.total_frames())..b.min(engine.total_frames());
+    }
     if frames.is_empty() {
         eprintln!("error: nothing to render (empty range)");
         return EXIT_ERROR;
@@ -408,6 +681,24 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         file: file.clone(),
         offset: 0.0,
     });
+    // A video longer than one segment is rendered in segments, whatever
+    // `--jobs` is, so the file is the same for any number of jobs.
+    let segment = fps * SEGMENT_SECONDS;
+    if args.frames.is_none() && frames.len() > segment as usize {
+        let job = SegmentJob {
+            frames: frames.clone(),
+            segment,
+            fps,
+            size,
+            format,
+            out: out.clone(),
+            audio,
+            ffmpeg: args.ffmpeg.clone(),
+            seconds,
+            jobs: args.jobs.unwrap_or_else(default_jobs),
+        };
+        return render_segments(&job);
+    }
     let opts = ExportOptions {
         out: out.clone(),
         format,
