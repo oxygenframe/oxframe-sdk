@@ -27,3 +27,22 @@ All crates and `oxframe-cli` share one version (see CHANGELOG.md).
    version>` in oxframe-web/apps/site), bump `apps/site/src/lib/sdk.ts`,
    `bun run sync-examples`, push. The site and compile.oxframe.dev
    redeploy.
+
+## Voiced scenes
+
+`voice("…").start()` speaks at the current frame and returns a handle.
+`line.at_word("word").await` waits until that word; `line.await` waits
+until the end. Await the line, or `oxframe check` reports that it runs
+past the scene. A line is `.priority()`, so it ducks a soundtrack built
+with `.duck_under_voice()`.
+
+`Project::tts(provider)` supplies audio and word times. The provider
+reads its own API key. A missing key or a failed call falls back to a
+speech-rate estimate and the scene still runs. Each line is cached under
+`tts/` next to the scene (`{hash}.json` and `{hash}.wav`). Commit that
+folder so CI renders the real audio without a key. An estimate is not
+cached. With no provider, a committed cache is still found by the line
+text. Wasm and the playground always estimate and never open files.
+
+`oxframe render --subtitles out.srt` writes the lines (`.vtt` by
+extension). `--no-audio` still writes them.

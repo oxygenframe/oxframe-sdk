@@ -38,6 +38,7 @@ mod preview;
 mod project;
 mod scene;
 mod transition;
+mod voice;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
@@ -47,6 +48,7 @@ pub use engine::{Engine, EngineError, MetaSection};
 pub use project::{Aspect, Project};
 pub use scene::{SceneDef, SourceLocation};
 pub use transition::{Transition, transition};
+pub use voice::{Synthesis, TimedWord, TtsProvider, TtsRequest, voice};
 
 pub use oxframe_2d::{
     Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Custom, Danger,
@@ -89,7 +91,7 @@ pub mod prelude {
         Polygon, Project, Rect, RichSpan, SANS, SafeArea, Side, Signal, Slow, Sm, Span, Star, Step,
         Success, Surface, Svg, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, View,
         Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets, random,
-        random_range, repeat, sequence, sound, span, spawn, stagger, transition, tune, wait_for,
-        wait_until,
+        random_range, repeat, sequence, sound, span, spawn, stagger, transition, tune, voice,
+        wait_for, wait_until,
     };
 }

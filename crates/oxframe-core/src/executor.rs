@@ -117,6 +117,11 @@ impl Executor {
     pub fn sounds(&self) -> Vec<crate::SoundClip> {
         self.rt.sounds.borrow().clone()
     }
+
+    /// Spoken lines the scene scheduled, in the order it scheduled them.
+    pub fn voices(&self) -> Vec<crate::VoiceLine> {
+        self.rt.voices.borrow().clone()
+    }
 }
 
 #[cfg(test)]

@@ -236,6 +236,9 @@ pub struct AudioClipInfo {
     pub seconds: f64,
     /// This clip ducks the soundtrack.
     pub priority: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Spoken text, when this clip is a line.
+    pub text: Option<String>,
 }
 
 /// A marker on the timeline.

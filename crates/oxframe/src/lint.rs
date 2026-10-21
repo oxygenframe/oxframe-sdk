@@ -120,6 +120,43 @@ pub fn lint(
     issues
 }
 
+/// A spoken line overlaps another, or runs past the end of its scene.
+pub(crate) fn voice_lines(cues: &[crate::voice::Cue]) -> Vec<Issue> {
+    let mut issues = Vec::new();
+    for cue in cues {
+        if cue.end > cue.scene_end + 1.0 / 120.0 {
+            issues.push(Issue {
+                rule: "voice_cut",
+                severity: Severity::Error,
+                time: [cue.start, cue.end],
+                node: cue.text.clone(),
+                source: None,
+                hint:
+                    "This line runs past the end of the scene. Await it, or the last words are cut."
+                        .into(),
+                aspect: None,
+            });
+        }
+    }
+    let mut ordered: Vec<&crate::voice::Cue> = cues.iter().collect();
+    ordered.sort_by(|a, b| a.start.total_cmp(&b.start));
+    for pair in ordered.windows(2) {
+        if pair[1].start + 1.0 / 120.0 < pair[0].end {
+            issues.push(Issue {
+                rule: "voice_overlap",
+                severity: Severity::Warning,
+                time: [pair[1].start, pair[0].end.min(pair[1].end)],
+                node: pair[1].text.clone(),
+                source: None,
+                hint: "This line overlaps another. Await the first before starting the next."
+                    .into(),
+                aspect: None,
+            });
+        }
+    }
+    issues
+}
+
 fn frame_rect(size: (u32, u32), inset: f64) -> [f64; 4] {
     let (w, h) = (f64::from(size.0), f64::from(size.1));
     [

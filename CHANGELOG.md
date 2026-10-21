@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.10.0 — 2026-10-21
+
+A scene can wait for one word of a spoken line. Without a provider the
+length is a speech-rate estimate, so the playground and CI still run.
+
+### Added
+
+- `Project::tts` speaks through a `TtsProvider`. The key stays in the
+  provider. A failed call falls back to the estimate and the scene still
+  runs. `voice("one two").start()` starts the line. `.at_word()` waits
+  until that word. Awaiting the line waits until the end. A line is
+  `.priority()`, so it ducks a soundtrack built with `.duck_under_voice()`.
+- The recording is cached under `tts/` next to the scene. Commit that
+  folder to render in CI without a key. Without a provider, oxframe reads
+  a committed cache and otherwise estimates the length.
+- `oxframe render --subtitles out.srt` writes the lines. A path ending in
+  `.vtt` writes WebVTT. `--no-audio` still writes them, and `--range`
+  shifts the cues into that part of the video.
+
 ## 0.9.0 — 2026-10-21
 
 Sound effects mix with the soundtrack into one track. ffmpeg only encodes

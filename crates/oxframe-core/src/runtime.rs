@@ -33,6 +33,8 @@ pub(crate) struct Runtime {
     pub transition: RefCell<Option<Recorded>>,
     /// Sound effects scheduled by `sound()`, in scene time.
     pub sounds: RefCell<Vec<crate::SoundClip>>,
+    /// Spoken lines scheduled by `voice()`, in scene time.
+    pub voices: RefCell<Vec<crate::VoiceLine>>,
 }
 
 impl Runtime {
@@ -49,6 +51,7 @@ impl Runtime {
             has_previous: Cell::new(false),
             transition: RefCell::new(None),
             sounds: RefCell::new(Vec::new()),
+            voices: RefCell::new(Vec::new()),
         })
     }
 

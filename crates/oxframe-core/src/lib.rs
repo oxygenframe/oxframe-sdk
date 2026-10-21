@@ -47,7 +47,7 @@ pub use transition::{Blend, Dir, Kind, LayerPose, Recorded};
 
 pub use rand;
 pub use signal::Signal;
-pub use sound::{SoundClip, record_sound};
+pub use sound::{SoundClip, VoiceLine, record_sound, record_voice};
 pub use tween::{Seconds, Tween};
 
 pub use kurbo::{self, Affine, BezPath, Point, Vec2};

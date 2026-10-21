@@ -230,7 +230,8 @@ fn pass(
             ));
         }
     }
-    let has_audio = engine.audio().is_some() || !engine.scheduled().is_empty();
+    let has_audio =
+        engine.audio().is_some() || !engine.scheduled().is_empty() || !engine.voices().is_empty();
     let mut issues = lint::lint(
         &samples,
         engine.size(),
@@ -238,6 +239,7 @@ fn pass(
         has_audio,
         &opts.limits,
     );
+    issues.extend(lint::voice_lines(&engine.voices()));
     for (t, node, source) in drift {
         issues.push(lint::Issue {
             rule: "nondeterministic",

@@ -7,6 +7,7 @@ use oxframe_protocol::Meta;
 
 use crate::SceneDef;
 use crate::audio::Audio;
+use crate::voice::Provider;
 
 /// A sequence of scenes plus output settings. Call `main()`
 /// from your binary's `main` to get the `render`/`info` commands.
@@ -23,6 +24,10 @@ pub struct Project {
     pub(crate) write_meta: bool,
     pub(crate) meta_dir: Option<PathBuf>,
     pub(crate) audio: Option<Audio>,
+    pub(crate) tts: Option<Provider>,
+    pub(crate) tts_dir: Option<PathBuf>,
+    /// Voice name used by [`voice`](crate::voice) unless a line sets its own.
+    pub(crate) speaker: String,
     pub(crate) inline_meta: Option<BTreeMap<String, Meta>>,
     /// Formats `check` renders, and `render --aspect all` exports.
     pub(crate) aspects: Vec<Aspect>,
@@ -86,6 +91,9 @@ impl Project {
             write_meta: true,
             meta_dir: None,
             audio: None,
+            tts: None,
+            tts_dir: None,
+            speaker: "default".into(),
             // No file system in the browser: metas live in memory there.
             inline_meta: cfg!(target_arch = "wasm32").then(BTreeMap::new),
             aspects: Vec::new(),
@@ -153,6 +161,26 @@ impl Project {
         let color = Color::from_hex(hex).ok_or_else(|| format!("bad accent color `{hex}`"))?;
         self.theme = self.theme.clone().accent(color);
         Ok(())
+    }
+
+    /// Speak lines with `provider`. A line is cached under `tts/` in the
+    /// project, so the next render does not call the provider again.
+    pub fn tts(mut self, provider: impl crate::voice::TtsProvider + 'static) -> Self {
+        self.tts = Some(Provider(std::sync::Arc::new(provider)));
+        self
+    }
+
+    /// Where spoken lines are cached. The default is `tts/` next to the
+    /// scene crate, so the folder can be committed.
+    pub fn tts_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.tts_dir = Some(dir.into());
+        self
+    }
+
+    /// Voice name for lines that do not set one. Default: `"default"`.
+    pub fn speaker(mut self, name: impl Into<String>) -> Self {
+        self.speaker = name.into();
+        self
     }
 
     /// Seed for scene randomness; part of the deterministic input.

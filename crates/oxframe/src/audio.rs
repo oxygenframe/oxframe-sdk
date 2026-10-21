@@ -55,7 +55,7 @@ impl Audio {
         self
     }
 
-    /// Lower the music while a [`sound`] marked [`.priority()`](Sound::priority) is playing.
+    /// Lower the music while a [`sound`] marked `.priority()` is playing.
     pub fn duck_under_voice(mut self) -> Self {
         self.duck = true;
         self
@@ -167,6 +167,7 @@ impl Sound {
             trim_start: self.trim_start,
             trim_end: self.trim_end,
             priority: self.priority,
+            speech: false,
         });
         seconds
     }
@@ -228,6 +229,8 @@ pub(crate) struct Scheduled {
     pub trim_start: f64,
     pub trim_end: Option<f64>,
     pub priority: bool,
+    /// A spoken line. The timeline draws it from the line, not from this clip.
+    pub speech: bool,
 }
 
 impl Scheduled {

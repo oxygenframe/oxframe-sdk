@@ -154,9 +154,11 @@ impl PreviewEngine for PreviewAdapter {
     }
 
     fn audio_clips(&self) -> Vec<AudioClipInfo> {
-        self.engine
+        let mut clips: Vec<AudioClipInfo> = self
+            .engine
             .scheduled()
             .into_iter()
+            .filter(|sound| !sound.speech)
             .map(|sound| AudioClipInfo {
                 name: std::path::Path::new(&sound.file)
                     .file_name()
@@ -166,8 +168,19 @@ impl PreviewEngine for PreviewAdapter {
                 start: sound.start,
                 seconds: sound.known_seconds().unwrap_or(0.0),
                 priority: sound.priority,
+                text: None,
             })
-            .collect()
+            .collect();
+        for line in self.engine.voices() {
+            clips.push(AudioClipInfo {
+                name: line.text.clone(),
+                start: line.start,
+                seconds: (line.end - line.start).max(0.0),
+                priority: true,
+                text: Some(line.text),
+            });
+        }
+        clips
     }
 
     fn audio_pcm(&mut self) -> Option<(u32, Vec<i16>)> {

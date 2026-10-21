@@ -24,9 +24,27 @@ pub struct SoundClip {
     pub trim_end: Option<f64>,
     /// Ducks the music while this clip is audible.
     pub priority: bool,
+    /// This clip is a spoken line. The timeline shows the line, not a second bar.
+    pub speech: bool,
+}
+
+/// A spoken line recorded while a scene runs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VoiceLine {
+    /// The line, as written in the scene.
+    pub text: String,
+    /// Start, in seconds from the beginning of the scene.
+    pub at: f64,
+    /// Length in seconds.
+    pub seconds: f64,
 }
 
 /// Records `clip` on the running scene. Called by `sound()`.
 pub fn record_sound(clip: SoundClip) {
     runtime::with(|rt| rt.sounds.borrow_mut().push(clip));
+}
+
+/// Records a spoken line. Called by `voice()`.
+pub fn record_voice(line: VoiceLine) {
+    runtime::with(|rt| rt.voices.borrow_mut().push(line));
 }

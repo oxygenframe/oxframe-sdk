@@ -31,6 +31,7 @@ commands:
              --cpu               use the CPU renderer (tiny-skia) instead of the GPU
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
              --no-audio          do not mux the project's soundtrack
+             --subtitles <path>  also write the spoken lines as .srt or .vtt
   check    write out/check/storyboard.png and report.json (CPU, exits 1 on errors)
              --out <dir>         output directory (default: out/check)
              --frames            also write each storyboard frame at full size
@@ -121,6 +122,7 @@ struct RenderArgs {
     cpu: bool,
     ffmpeg: Option<PathBuf>,
     no_audio: bool,
+    subtitles: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,6 +189,7 @@ impl RenderArgs {
                 "--gpu" => a.cpu = false,
                 "--ffmpeg" => a.ffmpeg = Some(value()?.into()),
                 "--no-audio" => a.no_audio = true,
+                "--subtitles" => a.subtitles = Some(value()?.into()),
                 other => return Err(format!("unknown option `{other}`")),
             }
         }
@@ -354,6 +357,23 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     let size = args.size.unwrap_or(engine.size());
     let origin = f64::from(frames.start) / f64::from(fps);
     let seconds = frames.len() as f64 / f64::from(fps);
+    if let Some(path) = &args.subtitles {
+        let mut cues = engine.voices();
+        for cue in &mut cues {
+            cue.start -= origin;
+            cue.end -= origin;
+        }
+        cues.retain(|cue| cue.end > 0.0 && cue.start < seconds);
+        for cue in &mut cues {
+            cue.start = cue.start.max(0.0);
+            cue.end = cue.end.min(seconds);
+        }
+        let vtt = path.extension().and_then(|ext| ext.to_str()) == Some("vtt");
+        if let Err(e) = std::fs::write(path, crate::voice::subtitles(&cues, vtt)) {
+            eprintln!("error: {e}");
+            return EXIT_ERROR;
+        }
+    }
     let mixed = if !args.no_audio && format != Format::Png {
         match crate::audio::mix_range(&engine, origin, seconds) {
             Ok(mixed) => mixed,

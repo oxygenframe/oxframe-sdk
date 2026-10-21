@@ -83,6 +83,7 @@ impl SceneRun {
     fn new(def: &SceneDef, project: &Project, meta: Meta, has_previous: bool) -> Self {
         let graph = SceneGraph::new(project.size.0, project.size.1);
         let fut = (def.factory)(View::current());
+        crate::voice::install(project, def);
         Self {
             graph,
             exec: Executor::new(
@@ -137,6 +138,8 @@ struct SceneState {
     incoming: Option<Recorded>,
     /// Sound effects recorded while measuring, in scene time.
     clips: Vec<SoundClip>,
+    /// Spoken lines recorded while measuring, in scene time.
+    lines: Vec<oxframe_core::VoiceLine>,
     /// Last frame of this scene, transparent, reused while the next scene blends.
     held: Option<(u32, u32, Image)>,
     run: Option<SceneRun>,
@@ -182,6 +185,7 @@ impl Engine {
                 frames: 0,
                 incoming: None,
                 clips: Vec::new(),
+                lines: Vec::new(),
                 held: None,
                 run: None,
             });
@@ -234,6 +238,7 @@ impl Engine {
         scene.frames = run.exec.frames_done();
         scene.incoming = run.exec.transition();
         scene.clips = run.exec.sounds();
+        scene.lines = run.exec.voices();
         if run.exec.take_meta_changed() {
             scene.meta = run.exec.meta();
             if self.project.write_meta && self.project.inline_meta.is_none() {
@@ -343,6 +348,25 @@ impl Engine {
                     trim_start: c.trim_start,
                     trim_end: c.trim_end,
                     priority: c.priority,
+                    speech: c.speech,
+                })
+            })
+            .collect()
+    }
+
+    /// Spoken lines of every scene, in project time, with the end of their scene.
+    pub(crate) fn voices(&self) -> Vec<crate::voice::Cue> {
+        let fps = f64::from(self.project.fps);
+        self.scenes
+            .iter()
+            .flat_map(|s| {
+                let origin = f64::from(s.start) / fps;
+                let scene_end = f64::from(s.start + s.frames) / fps;
+                s.lines.iter().map(move |line| crate::voice::Cue {
+                    text: line.text.clone(),
+                    start: origin + line.at,
+                    end: origin + line.at + line.seconds,
+                    scene_end,
                 })
             })
             .collect()

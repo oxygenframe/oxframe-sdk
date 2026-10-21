@@ -34,6 +34,7 @@ pub mod text;
 pub mod theme;
 pub mod transitions;
 pub mod typography;
+pub mod voice;
 
 /// Builds an example project.
 pub type ProjectFn = fn() -> oxframe::Project;
@@ -62,6 +63,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("release", release::project),
         ("spray", spray::project),
         ("sounds", sounds::project),
+        ("voice", voice::project),
         ("learn_01_hello", learn_01_hello::project),
         ("learn_02_together", learn_02_together::project),
         ("learn_03_shapes", learn_03_shapes::project),
