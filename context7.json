@@ -1,0 +1,12 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "oxframe",
+  "description": "Rust library for videos from code: scenes as async functions, signals, layout, themes, components, charts, 3D, shaders and sound, checked frame by frame and rendered to MP4 without a browser.",
+  "folders": ["crates", "examples/src", "skills"],
+  "excludeFolders": ["target", "crates/oxframe-icons/data"],
+  "rules": [
+    "Pin the exact oxframe version: the API changes between minor versions before 1.0.",
+    "A scene is `#[oxframe::scene] async fn name(view: View)`; every `.await` on an animation is a frame boundary.",
+    "Run `oxframe check` after every change and fix what report.json lists before rendering."
+  ]
+}
