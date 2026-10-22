@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.20.4 — 2026-10-22
+
+### Fixed
+
+- `oxframe dev`: after a rebuild while the video plays, the picture and
+  the sound go on together from the frame they were on. The editor used to
+  start the sound from the beginning over a still picture.
+
 ## 0.20.3 — 2026-10-22
 
 ### Fixed
