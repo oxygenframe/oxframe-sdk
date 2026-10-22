@@ -1,0 +1,63 @@
+{
+  "text": "The graph sits in a dashboard. Bars, a curve, a clip.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 3.483,
+  "words": [
+    {
+      "text": "The",
+      "start": 0.0,
+      "end": 0.151
+    },
+    {
+      "text": "graph",
+      "start": 0.209,
+      "end": 0.511
+    },
+    {
+      "text": "sits",
+      "start": 0.546,
+      "end": 0.743
+    },
+    {
+      "text": "in",
+      "start": 0.778,
+      "end": 0.836
+    },
+    {
+      "text": "a",
+      "start": 0.871,
+      "end": 0.894
+    },
+    {
+      "text": "dashboard",
+      "start": 0.975,
+      "end": 1.637
+    },
+    {
+      "text": "Bars",
+      "start": 1.846,
+      "end": 2.252
+    },
+    {
+      "text": "a",
+      "start": 2.276,
+      "end": 2.31
+    },
+    {
+      "text": "curve",
+      "start": 2.368,
+      "end": 2.74
+    },
+    {
+      "text": "a",
+      "start": 2.763,
+      "end": 2.798
+    },
+    {
+      "text": "clip",
+      "start": 2.856,
+      "end": 3.483
+    }
+  ]
+}

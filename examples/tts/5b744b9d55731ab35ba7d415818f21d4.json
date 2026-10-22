@@ -1,0 +1,38 @@
+{
+  "text": "One scene. One camera. No cuts.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 2.183,
+  "words": [
+    {
+      "text": "One",
+      "start": 0.0,
+      "end": 0.197
+    },
+    {
+      "text": "scene",
+      "start": 0.244,
+      "end": 0.58
+    },
+    {
+      "text": "One",
+      "start": 0.627,
+      "end": 0.813
+    },
+    {
+      "text": "camera",
+      "start": 0.859,
+      "end": 1.265
+    },
+    {
+      "text": "No",
+      "start": 1.382,
+      "end": 1.521
+    },
+    {
+      "text": "cuts",
+      "start": 1.591,
+      "end": 2.183
+    }
+  ]
+}

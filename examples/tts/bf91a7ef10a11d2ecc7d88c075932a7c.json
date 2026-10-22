@@ -1,0 +1,48 @@
+{
+  "text": "The line is one node in a graph.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 2.136,
+  "words": [
+    {
+      "text": "The",
+      "start": 0.0,
+      "end": 0.151
+    },
+    {
+      "text": "line",
+      "start": 0.221,
+      "end": 0.464
+    },
+    {
+      "text": "is",
+      "start": 0.499,
+      "end": 0.58
+    },
+    {
+      "text": "one",
+      "start": 0.673,
+      "end": 0.917
+    },
+    {
+      "text": "node",
+      "start": 0.987,
+      "end": 1.254
+    },
+    {
+      "text": "in",
+      "start": 1.289,
+      "end": 1.335
+    },
+    {
+      "text": "a",
+      "start": 1.382,
+      "end": 1.405
+    },
+    {
+      "text": "graph",
+      "start": 1.463,
+      "end": 2.136
+    }
+  ]
+}

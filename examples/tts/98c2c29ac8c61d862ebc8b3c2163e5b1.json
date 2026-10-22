@@ -1,0 +1,53 @@
+{
+  "text": "Made with oxframe. One scene, one camera, no cuts.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 3.622,
+  "words": [
+    {
+      "text": "Made",
+      "start": 0.0,
+      "end": 0.279
+    },
+    {
+      "text": "with",
+      "start": 0.302,
+      "end": 0.418
+    },
+    {
+      "text": "oxframe",
+      "start": 0.476,
+      "end": 0.998
+    },
+    {
+      "text": "One",
+      "start": 1.324,
+      "end": 1.556
+    },
+    {
+      "text": "scene",
+      "start": 1.591,
+      "end": 1.962
+    },
+    {
+      "text": "one",
+      "start": 2.078,
+      "end": 2.264
+    },
+    {
+      "text": "camera",
+      "start": 2.31,
+      "end": 2.717
+    },
+    {
+      "text": "no",
+      "start": 2.798,
+      "end": 2.926
+    },
+    {
+      "text": "cuts",
+      "start": 2.995,
+      "end": 3.622
+    }
+  ]
+}

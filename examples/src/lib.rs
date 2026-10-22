@@ -33,6 +33,9 @@ pub mod linear_map;
 pub mod matrix_multiply;
 pub mod morph;
 pub mod ocean;
+// Kept as written for the promo video, whose end card counts its lines.
+#[rustfmt::skip]
+pub mod one_shot;
 pub mod particles;
 pub mod quicksort;
 pub mod relative;
@@ -75,6 +78,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("slides", slides::project),
         ("cube_3d", cube_3d::project),
         ("showreel", showreel::project),
+        ("one_shot", one_shot::project),
         ("linear_map", linear_map::project),
         ("video", video::project),
         ("components", components::project),

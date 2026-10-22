@@ -1,0 +1,38 @@
+{
+  "text": "Remember that number? Here it goes.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 2.415,
+  "words": [
+    {
+      "text": "Remember",
+      "start": 0.0,
+      "end": 0.372
+    },
+    {
+      "text": "that",
+      "start": 0.418,
+      "end": 0.546
+    },
+    {
+      "text": "number",
+      "start": 0.604,
+      "end": 1.022
+    },
+    {
+      "text": "Here",
+      "start": 1.533,
+      "end": 1.707
+    },
+    {
+      "text": "it",
+      "start": 1.741,
+      "end": 1.788
+    },
+    {
+      "text": "goes",
+      "start": 1.823,
+      "end": 2.415
+    }
+  ]
+}

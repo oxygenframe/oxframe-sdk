@@ -1,0 +1,73 @@
+{
+  "text": "All of it is one frame of oxframe check. Zero errors. Three formats.",
+  "voice": "IHw7aBJxrIo1SxkG9px5",
+  "provider": "elevenlabs",
+  "seconds": 4.876,
+  "words": [
+    {
+      "text": "All",
+      "start": 0.0,
+      "end": 0.197
+    },
+    {
+      "text": "of",
+      "start": 0.255,
+      "end": 0.302
+    },
+    {
+      "text": "it",
+      "start": 0.36,
+      "end": 0.441
+    },
+    {
+      "text": "is",
+      "start": 0.499,
+      "end": 0.604
+    },
+    {
+      "text": "one",
+      "start": 0.685,
+      "end": 0.894
+    },
+    {
+      "text": "frame",
+      "start": 0.94,
+      "end": 1.242
+    },
+    {
+      "text": "of",
+      "start": 1.277,
+      "end": 1.335
+    },
+    {
+      "text": "oxframe",
+      "start": 1.451,
+      "end": 1.985
+    },
+    {
+      "text": "check",
+      "start": 2.02,
+      "end": 2.45
+    },
+    {
+      "text": "Zero",
+      "start": 2.775,
+      "end": 3.135
+    },
+    {
+      "text": "errors",
+      "start": 3.228,
+      "end": 3.646
+    },
+    {
+      "text": "Three",
+      "start": 3.704,
+      "end": 3.959
+    },
+    {
+      "text": "formats",
+      "start": 4.017,
+      "end": 4.876
+    }
+  ]
+}

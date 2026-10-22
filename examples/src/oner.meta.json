@@ -1,0 +1,10 @@
+{
+  "audio": {
+    "file": "/home/hovs/projects/motion-dev/oxframe-sdk/examples/assets/one_shot/music.mp3",
+    "offset": 0.0
+  },
+  "eases": {},
+  "markers": {},
+  "tunables": {},
+  "version": 1
+}
