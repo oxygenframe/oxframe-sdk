@@ -300,6 +300,13 @@ fn build(f: &mut Fonts, spans: &[TextSpan], style: &TextStyle) -> TextLayout {
     }
     let mut layout: Layout<u16> = b.build(text);
     layout.break_all_lines(style.max_width.map(|w| w as f32));
+    // parley aligns within the wrap width, but the block is as wide as its
+    // widest line: break again at that width (the lines stay the same), so
+    // centered and end-aligned lines sit inside the block's own box.
+    if style.align != Align::Start && style.max_width.is_some() {
+        let widest = layout.width();
+        layout.break_all_lines(Some(widest + 1e-3));
+    }
     let align = match style.align {
         Align::Start => Alignment::Start,
         Align::Center => Alignment::Center,
@@ -446,6 +453,36 @@ mod tests {
         };
         let l = layout("one two three four", &s);
         assert!(l.height > 2.0 * 48.0);
+    }
+
+    #[test]
+    fn centered_lines_stay_inside_their_block() {
+        let s = TextStyle {
+            max_width: Some(1000.0),
+            align: Align::Center,
+            ..Default::default()
+        };
+        // One short line: the block is the line, not the wrap width.
+        let one = layout("Fixed", &s);
+        let b = one.path.bounding_box();
+        assert!(
+            b.x0 >= -1.0 && b.x1 <= one.width + 1.0,
+            "{b:?} in {}",
+            one.width
+        );
+        // Wrapped lines are centered in the widest one.
+        let s = TextStyle {
+            max_width: Some(300.0),
+            ..s
+        };
+        let two = layout("a long first line of text then short", &s);
+        let b = two.path.bounding_box();
+        assert!(
+            b.x0 >= -1.0 && b.x1 <= two.width + 1.0,
+            "{b:?} in {}",
+            two.width
+        );
+        assert!(two.height > 2.0 * 30.0);
     }
 
     #[test]

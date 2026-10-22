@@ -1,35 +1,76 @@
 //! Title card, end card, and a list whose items appear one by one.
 
 use oxframe_2d::{
-    Accent, BaseProps, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, Surface, Txt, pct,
+    Accent, BaseProps, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, SceneGraph, Surface,
+    TextAlign, Txt, TxtBuilder, pct,
 };
 use oxframe_core::Tween;
 
 use crate::host::{self, Host};
 
-fn plate(root: &Group, title: String, subtitle: Option<String>) -> Host {
-    root.add(
+/// The card behind a title and an optional second line. Both wrap inside
+/// the card, and a card whose text wraps grows to hold it; text that fits on
+/// one line keeps the usual layout.
+fn plate(g: &SceneGraph, root: &Group, title: String, subtitle: Option<String>) -> Host {
+    const HEIGHT: f64 = 260.0;
+    const PAD: f64 = 48.0;
+    const GAP: f64 = 20.0;
+    let wrap = (g.frame_size().0 * 0.64 - 2.0 * PAD).max(200.0);
+    let card = root.add(
         Rect::new()
             .width(pct(64))
-            .height(260.0)
+            .height(HEIGHT)
             .radius(Lg)
             .fill(Surface)
             .elevation(Md)
             .name("plate"),
     );
-    root.add(Txt::new().text(title).h1().y(-28.0).name("title"));
+    let title = root.add(
+        Txt::new()
+            .text(title)
+            .h1()
+            .max_width(wrap)
+            .align(TextAlign::Center)
+            .y(-28.0)
+            .name("title"),
+    );
     let mut reveals = Vec::new();
+    let mut second = None;
     if let Some(text) = subtitle {
         let line = root.add(
             Txt::new()
                 .text(text)
                 .caption()
                 .fill(Muted)
+                .max_width(wrap)
+                .align(TextAlign::Center)
                 .y(56.0)
                 .opacity(0.0)
                 .name("subtitle"),
         );
         reveals.push(line.node());
+        second = Some(line);
+    }
+    // One line each: the layout above. Otherwise stack them in the middle.
+    let one_line = |txt: &Txt, probe: TxtBuilder| {
+        let p = root.add(probe.text("Ag").opacity(0.0));
+        let h = p.size().1;
+        p.remove();
+        txt.size().1 <= h * 1.5
+    };
+    let fits = one_line(&title, Txt::new().h1())
+        && second
+            .as_ref()
+            .is_none_or(|s| one_line(s, Txt::new().caption()));
+    if !fits {
+        let th = title.size().1;
+        let sh = second.as_ref().map_or(0.0, |s| s.size().1);
+        let total = th + second.as_ref().map_or(0.0, |_| GAP + sh);
+        card.height().set((total + 2.0 * PAD).max(HEIGHT));
+        title.y().set(-total / 2.0 + th / 2.0);
+        if let Some(s) = &second {
+            s.y().set(total / 2.0 - sh / 2.0);
+        }
     }
     Host::new(root.node(), reveals)
 }
@@ -85,10 +126,10 @@ impl NodeBuilder for TitleCardBuilder {
     fn base(&mut self) -> &mut BaseProps {
         &mut self.base
     }
-    fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> TitleCard {
+    fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> TitleCard {
         let root = host::root(parent, self.base);
         TitleCard {
-            host: plate(&root, self.title, self.subtitle),
+            host: plate(g, &root, self.title, self.subtitle),
         }
     }
 }
@@ -144,10 +185,10 @@ impl NodeBuilder for EndCardBuilder {
     fn base(&mut self) -> &mut BaseProps {
         &mut self.base
     }
-    fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> EndCard {
+    fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> EndCard {
         let root = host::root(parent, self.base);
         EndCard {
-            host: plate(&root, self.title, self.note),
+            host: plate(g, &root, self.title, self.note),
         }
     }
 }
@@ -253,6 +294,81 @@ mod tests {
     use oxframe_2d::{SceneGraph, View};
 
     use super::*;
+
+    /// Bounds of the card, the title and the second line, by name.
+    fn card_parts(graph: &SceneGraph) -> Vec<(String, [f64; 4])> {
+        graph
+            .inspect_nodes()
+            .into_iter()
+            .filter(|n| n.kind == "Rect" || n.kind == "Txt")
+            .map(|n| {
+                (
+                    n.name.rsplit('/').next().unwrap_or_default().to_owned(),
+                    n.bounds,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_long_subtitle_wraps_inside_the_card_and_the_card_grows() {
+        let graph = SceneGraph::new(1920, 1080);
+        graph.enter(|| {
+            View::current().add(TitleCard::new("Fixed").subtitle(
+                "check reported too_fast at a cut between two scenes when the first node of each \
+                 had the same id: node ids start again in every scene, and a move is now only a \
+                 node added at the same place.",
+            ));
+        });
+        let parts = card_parts(&graph);
+        let get = |name: &str| parts.iter().find(|(n, _)| n == name).expect(name).1;
+        let (card, title, line) = (get("plate"), get("title"), get("subtitle"));
+        assert!(
+            line[0] >= card[0] && line[2] <= card[2],
+            "past the card: {line:?} {card:?}"
+        );
+        assert!(
+            line[1] >= card[1] && line[3] <= card[3],
+            "past the card: {line:?} {card:?}"
+        );
+        assert!(
+            title[3] <= line[1],
+            "title and line overlap: {title:?} {line:?}"
+        );
+
+        // Twice as much text no longer fits the usual card, so it grows.
+        let graph = SceneGraph::new(1920, 1080);
+        let long = "A sentence that keeps going so the second line needs room. ".repeat(6);
+        graph.enter(|| {
+            View::current().add(TitleCard::new("Changed").subtitle(long));
+        });
+        let parts = card_parts(&graph);
+        let get = |name: &str| parts.iter().find(|(n, _)| n == name).expect(name).1;
+        let (card, title, line) = (get("plate"), get("title"), get("subtitle"));
+        assert!(card[3] - card[1] > 260.0, "the card grows: {card:?}");
+        assert!(
+            line[1] >= card[1] && line[3] <= card[3],
+            "past the card: {line:?} {card:?}"
+        );
+        assert!(
+            title[1] >= card[1] && title[3] <= line[1],
+            "{title:?} {line:?} {card:?}"
+        );
+    }
+
+    #[test]
+    fn short_text_keeps_the_usual_layout() {
+        let graph = SceneGraph::new(1920, 1080);
+        graph.enter(|| {
+            View::current().add(EndCard::new("Thanks").note("oxframe.dev"));
+        });
+        let parts = card_parts(&graph);
+        let get = |name: &str| parts.iter().find(|(n, _)| n == name).expect(name).1;
+        let (card, title, line) = (get("plate"), get("title"), get("subtitle"));
+        assert_eq!(card[3] - card[1], 260.0);
+        assert_eq!((title[1] + title[3]) / 2.0, -28.0);
+        assert_eq!((line[1] + line[3]) / 2.0, 56.0);
+    }
 
     #[test]
     fn a_long_row_wraps_inside_the_frame_and_rows_do_not_overlap() {

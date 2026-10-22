@@ -6,6 +6,18 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.20.2 — 2026-10-22
+
+### Fixed
+
+- `TitleCard` and `EndCard` wrap a long title or second line inside the
+  card, and the card grows to hold it. A long line used to run past the
+  card's edges, which release videos with long notes showed.
+- Centered and end-aligned text with a `max_width` was drawn beside its own
+  box when it was narrower than `max_width` (a single short line, say). It
+  now sits inside the box, so placing it and `oxframe check` see where it
+  really is.
+
 ## 0.20.1 — 2026-10-22
 
 ### Added
