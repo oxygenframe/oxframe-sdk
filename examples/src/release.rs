@@ -88,11 +88,10 @@ async fn section(view: View, heading: &str, tone: Ink, items: &[&str]) {
     let list = view.add(
         Layout::new()
             .column()
-            .gap(48.0)
+            .gap(44.0)
             .align(LayoutAlign::Start)
             .width(width)
-            .to_edge(Edge::Left)
-            .y(h * 0.01),
+            .to_edge(Edge::Left),
     );
     let mut rows = Vec::new();
     for &text in items {
@@ -125,6 +124,9 @@ async fn section(view: View, heading: &str, tone: Ink, items: &[&str]) {
         );
         rows.push((row, mark, line, text));
     }
+    // The list hangs under the heading, so a long one grows downwards.
+    let top = title.y().get() + title.size().1 / 2.0 + 56.0;
+    list.y().set(top + list.size().1 / 2.0);
     for (i, &(_, mark, line, text)) in rows.iter().enumerate() {
         if i > 0 {
             rows[i - 1].0.opacity().to(0.45, 0.3).await;
