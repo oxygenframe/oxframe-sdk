@@ -74,6 +74,7 @@ async fn section(view: View, heading: &str, tone: Ink, items: &[&str]) {
     let (w, h) = (f64::from(w), f64::from(h));
     let width = w - 280.0;
     let glow = oxframe::nodes::current_theme().ink(tone);
+    // Added before the transition, so the heading comes in with the scene.
     let title = view.add(
         Txt::new()
             .text(heading)
@@ -81,10 +82,9 @@ async fn section(view: View, heading: &str, tone: Ink, items: &[&str]) {
             .weight(800.0)
             .fill(tone)
             .to_edge(Edge::Left)
-            .y(-h * 0.34)
-            .opacity(0.0),
+            .y(-h * 0.34),
     );
-    title.slide_in(Side::Left).await;
+    transition(Transition::slide(Dir::Left)).await;
     let list = view.add(
         Layout::new()
             .column()
@@ -169,7 +169,6 @@ pub async fn version(view: View) {
 #[oxframe::scene]
 pub async fn added(view: View) {
     sea(view);
-    transition(Transition::slide(Dir::Left)).await;
     section(
         view,
         "Added",
@@ -185,7 +184,6 @@ pub async fn added(view: View) {
 #[oxframe::scene]
 pub async fn changed(view: View) {
     sea(view);
-    transition(Transition::slide(Dir::Left)).await;
     section(
         view,
         "Changed",
