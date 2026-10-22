@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.20.5 — 2026-10-22
+
+### Added
+
+- The one_shot example: the oxframe promo video, one scene and one
+  camera with no cuts, with its voice committed so it renders without a
+  key. Its source is the code behind the video on oxframe.dev and X.
+
 ## 0.20.4 — 2026-10-22
 
 ### Fixed
