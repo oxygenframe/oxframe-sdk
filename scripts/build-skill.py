@@ -99,8 +99,8 @@ def main() -> None:
     meta = frontmatter(files["SKILL.md"])
     if meta.get("name") != "oxframe" or meta.get("description") != DESCRIPTION:
         raise SystemExit("build-skill: SKILL.md frontmatter does not parse back")
-    # The Claude Code and Cursor manifests carry the SDK version.
-    manifests = [PLUGIN / ".claude-plugin" / "plugin.json", PLUGIN / ".cursor-plugin" / "plugin.json"]
+    # The Claude Code, Cursor and Codex manifests carry the SDK version.
+    manifests = [PLUGIN / f".{agent}-plugin" / "plugin.json" for agent in ("claude", "cursor", "codex")]
     targets = {OUT / n: t for n, t in files.items()}
     targets |= {PLUGIN / "skills" / "oxframe" / n: t for n, t in files.items()}
     # The task skills next to it (written by hand) go into the plugin as they are.

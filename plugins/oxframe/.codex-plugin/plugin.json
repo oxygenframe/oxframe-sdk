@@ -1,0 +1,33 @@
+{
+  "name": "oxframe",
+  "version": "0.20.5",
+  "description": "Make videos from code with oxframe: explainers, code walkthroughs, charts, 3D, slides and release videos as Rust scenes, checked with oxframe check and rendered to MP4 without a browser.",
+  "author": {
+    "name": "oxygenframe",
+    "url": "https://oxframe.dev"
+  },
+  "homepage": "https://oxframe.dev/agents/codex",
+  "repository": "https://github.com/oxygenframe/oxframe-sdk",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["video", "animation", "motion-graphics", "rust", "remotion-alternative", "manim", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "oxframe",
+    "shortDescription": "Videos from code, checked",
+    "longDescription": "Write explainers, code walkthroughs, charts, 3D scenes, slides and release videos as short Rust scenes. The oxframe MCP server lets the agent check every frame (text overflow, contrast, safe area, motion too fast to read), inspect the node tree at any time and render a frame, then render the video to MP4 without a browser. Includes skills for release videos, PR videos, math explainers, charts, voice-over and migration from Remotion, Manim and Motion Canvas. Needs the oxframe CLI (cargo install oxframe-cli).",
+    "developerName": "oxygenframe",
+    "category": "Developer Tools",
+    "capabilities": ["Write video scenes", "Check frames", "Render video"],
+    "websiteURL": "https://oxframe.dev",
+    "supportURL": "https://github.com/oxygenframe/oxframe-sdk/issues",
+    "defaultPrompt": [
+      "Make a 20-second video of this repo's latest release notes.",
+      "Explain binary search in a short animated video.",
+      "Turn this function into a code walkthrough video."
+    ],
+    "brandColor": "#E13238",
+    "composerIcon": "./assets/logo.svg",
+    "logo": "./assets/logo.svg"
+  }
+}

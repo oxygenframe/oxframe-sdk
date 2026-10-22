@@ -1,0 +1,20 @@
+{
+  "name": "oxframe",
+  "interface": {
+    "displayName": "oxframe"
+  },
+  "plugins": [
+    {
+      "name": "oxframe",
+      "source": {
+        "source": "local",
+        "path": "./plugins/oxframe"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

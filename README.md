@@ -63,6 +63,13 @@ git clone https://github.com/oxygenframe/oxframe-sdk
 cp -r oxframe-sdk/plugins/oxframe ~/.cursor/plugins/local/oxframe   # then reload Cursor
 ```
 
+In Codex:
+
+```sh
+codex plugin marketplace add oxygenframe/oxframe-sdk
+codex plugin add oxframe@oxframe
+```
+
 All of them need the CLI: `cargo install oxframe-cli` (or the
 [install script](https://github.com/oxygenframe/oxframe-cli)). Every release
 gets a video of its notes from
