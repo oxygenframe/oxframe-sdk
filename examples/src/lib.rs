@@ -39,6 +39,7 @@ pub mod relative;
 pub mod release;
 pub mod shapes;
 pub mod showcase;
+pub mod showreel;
 pub mod slides;
 pub mod sounds;
 pub mod splash;
@@ -73,6 +74,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("table_sort", table_sort::project),
         ("slides", slides::project),
         ("cube_3d", cube_3d::project),
+        ("showreel", showreel::project),
         ("linear_map", linear_map::project),
         ("video", video::project),
         ("components", components::project),

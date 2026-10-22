@@ -562,7 +562,11 @@ fn too_fast_motion(samples: &[Sample], size: (u32, u32), limits: &Limits) -> Vec
                 continue;
             }
             let (x, y) = center(n);
-            if let Some(i) = open.iter().position(|r| r.node.id == n.id) {
+            // Ids start again in every scene: the same node is the same id
+            // added at the same place, so a cut is not a move.
+            if let Some(i) = open.iter().position(|r| {
+                r.node.id == n.id && r.node.kind == n.kind && r.node.source == n.source
+            }) {
                 let prev = center(open[i].node);
                 let step = ((x - prev.0).powi(2) + (y - prev.1).powi(2)).sqrt();
                 if step > 2.0 && s.time - open[i].end <= limits.sample_step * 1.5 {
@@ -936,6 +940,22 @@ mod tests {
                 .any(|i| i.rule == "too_fast" && i.severity == Severity::Warning)
         );
         assert!(issues.iter().any(|i| i.rule == "dead_time"));
+    }
+
+    #[test]
+    fn a_cut_to_a_scene_that_reuses_the_id_is_not_a_move() {
+        // Node ids start again in every scene: id 1 of the next scene is
+        // another node, added elsewhere.
+        let mut a = node(1, "Rect", [-400.0, -40.0, -200.0, 40.0]);
+        a.source = Some("src/charts.rs:8".into());
+        let mut b = node(1, "Rect", [200.0, -40.0, 400.0, 40.0]);
+        b.source = Some("src/linear_map.rs:8".into());
+        let mut samples = vec![at(0.0, vec![a]), at(0.1, vec![b.clone()])];
+        for i in 2..6 {
+            samples.push(at(i as f64 * 0.1, vec![b.clone()]));
+        }
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, true, &limits());
+        assert!(issues.iter().all(|i| i.rule != "too_fast"), "{issues:?}");
     }
 
     #[test]

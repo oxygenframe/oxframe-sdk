@@ -13,6 +13,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - Every issue in `report.json` has `docs`: the link to its rule on
   https://oxframe.dev/docs/check-rules, with what the rule reports and how to
   fix it (`Issue::docs`).
+- The `showreel` example: scenes from other examples between a title and an
+  end card, the reel on oxframe.dev.
+
+### Fixed
+
+- `check` reported `too_fast` at a cut between two scenes when the first
+  node of each had the same id: node ids start again in every scene, and
+  a move is now only a node added at the same place.
 
 ## 0.20.0 — 2026-10-21
 
