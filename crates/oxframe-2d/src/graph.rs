@@ -801,11 +801,17 @@ impl SceneGraph {
     /// World transform of a node (including layout offsets).
     pub fn world_transform(&self, id: NodeId) -> Option<Affine> {
         // The draw list already composes transforms; reuse it for nodes
-        // that draw, and fall back to walking parents for those that don't.
+        // that draw. Those that don't (a Layout row, a transparent node) are
+        // placed by the same walk, layout included; a node outside the tree
+        // by its parents alone.
         if let Some(item) = self.draw_list().into_iter().find(|i| i.node == id) {
             return Some(item.transform);
         }
+        self.resolve_places();
         let nodes = self.nodes.borrow();
+        if let Some(Some((tf, _))) = placements(&nodes).get(id.0 as usize) {
+            return Some(*tf);
+        }
         let mut tf = Affine::IDENTITY;
         let mut cur = Some(id);
         while let Some(c) = cur {
@@ -944,14 +950,16 @@ impl SceneGraph {
             }
         }
         let nodes = self.nodes.borrow();
+        // Where every node is, drawn or not (a Layout row draws nothing).
+        let placed = placements(&nodes);
         let mut out = Vec::new();
         let mut stack = vec![Self::ROOT];
         while let Some(id) = stack.pop() {
             let n = &nodes[id.0 as usize];
             stack.extend(n.children.iter().rev());
-            let (w, h) = measure(&nodes, id);
-            let (tf, order) = drawn[id.0 as usize]
-                .unwrap_or_else(|| (transform_without_layout(&nodes, id), u32::MAX));
+            let order = drawn[id.0 as usize].map_or(u32::MAX, |(_, o)| o);
+            let (tf, (w, h)) = placed[id.0 as usize]
+                .unwrap_or_else(|| (transform_without_layout(&nodes, id), measure(&nodes, id)));
             let (text, text_overflow) = text_info(n);
             out.push(InspectNode {
                 id: id.0,
@@ -1028,8 +1036,10 @@ pub struct InspectNode {
     pub in_camera: bool,
     /// Preset of a `Shader` node: `"waves"`, `"lens_drops"` or `"custom"`.
     pub shader: Option<&'static str>,
-    /// Numeric shader parameters (`amp`, `wetness`, …) and the strength and
-    /// speed of an effect on the node (`effect.strength`). Empty otherwise.
+    /// Numeric shader parameters (`amp`, `wetness`, …), the strength and
+    /// speed of an effect on the node (`effect.strength`), how much of it is
+    /// drawn (`start` above 0, `end` below 1) and its glow or shadow
+    /// (`shadow`: blur times opacity). Empty otherwise.
     pub params: Vec<(String, f64)>,
 }
 
@@ -1049,6 +1059,19 @@ fn params_of(n: &NodeData) -> Vec<(String, f64)> {
     if let Some(e) = &n.effect {
         out.push(("effect.strength".into(), e.strength.get()));
         out.push(("effect.speed".into(), e.speed.get()));
+    }
+    // What changes the picture without moving the box: the drawn part of an
+    // outline or a text (`start`/`end`), and a glow or shadow.
+    let (start, end) = (n.start.get(), n.end.get());
+    if start > 0.0 {
+        out.push(("start".into(), start));
+    }
+    if end < 1.0 {
+        out.push(("end".into(), end));
+    }
+    let shadow = n.shadow_color.get();
+    if shadow.a > 0.0 {
+        out.push(("shadow".into(), n.shadow_blur.get() * f64::from(shadow.a)));
     }
     out
 }
@@ -1122,6 +1145,59 @@ fn aabb(tf: Affine, w: f64, h: f64) -> [f64; 4] {
         b[3] = b[3].max(p.y);
     }
     b
+}
+
+/// World transform and size of every node as [`visit`] places it, layout
+/// boxes included, whether or not the node draws anything: an empty row of
+/// a `Layout` sits where its children are drawn. `None` for detached nodes.
+fn placements(nodes: &[NodeData]) -> Vec<Option<(Affine, (f64, f64))>> {
+    fn walk(
+        nodes: &[NodeData],
+        id: NodeId,
+        parent_tf: Affine,
+        placement: Option<FlexBox>,
+        flex: Option<&FlexMap>,
+        out: &mut [Option<(Affine, (f64, f64))>],
+    ) {
+        let n = &nodes[id.0 as usize];
+        // The same size and offset as `visit`.
+        let size = match placement {
+            Some(b) if resizable(&n.kind) => {
+                let s = n.scale.get();
+                (
+                    b.size.0 / s.x.abs().max(1e-9),
+                    b.size.1 / s.y.abs().max(1e-9),
+                )
+            }
+            _ => measure(nodes, id),
+        };
+        let offset = placement.map_or(Vec2::ZERO, |b| b.center);
+        let tf = parent_tf * n.local_transform(offset, size);
+        out[id.0 as usize] = Some((tf, size));
+        let own;
+        let map: Option<&FlexMap> = match (&n.kind, flex) {
+            (NodeKind::Layout { .. }, Some(m)) => Some(m),
+            (NodeKind::Layout { .. }, None) => {
+                own = crate::flex::compute(nodes, id, &|c| measure(nodes, c)).1;
+                Some(&own)
+            }
+            _ => None,
+        };
+        for &c in &n.children {
+            let placement = map.and_then(|m| m.get(&c).copied());
+            walk(nodes, c, tf, placement, map, out);
+        }
+    }
+    let mut out = vec![None; nodes.len()];
+    walk(
+        nodes,
+        SceneGraph::ROOT,
+        Affine::IDENTITY,
+        None,
+        None,
+        &mut out,
+    );
+    out
 }
 
 fn transform_without_layout(nodes: &[NodeData], id: NodeId) -> Affine {

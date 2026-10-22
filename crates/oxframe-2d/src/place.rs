@@ -405,6 +405,34 @@ mod tests {
     }
 
     #[test]
+    fn rows_of_a_layout_are_where_they_are_drawn() {
+        // A row draws nothing itself unless it is a layer (opacity below 1);
+        // its box must still be where its children are, or `check` sees text
+        // sticking out of the wrong row.
+        let g = scene(1920, 1080, |view| {
+            let list = view.add(crate::Layout::new().column().gap(40.0));
+            for i in 0..3 {
+                let row = list.add(crate::Layout::new().row().name(format!("row{i}")));
+                row.add(Rect::new().size(100.0).name(format!("cell{i}")));
+                if i == 0 {
+                    row.opacity().set(0.5);
+                }
+            }
+        });
+        for i in 0..3 {
+            let (row, cell) = (
+                bounds(&g, &format!("row{i}")),
+                bounds(&g, &format!("cell{i}")),
+            );
+            assert_eq!(row, cell, "row {i} is not around its cell");
+        }
+        assert!(
+            bounds(&g, "row2")[1] > bounds(&g, "row1")[3],
+            "rows are stacked"
+        );
+    }
+
+    #[test]
     fn next_to_follows_move_and_resize() {
         let g = SceneGraph::new(1920, 1080);
         g.enter(|| {

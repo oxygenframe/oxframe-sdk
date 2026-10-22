@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.20.3 — 2026-10-22
+
+### Fixed
+
+- `oxframe check` reported `text_overflow` for text in a row of a `Layout`
+  nested in another one: a row that draws nothing itself was placed as if
+  there were no layout. `oxframe inspect` now gives every node the box it
+  is drawn in.
+- `oxframe check` reported `dead_time` while text was written on word by
+  word, while a glow changed and while a sea from `shaders::waves()` moved.
+  They count as change now; `oxframe inspect` lists how much of a node is
+  drawn and its glow among its params.
+
+### Changed
+
+- The `release` example: each section's heading in its color, the changes
+  written on word by word with a short halo, and a calm sea along the
+  bottom. release-video-action 1.3 makes its videos the same way.
+
 ## 0.20.2 — 2026-10-22
 
 ### Fixed

@@ -617,9 +617,15 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                 n.text.as_deref().unwrap_or(""),
                 n.fill
             ));
-            // A swell or a splash is a shader parameter, not a moved box.
+            // A swell, a splash, a text revealed word by word or a glow is a
+            // parameter, not a moved box.
             for (name, v) in &n.params {
                 out.push_str(&format!(":{name}={v:.3}"));
+            }
+            // A sea keeps moving on its own: the picture changes every frame.
+            if n.shader == Some("waves") && n.params.iter().any(|(k, v)| k == "speed" && *v != 0.0)
+            {
+                out.push_str(&format!(":t={:.3}", s.time));
             }
         }
         out
@@ -975,6 +981,45 @@ mod tests {
                 let mut sea = node(1, "Shader", [-200.0, 0.0, 200.0, 200.0]);
                 sea.params = vec![("amp".into(), 0.05 + f64::from(i) * 0.002)];
                 at(f64::from(i) * 0.1, vec![sea])
+            })
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(issues.iter().all(|i| i.rule != "dead_time"), "{issues:?}");
+    }
+
+    #[test]
+    fn a_moving_sea_is_not_dead_time() {
+        let samples: Vec<_> = (0..40)
+            .map(|i| {
+                let mut sea = node(1, "Shader", [-960.0, 300.0, 960.0, 540.0]);
+                sea.shader = Some("waves");
+                sea.params = vec![("amp".into(), 0.05), ("speed".into(), 0.6)];
+                at(f64::from(i) * 0.1, vec![sea])
+            })
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(issues.iter().all(|i| i.rule != "dead_time"), "{issues:?}");
+
+        // A sea that does not move is still a still frame.
+        let still: Vec<_> = (0..40)
+            .map(|i| {
+                let mut sea = node(1, "Shader", [-960.0, 300.0, 960.0, 540.0]);
+                sea.shader = Some("waves");
+                sea.params = vec![("amp".into(), 0.05), ("speed".into(), 0.0)];
+                at(f64::from(i) * 0.1, vec![sea])
+            })
+            .collect();
+        let issues = lint(&still, (1920, 1080), Color::BLACK, false, &limits());
+        assert!(issues.iter().any(|i| i.rule == "dead_time"), "{issues:?}");
+    }
+
+    #[test]
+    fn text_revealed_word_by_word_is_not_dead_time() {
+        let samples: Vec<_> = (0..40)
+            .map(|i| {
+                let mut line = text(1, "One word at a time", [-200.0, -20.0, 200.0, 20.0]);
+                line.params = vec![("end".into(), f64::from(i) / 40.0)];
+                at(f64::from(i) * 0.1, vec![line])
             })
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
