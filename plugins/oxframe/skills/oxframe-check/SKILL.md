@@ -11,7 +11,7 @@ Uses the `oxframe` skill (workflow, full API cheat sheet); install both with `np
 warnings do not fail it. `oxframe --json check` prints the report on stdout.
 
 Each issue has `rule`, `severity`, a time range, a node, `file:line` and (from
-oxframe 0.21) `docs`, a link to the rule's section of
+oxframe 0.20.1) `docs`, a link to the rule's section of
 https://oxframe.dev/docs/check-rules with a before and after picture. Fix
 errors first, then warnings, then run `check` again until it exits 0. Look at the
 storyboard before reporting: a clean report is necessary, not sufficient.
