@@ -5,6 +5,10 @@
 [![license](https://img.shields.io/crates/l/oxframe.svg)](https://github.com/oxygenframe/oxframe-sdk#license)
 [![playground](https://img.shields.io/badge/try-playground-e13238)](https://oxframe.dev/playground)
 
+[![The oxframe showreel: functions on axes, a lit 3D cube, a linear map and a shader sea, every frame drawn by oxframe](https://oxframe.dev/media/0.20.0/gallery/showreel.jpg)](https://oxframe.dev/)
+
+*The reel on [oxframe.dev](https://oxframe.dev), made by [`examples/src/showreel.rs`](examples/src/showreel.rs).*
+
 > **Status:** oxframe is under very active development. The API is not stable yet and may change from version to version. Pin the exact version in your Cargo.toml and check the [changelog](https://github.com/oxygenframe/oxframe-sdk/blob/main/CHANGELOG.md) before upgrading.
 
 The Rust SDK of [oxframe](https://oxframe.dev).
