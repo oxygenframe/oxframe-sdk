@@ -1,0 +1,16 @@
+{
+  "name": "oxframe",
+  "owner": {
+    "name": "oxygenframe"
+  },
+  "metadata": {
+    "description": "oxframe: videos from code that your agent can check frame by frame."
+  },
+  "plugins": [
+    {
+      "name": "oxframe",
+      "source": "plugins/oxframe",
+      "description": "Make videos from code with oxframe: 12 skills (scenes, check, render, migration from Remotion, Manim and Motion Canvas) and the oxframe MCP server (check, inspect, render a frame, docs search)."
+    }
+  ]
+}

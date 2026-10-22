@@ -54,7 +54,16 @@ In Claude Code, the plugin adds the skill and the `oxframe mcp` server:
 /plugin install oxframe@oxframe
 ```
 
-Both need the CLI: `cargo install oxframe-cli` (or the
+The same plugin works in Cursor (`.cursor-plugin/`): the skills and the
+`oxframe mcp` server. Until it is listed in the Cursor Marketplace, load it
+locally:
+
+```sh
+git clone https://github.com/oxygenframe/oxframe-sdk
+cp -r oxframe-sdk/plugins/oxframe ~/.cursor/plugins/local/oxframe   # then reload Cursor
+```
+
+All of them need the CLI: `cargo install oxframe-cli` (or the
 [install script](https://github.com/oxygenframe/oxframe-cli)). Every release
 gets a video of its notes from
 [release-video-action](https://github.com/oxygenframe/release-video-action),

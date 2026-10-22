@@ -99,8 +99,8 @@ def main() -> None:
     meta = frontmatter(files["SKILL.md"])
     if meta.get("name") != "oxframe" or meta.get("description") != DESCRIPTION:
         raise SystemExit("build-skill: SKILL.md frontmatter does not parse back")
-    plugin_json = PLUGIN / ".claude-plugin" / "plugin.json"
-    plugin = re.sub(r'"version": "[^"]*"', f'"version": "{version()}"', plugin_json.read_text())
+    # The Claude Code and Cursor manifests carry the SDK version.
+    manifests = [PLUGIN / ".claude-plugin" / "plugin.json", PLUGIN / ".cursor-plugin" / "plugin.json"]
     targets = {OUT / n: t for n, t in files.items()}
     targets |= {PLUGIN / "skills" / "oxframe" / n: t for n, t in files.items()}
     # The task skills next to it (written by hand) go into the plugin as they are.
@@ -112,7 +112,8 @@ def main() -> None:
         if meta.get("name") != other.parent.name or not meta.get("description"):
             raise SystemExit(f"build-skill: {other.relative_to(ROOT)} needs name and description")
         targets[PLUGIN / "skills" / other.parent.name / "SKILL.md"] = text
-    targets[plugin_json] = plugin
+    for manifest in manifests:
+        targets[manifest] = re.sub(r'"version": "[^"]*"', f'"version": "{version()}"', manifest.read_text())
     if "--check" in sys.argv:
         stale = [str(p.relative_to(ROOT)) for p, text in targets.items() if not p.exists() or p.read_text() != text]
         if stale:
