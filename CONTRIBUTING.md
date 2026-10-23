@@ -29,6 +29,14 @@ runs one of the bundled examples. The design principles the code follows —
 a simple outer API, one responsibility per crate, every large feature behind a
 cargo feature — are written down in [`AGENTS.md`](AGENTS.md).
 
+## Releases
+
+oxframe releases about once a week (see
+[Versions and upgrades](https://oxframe.dev/docs/versions)). Add a line for
+a user-facing change under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md);
+a breaking one gets a before → after example and waits for the next minor
+version.
+
 ## Pull requests
 
 - **Keep the user-facing API simple.** A typical scene should read as one clear
