@@ -9,7 +9,7 @@ rust-version = "1.95"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/oxygenframe/oxframe-sdk"
 homepage = "https://oxframe.dev"
-keywords = ["animation", "motion-graphics", "video", "vector-graphics", "procedural"]
+keywords = ["animation", "video", "motion-graphics", "agents", "mcp"]
 categories = ["graphics", "multimedia::video", "rendering"]
 
 [workspace.dependencies]

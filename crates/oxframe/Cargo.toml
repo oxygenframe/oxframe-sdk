@@ -1,6 +1,6 @@
 [package]
 name = "oxframe"
-description = "Procedural animation in Rust: scenes are coroutines, frames are await points"
+description = "Motion graphics and video from Rust, built for AI agents: native deterministic rendering, a storyboard-and-report check the agent reads, and an MCP server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
