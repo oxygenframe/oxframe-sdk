@@ -6,7 +6,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.21.0 — 2026-10-23
+
+### Changed
+
+- Frames are drawn on the CPU (tiny-skia) by default, in `oxframe render`
+  and in the preview of `oxframe dev` and `oxframe present`. The CPU is
+  faster than the GPU on every scene of the benchmark, and it is the
+  byte-for-byte deterministic renderer. `--gpu` opts into vello. `--cpu` is
+  still accepted and wins over `--gpu`, so existing commands keep working.
+  Before → after: `oxframe render` drew on the GPU and now draws on the
+  CPU; `oxframe render --gpu` draws on the GPU as the default used to.
 
 ### Added
 
@@ -28,6 +38,15 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   `cargo run -p oxframe-examples --features math --bin formulas -- preview`.
 - docs.rs now documents the `icons`, `3d`, `math` and `unstable-node-api`
   features.
+- CODE_OF_CONDUCT.md, SECURITY.md and CONTRIBUTING.md; plugins for Cursor
+  and Codex with the same skills and `oxframe mcp` as the Claude Code one;
+  a README quickstart from install to the first render.
+
+### Faster
+
+- The CPU renderer keeps a layer's blurred drop shadow across frames while
+  the layer does not change, instead of blurring it again on every frame. A
+  fading or blurred group keeps its cached pixels too. Output is unchanged.
 
 ## 0.20.5 — 2026-10-22
 
