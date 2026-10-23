@@ -35,6 +35,14 @@ storyboard before reporting: a clean report is necessary, not sufficient.
 | `nondeterministic` | Two paints of one frame differ | Draw only from signals and `ctx.time()`; randomness from `ctx.rng(seed)` |
 | `video_unavailable` | A clip cannot be opened | Check the path and the `video` feature; install ffmpeg |
 
+To see what an edit changed, keep the frames from before it and compare:
+`oxframe check --frames --out out/before`, edit, then
+`oxframe check --against out/before`. Each changed frame is listed with the
+share of pixels that moved and a `diff/` picture (changed pixels in red);
+an edit that changed frames it should not have shows up at once. Hard cuts
+between scenes appear on the storyboard as the last frame of one scene and
+the first of the next.
+
 `oxframe inspect --at <seconds>` prints the node tree (kind, name, bounds,
 text) when the picture is unclear; `--graph` adds the render passes.
 `oxframe snapshot --at <seconds>` writes one full-size frame. Thresholds live in

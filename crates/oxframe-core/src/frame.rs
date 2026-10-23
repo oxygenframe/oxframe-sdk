@@ -38,6 +38,33 @@ impl Image {
         writer.finish().expect("in-memory PNG");
         out
     }
+
+    /// Reads an 8-bit RGBA or RGB PNG, such as one [`encode_png`](Self::encode_png)
+    /// wrote. `None` for anything else or a broken file.
+    #[must_use]
+    pub fn decode_png(bytes: &[u8]) -> Option<Image> {
+        let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
+            .read_info()
+            .ok()?;
+        let mut buf = vec![0; reader.output_buffer_size()?];
+        let info = reader.next_frame(&mut buf).ok()?;
+        if info.bit_depth != png::BitDepth::Eight {
+            return None;
+        }
+        let data = match info.color_type {
+            png::ColorType::Rgba => buf[..info.buffer_size()].to_vec(),
+            png::ColorType::Rgb => buf[..info.buffer_size()]
+                .chunks_exact(3)
+                .flat_map(|p| [p[0], p[1], p[2], 255])
+                .collect(),
+            _ => return None,
+        };
+        Some(Image {
+            width: info.width,
+            height: info.height,
+            data,
+        })
+    }
 }
 
 impl std::fmt::Debug for Image {

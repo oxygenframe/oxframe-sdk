@@ -40,6 +40,8 @@ commands:
   check    write out/check/storyboard.png and report.json (CPU, exits 1 on errors)
              --out <dir>         output directory (default: out/check)
              --frames            also write each storyboard frame at full size
+             --against <dir>     compare the frames with an earlier --frames output;
+                                 writes diff/ and `comparison` in report.json
              --interval <s>      seconds between storyboard frames, plus every marker
              --safe-inset <px>   safe area; 0 disables that warning
              --min-contrast <n>  WCAG ratio for text (default 4.5)

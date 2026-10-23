@@ -44,6 +44,37 @@ pub struct Report {
     pub duration: f64,
     /// Problems, sorted by time.
     pub issues: Vec<Issue>,
+    /// With `check --against <dir>`: how the frames differ from that earlier
+    /// `check --frames` output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comparison: Option<Comparison>,
+}
+
+/// Frames of this check against the same frames of an earlier one.
+#[derive(Debug, Clone, Serialize)]
+pub struct Comparison {
+    /// The reference directory, as given.
+    pub against: String,
+    /// Frames that differ, in time order.
+    pub changed: Vec<FrameChange>,
+    /// How many frames are the same.
+    pub unchanged: usize,
+    /// Frames only in this check (the timing moved, or a new marker).
+    pub added: Vec<String>,
+    /// Frames only in the reference.
+    pub removed: Vec<String>,
+}
+
+/// One frame that differs from the reference.
+#[derive(Debug, Clone, Serialize)]
+pub struct FrameChange {
+    /// Its path under the check output, e.g. `frames/1.00.png`.
+    pub frame: String,
+    /// Share of pixels that changed, 0 to 1.
+    pub changed: f64,
+    /// The frame dimmed, with the changed pixels in red, e.g.
+    /// `diff/1.00.png`; none when the sizes differ.
+    pub diff: Option<String>,
 }
 
 /// Storyboard plus the report. `frames` is empty unless [`Options::full_frames`].
@@ -70,7 +101,11 @@ pub fn report(project: Project, opts: &Options) -> Result<Report, EngineError> {
         duration = duration.max(report.duration);
         issues.append(&mut report.issues);
     }
-    Ok(Report { duration, issues })
+    Ok(Report {
+        duration,
+        issues,
+        comparison: None,
+    })
 }
 
 /// Samples, lints and draws the storyboard (CPU, storyboard resolution).
@@ -118,7 +153,11 @@ pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
         }
     }
     Ok(Checked {
-        report: Report { duration, issues },
+        report: Report {
+            duration,
+            issues,
+            comparison: None,
+        },
         storyboard: storyboard.expect("at least one variant"),
         frames,
     })
@@ -208,6 +247,25 @@ fn pass(
             story: true,
         });
     }
+    // A hard cut shows both sides on the storyboard: the last frame of a
+    // scene and the first of the next. A blend already has its middle frame.
+    let scenes = engine.scenes();
+    for pair in scenes.windows(2) {
+        let (prev, next) = (&pair[0], &pair[1]);
+        if next.transition > 0 || next.start == 0 {
+            continue;
+        }
+        schedule.push(When {
+            t: f64::from(next.start - 1) / fps,
+            marker: Some(format!("{}-end", prev.name)),
+            story: true,
+        });
+        schedule.push(When {
+            t: f64::from(next.start) / fps,
+            marker: Some(next.name.clone()),
+            story: true,
+        });
+    }
     schedule.sort_by(|a, b| a.t.total_cmp(&b.t));
     schedule = dedup(schedule, fps);
     let mut samples = Vec::with_capacity(schedule.len());
@@ -294,7 +352,14 @@ fn pass(
             .then(a.rule.cmp(b.rule))
             .then(a.node.cmp(&b.node))
     });
-    Ok((Report { duration, issues }, cells))
+    Ok((
+        Report {
+            duration,
+            issues,
+            comparison: None,
+        },
+        cells,
+    ))
 }
 
 /// A rule may report a node's rect from any sample in its time range; the
@@ -448,6 +513,97 @@ fn outline(img: &mut Image, b: [f64; 4]) {
             dot(x1 - t, y);
         }
     }
+}
+
+/// A pixel counts as changed when a channel moved by more than this: below
+/// it is noise no one sees.
+const CHANGE_THRESHOLD: u8 = 8;
+
+/// Share of changed pixels and a picture of them: the current frame at a
+/// third of its brightness, changed pixels in red. `None` when the sizes
+/// differ.
+pub fn compare(reference: &Image, current: &Image) -> Option<(f64, Image)> {
+    if (reference.width, reference.height) != (current.width, current.height) {
+        return None;
+    }
+    let mut changed = 0usize;
+    let mut out = current.clone();
+    for (px, (a, b)) in out.data.chunks_exact_mut(4).zip(
+        reference
+            .data
+            .chunks_exact(4)
+            .zip(current.data.chunks_exact(4)),
+    ) {
+        if a.iter()
+            .zip(b)
+            .any(|(x, y)| x.abs_diff(*y) > CHANGE_THRESHOLD)
+        {
+            changed += 1;
+            px.copy_from_slice(&[0xff, 0x30, 0x30, 0xff]);
+        } else {
+            for c in &mut px[..3] {
+                *c /= 3;
+            }
+        }
+    }
+    let total = (current.width as usize * current.height as usize).max(1);
+    Some((changed as f64 / total as f64, out))
+}
+
+/// Compares the full-size frames of `checked` with the PNGs of the same
+/// names under `reference`, and returns the comparison plus the diff images
+/// to write (`diff/<time>.png`).
+fn against(reference: &std::path::Path, checked: &Checked) -> (Comparison, Vec<(String, Image)>) {
+    let mut comparison = Comparison {
+        against: reference.display().to_string(),
+        changed: Vec::new(),
+        unchanged: 0,
+        added: Vec::new(),
+        removed: Vec::new(),
+    };
+    let mut diffs = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for (name, image) in checked
+        .frames
+        .iter()
+        .filter(|(n, _)| n.starts_with("frames/"))
+    {
+        seen.insert(name.clone());
+        let Some(old) = std::fs::read(reference.join(name))
+            .ok()
+            .and_then(|b| Image::decode_png(&b))
+        else {
+            comparison.added.push(name.clone());
+            continue;
+        };
+        match compare(&old, image) {
+            Some((0.0, _)) => comparison.unchanged += 1,
+            Some((share, picture)) => {
+                let diff = name.replacen("frames/", "diff/", 1);
+                diffs.push((diff.clone(), picture));
+                comparison.changed.push(FrameChange {
+                    frame: name.clone(),
+                    changed: share,
+                    diff: Some(diff),
+                });
+            }
+            None => comparison.changed.push(FrameChange {
+                frame: name.clone(),
+                changed: 1.0,
+                diff: None,
+            }),
+        }
+    }
+    if let Ok(dir) = std::fs::read_dir(reference.join("frames")) {
+        let mut gone: Vec<String> = dir
+            .filter_map(Result::ok)
+            .map(|e| format!("frames/{}", e.file_name().to_string_lossy()))
+            .filter(|n| n.ends_with(".png") && !seen.contains(n))
+            .collect();
+        gone.sort();
+        comparison.removed = gone;
+    }
+    (comparison, diffs)
 }
 
 fn marker_times(engine: &Engine) -> Vec<(f64, String)> {
@@ -818,13 +974,18 @@ pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i3
         Err(e) => return crate::cli::usage_error(&e),
     };
     let started = Instant::now();
-    let checked = match check(project, &opts.spec) {
+    let mut checked = match check(project, &opts.spec) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("error: {e}");
             return crate::cli::EXIT_ERROR;
         }
     };
+    if let Some(reference) = &opts.against {
+        let (comparison, diffs) = against(reference, &checked);
+        checked.frames.extend(diffs);
+        checked.report.comparison = Some(comparison);
+    }
     if let Err(e) = write_output(&opts.out, &checked) {
         eprintln!("error: {e}");
         return crate::cli::EXIT_ENV;
@@ -840,6 +1001,28 @@ pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i3
         if let Some(crop) = &issue.crop {
             eprintln!("  crop: {}", opts.out.join(crop).display());
         }
+    }
+    if let Some(c) = &checked.report.comparison {
+        for change in &c.changed {
+            let diff = change
+                .diff
+                .as_deref()
+                .map(|d| format!(" → {}", opts.out.join(d).display()))
+                .unwrap_or_else(|| " (size differs)".into());
+            eprintln!(
+                "changed {} {:.1}%{diff}",
+                change.frame,
+                change.changed * 100.0
+            );
+        }
+        eprintln!(
+            "against {}: {} changed, {} the same, {} new, {} gone",
+            c.against,
+            c.changed.len(),
+            c.unchanged,
+            c.added.len(),
+            c.removed.len()
+        );
     }
     eprintln!(
         "check: {} issue(s), {} error(s), {:.2} s → {}/storyboard.png",
@@ -925,11 +1108,13 @@ fn inspect_engine(engine: Engine, seconds: f64, graph: bool) -> Result<String, E
 struct CheckArgs {
     out: PathBuf,
     spec: Options,
+    against: Option<PathBuf>,
 }
 
 fn parse_check(mut args: impl Iterator<Item = String>) -> Result<CheckArgs, String> {
     let mut out = PathBuf::from("out/check");
     let mut spec = Options::default();
+    let mut against = None;
     while let Some(flag) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{flag} needs a value"));
         match flag.as_str() {
@@ -947,10 +1132,15 @@ fn parse_check(mut args: impl Iterator<Item = String>) -> Result<CheckArgs, Stri
             }
             "--cell-width" => spec.cell_width = num(&value()?, "cell-width")? as u32,
             "--frames" => spec.full_frames = true,
+            // Comparing needs the full-size frames.
+            "--against" => {
+                against = Some(PathBuf::from(value()?));
+                spec.full_frames = true;
+            }
             other => return Err(format!("unknown option `{other}`")),
         }
     }
-    Ok(CheckArgs { out, spec })
+    Ok(CheckArgs { out, spec, against })
 }
 
 fn num(v: &str, name: &str) -> Result<f64, String> {
@@ -1172,6 +1362,94 @@ mod tests {
         // the crop.
         let white = count([0xff, 0xff, 0xff, 0xff]);
         assert!(white > 30 * 190, "node in the crop ({white} px)");
+    }
+
+    #[test]
+    fn compare_counts_changed_pixels_and_paints_them_red() {
+        let a = Image {
+            width: 2,
+            height: 1,
+            data: vec![10, 10, 10, 255, 200, 200, 200, 255],
+        };
+        let mut b = a.clone();
+        assert_eq!(compare(&a, &b).unwrap().0, 0.0);
+        b.data[4] = 100; // the second pixel moves; a step of 4 would not count
+        let (share, picture) = compare(&a, &b).unwrap();
+        assert!((share - 0.5).abs() < 1e-9);
+        assert_eq!(&picture.data[4..8], &[0xff, 0x30, 0x30, 0xff]);
+        assert_eq!(&picture.data[0..3], &[3, 3, 3]);
+        let small = Image {
+            width: 1,
+            height: 1,
+            data: vec![0, 0, 0, 255],
+        };
+        assert!(compare(&a, &small).is_none());
+    }
+
+    #[test]
+    fn against_reports_changed_same_added_and_gone_frames() {
+        let dir = std::env::temp_dir().join(format!("oxframe-against-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let opts = Options {
+            full_frames: true,
+            ..Options::default()
+        };
+        let before = check(project(long), &opts).unwrap();
+        write_output(&dir, &before).unwrap();
+        // One reference frame altered, one deleted, one that no check makes.
+        let frames: Vec<&String> = before
+            .frames
+            .iter()
+            .map(|(n, _)| n)
+            .filter(|n| n.starts_with("frames/"))
+            .collect();
+        let mut altered = before
+            .frames
+            .iter()
+            .find(|(n, _)| n == frames[1])
+            .unwrap()
+            .1
+            .clone();
+        for b in altered.data.iter_mut().step_by(4) {
+            *b = b.wrapping_add(100);
+        }
+        std::fs::write(dir.join(frames[1]), altered.encode_png()).unwrap();
+        std::fs::remove_file(dir.join(frames[2])).unwrap();
+        std::fs::write(dir.join("frames/99.00.png"), altered.encode_png()).unwrap();
+
+        let now = check(project(long), &opts).unwrap();
+        let (c, diffs) = against(&dir, &now);
+        assert_eq!(c.changed.len(), 1, "{c:?}");
+        assert_eq!(&c.changed[0].frame, frames[1]);
+        assert!(c.changed[0].changed > 0.9);
+        assert_eq!(diffs.len(), 1);
+        assert_eq!(c.added, vec![frames[2].clone()]);
+        assert_eq!(c.removed, vec!["frames/99.00.png".to_owned()]);
+        assert_eq!(c.unchanged, frames.len() - 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_hard_cut_puts_both_sides_on_the_storyboard() {
+        let project = Project::new("cuts")
+            .scene(scene("first", hold))
+            .scene(scene("second", hold))
+            .write_meta(false)
+            .inline_meta(BTreeMap::<String, Meta>::new());
+        let opts = Options {
+            full_frames: true,
+            ..Options::default()
+        };
+        let checked = check(project, &opts).unwrap();
+        let names: Vec<&str> = checked.frames.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(
+            names.iter().any(|n| n.ends_with("-first-end.png")),
+            "{names:?}"
+        );
+        assert!(
+            names.iter().any(|n| n.ends_with("-second.png")),
+            "{names:?}"
+        );
     }
 
     #[test]
