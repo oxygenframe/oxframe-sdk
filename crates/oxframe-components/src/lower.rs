@@ -140,3 +140,8 @@ impl NodeBuilder for ChapterMarkerBuilder {
         }
     }
 }
+
+into_node! {
+    LowerThird => |c| c.host.root;
+    ChapterMarker => |c| c.host.root;
+}

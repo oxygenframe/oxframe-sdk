@@ -6,6 +6,25 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- Components convert to `Node` (`From<X>` and `From<&X>`): `Axes`, `Callout`,
+  `CodeExplainer`, `FlowDiagram`, `LowerThird`, `ChapterMarker`, `Matrix`,
+  `Table`, `TitleCard`, `EndCard`, `BulletList` go wherever a node does, e.g.
+  `caption.next_to(&end_card, Side::Bottom)`.
+- `Txt::font_size`, `Txt::weight` and `Code::font_size` take integers too:
+  `.font_size(64)`.
+
+### Breaking
+
+- `Signal::set` takes `impl Into<T>`, like `Signal::to`, so
+  `text.set("Done")` and `fill.set(Accent)` work. A value converted with a
+  bare `.into()` no longer infers its type: drop the `.into()`.
+  Before: `m.cell(0, 1).text().set("7".into());` → after:
+  `m.cell(0, 1).text().set("7");`
+
 ## 0.22.0 — 2026-10-23
 
 ### Added

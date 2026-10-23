@@ -10,6 +10,24 @@
 
 #![warn(missing_docs)]
 
+/// `From<X>` and `From<&X>` for `Node`, so a component goes wherever a node
+/// does: `caption.next_to(&end_card, Side::Bottom)`. Invoked in each
+/// component's module, where its root field is visible.
+macro_rules! into_node {
+    ($($t:ty => |$c:ident| $root:expr;)*) => {$(
+        impl From<$t> for oxframe_2d::Node {
+            fn from($c: $t) -> oxframe_2d::Node {
+                $root
+            }
+        }
+        impl From<&$t> for oxframe_2d::Node {
+            fn from($c: &$t) -> oxframe_2d::Node {
+                $root
+            }
+        }
+    )*};
+}
+
 mod axes;
 mod callout;
 mod code;

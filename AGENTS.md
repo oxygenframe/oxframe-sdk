@@ -138,7 +138,7 @@ page per stop.
 ```rust
 let a = view.add(Matrix::new([[1, 2], [3, 4]]).font_size(64.0));
 a.row_frame(0).fade_in().await;          // also column_frame, cell_frame
-a.cell(0, 1).text().set("7".into());
+a.cell(0, 1).text().set("7");
 let v = axes.vector(2.0, 1.0);           // tip: v.x(), v.y(), v.to(x, y, s)
 axes.apply_matrix([[1.0, 1.0], [0.0, 1.0]], 1.5).await;
 let t = view.add(Table::new(["Name", "Time"]).row(["a", "3 ms"]));

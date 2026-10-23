@@ -773,7 +773,7 @@ impl CodeText {
     /// Replaces the source immediately and cancels a running diff.
     pub fn set(&self, value: impl Into<String>) {
         self.editing.set(false);
-        self.code.set(value.into());
+        self.code.set(value);
     }
 
     /// Makes the source follow `f`, and cancels a running diff.

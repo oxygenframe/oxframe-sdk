@@ -30,8 +30,8 @@ pub async fn shear(view: View) {
     wait_for(0.5).await;
 
     // Shear: x picks up y.
-    m.cell(0, 1).text().set("1".into());
-    m.cell(0, 1).fill().set(Accent.into());
+    m.cell(0, 1).text().set("1");
+    m.cell(0, 1).fill().set(Accent);
     axes.apply_matrix([[1.0, 1.0], [0.0, 1.0]], 1.5).await;
     wait_for(0.5).await;
 
@@ -51,7 +51,7 @@ pub async fn shear(view: View) {
     for (r, row) in [[1, 0], [0, 1]].iter().enumerate() {
         for (c, value) in row.iter().enumerate() {
             m.cell(r, c).text().set(value.to_string());
-            m.cell(r, c).fill().set(Text.into());
+            m.cell(r, c).fill().set(Text);
         }
     }
     wait_for(0.6).await;

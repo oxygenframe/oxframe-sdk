@@ -289,6 +289,12 @@ impl NodeBuilder for BulletListBuilder {
     }
 }
 
+into_node! {
+    TitleCard => |c| c.host.root;
+    EndCard => |c| c.host.root;
+    BulletList => |c| c.host.root;
+}
+
 #[cfg(test)]
 mod tests {
     use oxframe_2d::{SceneGraph, View};
