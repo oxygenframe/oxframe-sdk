@@ -103,7 +103,11 @@ made with oxframe.
 | `oxframe-preview` | protocol session; native WebSocket server | session only |
 | `oxframe-protocol` | `Command` / `Event`, `meta.json` schema, TS types via `ts-rs` | yes |
 | `oxframe-macros` | `#[oxframe::scene]`, `color!`, `ease!`, `tune!` | — |
-| `oxframe` | facade: `prelude`, `Project`, `Engine`, project CLI (`render`, `preview`, `info`), browser API (`wasm` feature) | yes |
+| `oxframe-components` | ready-made blocks: `TitleCard`, `BulletList`, `CodeExplainer`, `FlowDiagram`, `Callout`, `LowerThird`, `EndCard`; `Axes` with plots, bars and vectors; `Matrix`, `Table` | yes |
+| `oxframe-3d` | `Scene3d`, meshes (cube, sphere, plane, cylinder, `.glb` models), lights, camera; deterministic software rasterizer shown through `View3d` (feature `3d`) | yes |
+| `oxframe-icons` | `icon!("lucide:server")`: Lucide, Tabler and Simple Icons; only the named icons go into the binary (feature `icons`) | — |
+| `oxframe-math` | `Math::new("x^2")`: formulas set by Typst with a bundled math font (feature `math`, not in the playground) | not used |
+| `oxframe` | facade: `prelude`, `Project`, `Engine`, project CLI (`render`, `preview`, `check`, `inspect`, `snapshot`, `info`), browser API (`wasm` feature); features `gpu`, `3d`, `icons`, `math`, `video`, `unstable-node-api` | yes |
 
 
 ## Examples
