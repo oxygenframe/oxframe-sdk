@@ -39,7 +39,7 @@ pub struct Motion {
     id: u32,
 }
 
-/// The nodes that travel, longest path first, at most [`MAX_PATHS`]. A node
+/// The nodes that travel, the 12 with the longest paths. A node
 /// that only rides along with a moving parent is left out: its parent's
 /// path says it.
 pub fn motions(samples: &[Sample], step: f64) -> Vec<Motion> {
