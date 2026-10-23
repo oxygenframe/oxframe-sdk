@@ -39,6 +39,9 @@ python3 "$sdk/scripts/check-docs.py"
 python3 "$sdk/scripts/build-skill.py" --check
 python3 "$sdk/scripts/check-skills.py"
 
+step "Every Rust snippet on the site compiles on this SDK"
+(cd "$web/apps/site" && OXFRAME_SDK_PATH="$sdk" bun scripts/check-snippets.ts)
+
 step "Site and compile service on this SDK (examples, docs, sandbox template, e2e)"
 (cd "$web" && OXFRAME_SDK_PATH="$sdk" bun run verify)
 

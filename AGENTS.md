@@ -13,8 +13,10 @@ All crates and `oxframe-cli` share one version (see CHANGELOG.md).
    the timings in `oxframe-web/apps/site/src/lib/measurements.json`. It
    requires the current site docs to mention every public API this
    version's changelog names in backticks (`scripts/check-docs.py`), and a
-   live player on the Going further pages that show a picture. Update those
-   docs before tagging. It also renders this version's changelog as an MP4
+   live player on the Going further pages that show a picture, and that
+   every Rust snippet on the site compiles on this SDK
+   (`oxframe-web/apps/site/scripts/check-snippets.ts`). Update those docs
+   before tagging. It also renders this version's changelog as an MP4
    (`target/release-check/release.mp4`) through the sibling
    `release-video-action` checkout, the CLI, and this SDK. CI alone cannot
    catch an API change that breaks the other two repositories or the images.
