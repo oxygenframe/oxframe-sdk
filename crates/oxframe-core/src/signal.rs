@@ -136,11 +136,12 @@ impl<T: Clone + 'static> Signal<T> {
         v
     }
 
-    /// Sets a plain value; removes any binding.
-    pub fn set(&self, value: T) {
+    /// Sets a plain value; removes any binding. Takes anything that converts,
+    /// like [`Signal::to`]: `text.set("Done")` on a `Signal<String>`.
+    pub fn set(&self, value: impl Into<T>) {
         *self.0.compute.borrow_mut() = None;
         self.0.dirty.set(false);
-        *self.0.value.borrow_mut() = value;
+        *self.0.value.borrow_mut() = value.into();
         self.0.notify();
     }
 

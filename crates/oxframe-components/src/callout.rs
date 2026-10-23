@@ -84,3 +84,7 @@ impl NodeBuilder for CalloutBuilder {
         }
     }
 }
+
+into_node! {
+    Callout => |c| c.host.root;
+}

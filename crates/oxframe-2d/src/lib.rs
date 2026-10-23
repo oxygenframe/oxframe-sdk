@@ -33,6 +33,7 @@ pub mod node_api;
 mod passes;
 mod place;
 pub mod post;
+mod scale;
 mod shader;
 mod sim;
 mod svg;
@@ -68,6 +69,7 @@ pub use node_api::Draw;
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerprint};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use post::{Input, Shade, ShadeOp, apply as apply_shade};
+pub use scale::{IntoScale, ScaleSignal};
 pub use shader::{ShaderDiag, draft_shaders, set_shader_budget_ms};
 pub use trim::trim;
 
