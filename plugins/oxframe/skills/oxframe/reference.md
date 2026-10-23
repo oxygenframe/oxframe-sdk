@@ -219,6 +219,19 @@ z_index anchor((ax, ay))`, and inside a `Layout`: `grow shrink basis margin alig
 Builders take values; handles return `Signal`s of the same names. Children: `.child(builder)` on a
 builder, or `handle.add(builder)` for a handle. `node.remove()`, `node.reparent(other)`.
 
+## Blocks (`oxframe add`)
+
+Ready-made pieces copied into the project, each checked to pass `oxframe check`. Each is `pub async fn` that builds its nodes in a `Group`, plays them in and returns the group (fade it out or move it after). Prefer a block over drawing the same thing by hand; edit the copied file freely.
+
+- `blocks::logo_reveal(view, name, tagline)` — mark and name centered as a pair, tagline under.
+- `blocks::stat_counter(view, value, label)` — a big number counting up, label under.
+- `blocks::progress_bar(view, label, fraction)` — bar fills to `fraction` (0–1) with the percentage counting.
+- `blocks::quote_card(view, quote, author)` — a card with the quote and the author.
+- `blocks::before_after(view, before, after)` — two cards, "After" slides in.
+- `blocks::timeline(view, &[(date, text), ..])` — a line, then each date and text in turn.
+
+`pop_in()` grows a node to its scale at the time of the call: add the node at full scale and call `pop_in()` right away; a node added with `.scale(0.0)` stays invisible.
+
 ## Components
 
 `view.add(TitleCard::new("Binary search").subtitle("O(log n)"))`, `ChapterMarker::new("1  Search")`, `BulletList::new(["Take the middle", "Compare"])`, `CodeExplainer::new(src).step(1, 1, "the middle")`, `FlowDiagram::new().edge("Client", "API").down()`, `Callout::new(node).text("here")`, `LowerThird::new("Ada").role("walks the half")`, `EndCard::new("Done").note("thanks")`. All of them: `enter().await`, `next().await`, `exit().await`. They read the theme and the safe area.
