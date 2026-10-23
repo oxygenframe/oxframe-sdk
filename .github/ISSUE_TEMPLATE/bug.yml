@@ -1,0 +1,58 @@
+name: Bug report
+description: A scene renders wrong, a command fails, or check reports something it should not.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A small scene that shows the problem is the fastest way to a fix.
+        For a security problem, use **Security → Report a vulnerability** instead of an issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: scene
+    attributes:
+      label: Scene that shows it
+      description: The smallest `src/main.rs` (or scene function) that reproduces the problem.
+      render: rust
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: The error, the `oxframe check` lines, or a frame from `oxframe snapshot --at <seconds>` (drag the PNG here).
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: "`oxframe --version` and the `oxframe` version in Cargo.toml"
+      placeholder: "oxframe-cli 0.20.5, oxframe 0.20.5"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS, CPU, and the GPU if you render with `--gpu`.
+      placeholder: "Ubuntu 24.04, x86_64, CPU render"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - render / snapshot (CPU)
+        - render with --gpu
+        - oxframe dev (editor)
+        - oxframe check
+        - oxframe mcp / an AI agent
+        - the browser playground
+        - other
+    validations:
+      required: true

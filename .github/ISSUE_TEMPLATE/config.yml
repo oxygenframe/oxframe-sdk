@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://oxframe.dev/docs
+    about: Guide lessons, the API reference and the check rules.
+  - name: Report a security problem
+    url: https://github.com/oxygenframe/oxframe-sdk/security/advisories/new
+    about: Privately, not in a public issue. See SECURITY.md.

@@ -1,0 +1,22 @@
+name: Feature request
+description: Something oxframe cannot do yet, or does in more code than it should.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: video
+    attributes:
+      label: The video you want to make
+      description: What should be on screen, and what in oxframe stops you today. A link to a reference clip helps.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: How you would like to write it
+      description: The scene code you wish worked. oxframe aims for one clear line per common task.
+      render: rust
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now
+      description: A workaround, or the tool you use instead.
