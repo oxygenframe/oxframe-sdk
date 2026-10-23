@@ -237,6 +237,9 @@ fn blend_name(blend: BlendMode) -> &'static str {
 
 /// Identity of a layer slice, including its `PushLayer` at `start` through the
 /// matching `PopLayer`. Used to reuse a layer whose vectors did not change.
+/// The outer layer's own opacity, blend, blur, clip and shadow are left out:
+/// they are applied when the layer is composited, not drawn into it, so a
+/// fading or blurred group keeps its buffer.
 pub fn layer_fingerprint(items: &[DrawItem], start: usize) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     let mut depth = 0usize;
@@ -248,7 +251,9 @@ pub fn layer_fingerprint(items: &[DrawItem], start: usize) -> u64 {
         match &item.prim {
             Primitive::PushLayer(layer) => {
                 depth += 1;
-                hash_layer(&mut hasher, layer);
+                if depth > 1 {
+                    hash_layer(&mut hasher, layer);
+                }
             }
             Primitive::PopLayer => {
                 2u8.hash(&mut hasher);
@@ -285,6 +290,22 @@ pub fn layer_fingerprint(items: &[DrawItem], start: usize) -> u64 {
                 6u8.hash(&mut hasher);
             }
         }
+    }
+    hasher.finish()
+}
+
+/// Identity of what a layer's shadow is made from besides its content: the
+/// clip and blur applied before it, and the shadow's color and blur (not its
+/// offset, which only moves it, nor the opacity it is drawn with).
+pub fn shadow_fingerprint(layer: &crate::draw::Layer) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    layer.blur.to_bits().hash(&mut hasher);
+    if let Some(path) = &layer.clip {
+        hash_path(&mut hasher, path);
+    }
+    if let Some(shadow) = &layer.shadow {
+        hash_color(&mut hasher, shadow.color);
+        shadow.blur.to_bits().hash(&mut hasher);
     }
     hasher.finish()
 }
