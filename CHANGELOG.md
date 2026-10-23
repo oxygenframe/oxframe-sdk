@@ -10,6 +10,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ### Added
 
+- `oxframe check --against <dir>` compares this check's frames with an
+  earlier `oxframe check --frames` output: each frame that changed gets a
+  share of changed pixels and `diff/<time>.png`, the frame dimmed with the
+  changed pixels in red; `report.json` gets a `comparison` (changed, the
+  same, added, removed). Check whether an edit changed only what it meant to.
+- The storyboard shows both sides of a hard cut between scenes: the last
+  frame of a scene and the first of the next.
+- `Image::decode_png`.
 - The quickstart example: install, `oxframe init` and `oxframe render` in a
   terminal, then the rendered scene plays. It is the animation in the
   README's quickstart (`scripts/readme-gif.sh` makes the GIF).
