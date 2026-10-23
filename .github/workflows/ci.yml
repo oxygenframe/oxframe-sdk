@@ -64,6 +64,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench -p oxframe-examples --bench seek
 
+  # The CPU renderer must draw the same bytes everywhere: frame hashes
+  # recorded on Linux x86_64 (examples/tests/frame-hashes.json), checked on
+  # the other systems and architectures.
+  frame-hashes:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release -p oxframe-examples --test frame_hashes
+
   os-matrix:
     if: github.ref == 'refs/heads/main'
     strategy:
