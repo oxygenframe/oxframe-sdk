@@ -16,6 +16,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   `caption.next_to(&end_card, Side::Bottom)`.
 - `Txt::font_size`, `Txt::weight` and `Code::font_size` take integers too:
   `.font_size(64)`.
+- `.scale(..)` on a builder takes one number, a pair or a `Vec2`:
+  `.scale(1.5)`, `.scale((2.0, 0.5))`, `.scale(2)`.
 
 ### Breaking
 
@@ -24,6 +26,11 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   bare `.into()` no longer infers its type: drop the `.into()`.
   Before: `m.cell(0, 1).text().set("7".into());` → after:
   `m.cell(0, 1).text().set("7");`
+- `Node::scale()` returns `ScaleSignal`, a `Signal<Vec2>` (it derefs to one)
+  whose `to` and `set` also take one number for both axes:
+  `node.scale().to(1.2, 0.3)`. Code that names the type changes.
+  Before: `let s: Signal<Vec2> = node.scale();` → after:
+  `let s: Signal<Vec2> = node.scale().signal();` (or `.into()`).
 
 ## 0.22.0 — 2026-10-23
 

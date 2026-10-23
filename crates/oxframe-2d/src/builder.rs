@@ -146,9 +146,10 @@ pub trait NodeBuilder: Sized + 'static {
         self.base().rotation = v;
         self
     }
-    /// Uniform scale; 1 is the natural size.
-    fn scale(mut self, v: f64) -> Self {
-        self.base().scale = Vec2::new(v, v);
+    /// Scale; 1 is the natural size. One number for both axes (`1.5`) or a
+    /// pair (`(2.0, 0.5)`, a `Vec2`).
+    fn scale(mut self, v: impl crate::IntoScale) -> Self {
+        self.base().scale = v.into_scale();
         self
     }
     /// Separate horizontal and vertical scale.
