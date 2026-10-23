@@ -4,6 +4,15 @@
 
 All crates and `oxframe-cli` share one version (see CHANGELOG.md).
 
+Cadence: about one release a week. Merged work collects under
+`## Unreleased` in CHANGELOG.md; do not tag a release per change. A
+breaking change (a removed or renamed API, a changed default) waits for
+the next minor version (0.21 → 0.22) and is listed under **Changed** or
+**Breaking** with a before → after example; additions and fixes may go
+out as a patch. An urgent fix (a crash, a wrong render, a broken install)
+ships on its own as a patch release. The policy for users is on
+https://oxframe.dev/docs/versions.
+
 1. `./scripts/release-check.sh` must pass. It runs this repository's CI and
    then the CLI (its project template, end to end) and the site (examples,
    docs, the compile service's sandbox template, e2e) against this
