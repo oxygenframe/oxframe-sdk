@@ -135,6 +135,13 @@ transition(Transition::shader(shaders::water_wipe().wave(0.04))).await;
 - `FlowDiagram::new().edge(a, b).icon(a, icon!(..))` puts the icon at the start of that card; `flow.icon(a) -> Option<Icon>`.
 - `Icon::from_svg(bytes, IconStyle::Stroke)` for a 24×24 SVG of your own.
 
+## Formulas (feature `math`)
+
+- Turn it on in Cargo.toml: `oxframe = { version = "…", features = ["math"] }`. Native only: the browser playground does not have it.
+- `Math::new("e^(i pi) + 1 = 0")` → `MathBuilder`; the string is Typst math syntax without the `$`: `x^2`, `x_i`, `sqrt(x)`, `(a + b) / c`, `sum_(k=1)^n`, `integral_0^1`, `alpha pi`, `vec(1, 2)`, `mat(1, 2; 3, 4)`, `"text"` in quotes. A bad formula panics when added, with Typst's message.
+- `.size(px)` font size (default as `Txt`), `.color(Ink | Color)` (default theme `Text`), `.display()` own-line style (limits above/below, full-size fractions).
+- Handle `Math` (Clone, derefs to `Node`): `color() -> Signal<Color>`, `paths() -> Vec<Path>` glyphs and rules in reading order, `formula()`. Glyphs are fills: write on with `stagger(0.08, m.paths(), |g| g.pop_in())` or `fade_in`, not `draw_on`.
+
 ## Nodes of your own (feature `unstable-node-api`)
 
 - `#[derive(Node)]` on a struct that implements `Draw` (`draw(&self, ctx: &mut DrawCtx)`, optional `size(&self) -> (f64, f64)`, default 100×100).

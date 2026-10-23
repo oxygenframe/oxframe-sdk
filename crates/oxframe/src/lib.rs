@@ -69,6 +69,10 @@ pub use oxframe_2d::{
     RichSpan, SANS, SafeArea, SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success,
     Surface, Svg, Text, TextAlign, Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
 };
+/// A formula set by Typst: `Math::new("e^(i pi) + 1 = 0")`. Behind the
+/// `math` feature.
+#[cfg(feature = "math")]
+pub use oxframe_2d::{Math, MathBuilder};
 /// 3D scenes: a world of meshes, a camera and lights, shown in the 2D
 /// scene by [`View3d`]. Behind the `3d` feature.
 #[cfg(feature = "3d")]
@@ -127,6 +131,8 @@ pub mod shaders {
 pub mod prelude {
     #[cfg(feature = "unstable-node-api")]
     pub use crate::Draw;
+    #[cfg(feature = "math")]
+    pub use crate::Math;
     #[cfg(feature = "icons")]
     pub use crate::icon;
     pub use crate::{

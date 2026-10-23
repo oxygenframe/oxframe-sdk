@@ -11,6 +11,9 @@ pub mod code_steps;
 pub mod components;
 pub mod cube_3d;
 pub mod effects;
+// Needs `--features math`; GitHub only, not on the site or in the playground.
+#[cfg(feature = "math")]
+pub mod formulas;
 pub mod gauge;
 pub mod intro;
 pub mod layout;
@@ -115,5 +118,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("learn_14_charts", learn_14_charts::project),
         ("learn_15_matrices", learn_15_matrices::project),
         ("benchmark", benchmark::project),
+        #[cfg(feature = "math")]
+        ("formulas", formulas::project),
     ]
 }

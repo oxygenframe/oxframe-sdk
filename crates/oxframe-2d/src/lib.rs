@@ -27,6 +27,8 @@ mod graph;
 mod handles;
 mod icon;
 mod image;
+#[cfg(feature = "math")]
+mod math;
 pub mod node_api;
 mod passes;
 mod place;
@@ -60,6 +62,8 @@ pub use handles::{
 };
 pub use icon::{Icon, IconBuilder, IconStyle};
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
+#[cfg(feature = "math")]
+pub use math::{Math, MathBuilder};
 pub use node_api::Draw;
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerprint};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};

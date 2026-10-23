@@ -1,0 +1,23 @@
+[package]
+name = "oxframe-math"
+description = "Typst math to SVG for oxframe's Math node (feature `math` of oxframe)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# The code is MIT OR Apache-2.0; the bundled New Computer Modern Math font
+# keeps its GUST Font License (LPPL 1.3c based, fonts/LICENSE-GUST.txt).
+license = "(MIT OR Apache-2.0) AND LPPL-1.3c"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+documentation = "https://docs.rs/oxframe-math"
+include = ["src/**", "fonts/**", "Cargo.toml", "README.md"]
+
+[dependencies]
+typst = "0.15.1"
+typst-layout = "0.15.1"
+typst-svg = "0.15.1"
+
+[lints]
+workspace = true

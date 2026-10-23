@@ -29,6 +29,9 @@ jobs:
       - run: cargo test --workspace
       - run: cargo clippy -p oxframe --all-targets --features video,unstable-node-api,icons,3d -- -D warnings
       - run: cargo test -p oxframe --features video --lib video
+      # Typst math is off by default (and never in the playground).
+      - run: cargo clippy -p oxframe-examples --all-targets --features math -- -D warnings
+      - run: cargo test -p oxframe-2d --features math --lib math
       # Acceptance numbers (seek ≤ 100 ms) are only meaningful optimized.
       - run: cargo test --release -p oxframe-examples --test acceptance
         env: { OXFRAME_SEEK_BUDGET_MS: "400" }

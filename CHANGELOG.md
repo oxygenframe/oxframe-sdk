@@ -13,9 +13,21 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - `oxframe check` writes a crop for each issue on a node:
   `out/check/issues/<n>-<rule>.png`, the part of the frame around the node
   at full resolution with the node outlined in red (up to 24 per check). In
-  `report.json` such an issue has `bounds`, the node's pixel rect at the
-  start of the issue, and `crop`, the path relative to `out/check/`. A node
-  wholly outside the frame gets the strip along the edge it is past.
+  `report.json` such an issue has `bounds`, the node's rect at the start of
+  the issue in scene units (as in `inspect`), and `crop`, the path relative
+  to `out/check/`. A node wholly outside the frame gets the strip along the
+  edge it is past.
+- `Math::new("e^(i pi) + 1 = 0")`: formulas set by Typst, behind the new
+  `math` feature (crate `oxframe-math`). `.size(px)` is the font size, as
+  for `Txt`; `.display()` sets the formula on its own line (limits above and
+  below, full-size fractions); `.color(..)` and the `color()` signal paint
+  every glyph; `paths()` are the glyphs and rules in reading order, for
+  `stagger`. The font (New Computer Modern Math) is bundled, so no TeX is
+  needed. The feature adds the Typst compiler and a 1.4 MB font, so the
+  browser playground does not have it; the `formulas` example runs with
+  `cargo run -p oxframe-examples --features math --bin formulas -- preview`.
+- docs.rs now documents the `icons`, `3d`, `math` and `unstable-node-api`
+  features.
 
 ## 0.20.5 — 2026-10-22
 

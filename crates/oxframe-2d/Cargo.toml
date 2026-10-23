@@ -11,6 +11,9 @@ keywords.workspace = true
 categories.workspace = true
 documentation = "https://docs.rs/oxframe-2d"
 
+[package.metadata.docs.rs]
+features = ["math"]
+
 [dependencies]
 oxframe-core.workspace = true
 oxframe-text.workspace = true
@@ -18,6 +21,11 @@ kurbo.workspace = true
 image.workspace = true
 usvg.workspace = true
 taffy.workspace = true
+oxframe-math = { workspace = true, optional = true }
+
+[features]
+# `Math` nodes: formulas set by Typst (adds the Typst compiler and a 1.4 MB font).
+math = ["dep:oxframe-math"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 naga = { version = "30", default-features = false, features = ["wgsl-in"] }
