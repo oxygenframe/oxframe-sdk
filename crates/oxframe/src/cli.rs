@@ -28,7 +28,7 @@ commands:
                                  --out file.png writes that file, else out/snapshots/
              --size <w>x<h>      output size (default: project size)
              --aspect <shape>    16:9, 9:16, 1:1, or all (every Project::aspects format)
-             --cpu               use the CPU renderer (tiny-skia) instead of the GPU
+             --gpu               render on the GPU (vello); the default is the CPU (tiny-skia)
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
              --no-audio          do not mux the project's soundtrack
              --subtitles <path>  also write the spoken lines as .srt or .vtt
@@ -125,6 +125,7 @@ struct RenderArgs {
     /// One shape, or every shape the project declares (`all`).
     aspect: Option<AspectPick>,
     cpu: bool,
+    gpu: bool,
     ffmpeg: Option<PathBuf>,
     no_audio: bool,
     subtitles: Option<PathBuf>,
@@ -198,7 +199,7 @@ impl RenderArgs {
                         });
                 }
                 "--cpu" => a.cpu = true,
-                "--gpu" => a.cpu = false,
+                "--gpu" => a.gpu = true,
                 "--ffmpeg" => a.ffmpeg = Some(value()?.into()),
                 "--no-audio" => a.no_audio = true,
                 "--subtitles" => a.subtitles = Some(value()?.into()),
@@ -473,15 +474,15 @@ fn break_with(
 }
 
 /// GPU renderer if compiled in and an adapter exists, else CPU.
-pub(crate) fn make_renderer(cpu: bool) -> (Box<dyn Renderer>, &'static str) {
+pub(crate) fn make_renderer(gpu: bool) -> (Box<dyn Renderer>, &'static str) {
     #[cfg(feature = "gpu")]
-    if !cpu {
+    if gpu {
         match oxframe_render::GpuRenderer::new() {
             Ok(r) => return (Box::new(r), "gpu (vello)"),
             Err(e) => eprintln!("warning: {e}; falling back to the CPU renderer"),
         }
     }
-    let _ = cpu;
+    let _ = gpu;
     (Box::new(CpuRenderer::new()), "cpu (tiny-skia)")
 }
 
@@ -716,7 +717,7 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
             return EXIT_ENV;
         }
     };
-    let (renderer, backend) = make_renderer(args.cpu);
+    let (renderer, backend) = make_renderer(args.gpu && !args.cpu);
     // From here on frames come through the generic `FrameSource`.
     let mut source = PreviewAdapter::new(engine, renderer);
     eprintln!(
@@ -796,7 +797,7 @@ fn slides(project: Project, args: &RenderArgs, path: &std::path::Path) -> i32 {
     };
     let stops = engine.slides();
     let size = args.size.unwrap_or(engine.size());
-    let (renderer, _) = make_renderer(args.cpu);
+    let (renderer, _) = make_renderer(args.gpu && !args.cpu);
     let mut source = PreviewAdapter::new(engine, renderer);
     let frames: Vec<_> = stops.iter().map(|s| source.render(s.frame, size)).collect();
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -854,7 +855,7 @@ fn snapshot(project: Project, args: &RenderArgs) -> i32 {
         return EXIT_ENV;
     }
     let size = args.size.unwrap_or(engine.size());
-    let (renderer, _) = make_renderer(args.cpu);
+    let (renderer, _) = make_renderer(args.gpu && !args.cpu);
     let mut source = PreviewAdapter::new(engine, renderer);
     let last = source.total_frames().saturating_sub(1);
     for &t in &args.at {
