@@ -41,6 +41,7 @@ pub mod ocean;
 pub mod one_shot;
 pub mod particles;
 pub mod quicksort;
+pub mod quickstart;
 pub mod relative;
 pub mod release;
 pub mod shapes;
@@ -87,6 +88,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("components", components::project),
         ("particles", particles::project),
         ("quicksort", quicksort::project),
+        ("quickstart", quickstart::project),
         ("showcase", showcase::project),
         ("effects", effects::project),
         ("shapes", shapes::project),
