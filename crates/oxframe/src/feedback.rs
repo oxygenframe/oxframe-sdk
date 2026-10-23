@@ -44,6 +44,10 @@ pub struct Report {
     pub duration: f64,
     /// Problems, sorted by time.
     pub issues: Vec<Issue>,
+    /// Nodes that travel: when they move and from where to where (see
+    /// [`crate::motion`]). `check` also draws their paths per scene.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub motion: Vec<crate::motion::Motion>,
     /// With `check --against <dir>`: how the frames differ from that earlier
     /// `check --frames` output.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -95,16 +99,20 @@ pub struct Checked {
 pub fn report(project: Project, opts: &Options) -> Result<Report, EngineError> {
     let mut issues = Vec::new();
     let mut duration = 0.0_f64;
+    let mut motion = None;
     for (label, project) in variants(project) {
         let mut report = pass(&mut Engine::new(project)?, opts, false)?.0;
         stamp(&mut report.issues, label);
         duration = duration.max(report.duration);
         issues.append(&mut report.issues);
+        // The first frame shape's; the others repeat it in other coordinates.
+        motion.get_or_insert(report.motion);
     }
     Ok(Report {
         duration,
         issues,
         comparison: None,
+        motion: motion.unwrap_or_default(),
     })
 }
 
@@ -120,6 +128,7 @@ pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
     let mut frames = Vec::new();
     let jobs = variants(project);
     let multi = jobs.len() > 1;
+    let mut motion = None;
     let mut taken = 0;
     for (label, project) in jobs {
         let mut engine = Engine::new(project)?;
@@ -129,6 +138,8 @@ pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
             .map(|l| format!("{}-", l.replace(':', "x")))
             .unwrap_or_default();
         frames.extend(crops(&mut engine, &mut report.issues, &prefix, &mut taken));
+        frames.extend(trajectories(&mut engine, &report.motion, &prefix));
+        motion.get_or_insert(std::mem::take(&mut report.motion));
         duration = duration.max(report.duration);
         issues.append(&mut report.issues);
         let board = compose(&cells, engine.project().background);
@@ -157,6 +168,7 @@ pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
             duration,
             issues,
             comparison: None,
+            motion: motion.unwrap_or_default(),
         },
         storyboard: storyboard.expect("at least one variant"),
         frames,
@@ -352,11 +364,13 @@ fn pass(
             .then(a.rule.cmp(b.rule))
             .then(a.node.cmp(&b.node))
     });
+    let motion = crate::motion::motions(&samples, opts.limits.sample_step);
     Ok((
         Report {
             duration,
             issues,
             comparison: None,
+            motion,
         },
         cells,
     ))
@@ -445,6 +459,156 @@ fn crops(
         out.push((name, img));
     }
     out
+}
+
+const TRAIL_COLORS: [[u8; 4]; 6] = [
+    [0xff, 0x5f, 0x57, 0xff],
+    [0x68, 0xab, 0xdf, 0xff],
+    [0xf5, 0xc2, 0x42, 0xff],
+    [0x5c, 0xd6, 0x8a, 0xff],
+    [0xc0, 0x84, 0xfc, 0xff],
+    [0xff, 0x9f, 0x43, 0xff],
+];
+
+/// One picture per scene in which something travels: the scene's last frame
+/// dimmed, each moving node's path in its own color from a dot (start) to a
+/// ring (end), numbered as in `report.json`'s `motion` (1 is the first).
+/// `trajectories/<scene>.png`.
+fn trajectories(
+    engine: &mut Engine,
+    motion: &[crate::motion::Motion],
+    prefix: &str,
+) -> Vec<(String, Image)> {
+    let fps = f64::from(engine.fps());
+    let size = engine.size();
+    let (cx, cy) = (f64::from(size.0) / 2.0, f64::from(size.1) / 2.0);
+    let mut cpu = CpuRenderer::new();
+    let mut out = Vec::new();
+    for scene in engine.scenes() {
+        let (t0, t1) = (
+            f64::from(scene.start) / fps,
+            f64::from(scene.start + scene.frames.saturating_sub(1)) / fps,
+        );
+        let inside: Vec<(usize, Vec<[f64; 2]>)> = motion
+            .iter()
+            .enumerate()
+            .filter_map(|(i, m)| {
+                let pts: Vec<[f64; 2]> = m
+                    .path
+                    .iter()
+                    .filter(|p| p[0] >= t0 - 1e-9 && p[0] <= t1 + 1e-9)
+                    .map(|p| [p[1] + cx, p[2] + cy])
+                    .collect();
+                let moved = pts
+                    .windows(2)
+                    .any(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]) > 0.5);
+                moved.then_some((i, pts))
+            })
+            .collect();
+        if inside.is_empty() {
+            continue;
+        }
+        let last = scene.start + scene.frames.saturating_sub(1);
+        let mut img = engine.render(last, &mut cpu, size);
+        for px in img.data.chunks_exact_mut(4) {
+            for c in &mut px[..3] {
+                *c /= 3;
+            }
+        }
+        for (n, (i, pts)) in inside.iter().enumerate() {
+            let color = TRAIL_COLORS[n % TRAIL_COLORS.len()];
+            for w in pts.windows(2) {
+                stroke(&mut img, w[0], w[1], 3.0, color);
+            }
+            if let (Some(a), Some(b)) = (pts.first(), pts.last()) {
+                disc(&mut img, *a, 7.0, color);
+                ring(&mut img, *b, 11.0, 3.0, color);
+                // Names are often call sites and collide; the number points
+                // into report.json, which has the name and `file:line`.
+                let label = (i + 1).to_string();
+                let (x, y) = (b[0] + 16.0, b[1] - 30.0);
+                let (w, h) = (label.len() as f64 * 18.0 + 10.0, 31.0);
+                for yy in (y - 5.0).max(0.0) as u32..(y - 5.0 + h).max(0.0) as u32 {
+                    for xx in (x - 5.0).max(0.0) as u32..(x - 5.0 + w).max(0.0) as u32 {
+                        put(&mut img, xx, yy, [0x10, 0x10, 0x14, 0xff]);
+                    }
+                }
+                draw_text_scaled(&mut img, x, y, &label, 3, color);
+            }
+        }
+        out.push((format!("trajectories/{prefix}{}.png", scene.name), img));
+    }
+    out
+}
+
+fn disc(img: &mut Image, c: [f64; 2], r: f64, color: [u8; 4]) {
+    let (x0, x1) = ((c[0] - r).floor() as i64, (c[0] + r).ceil() as i64);
+    let (y0, y1) = ((c[1] - r).floor() as i64, (c[1] + r).ceil() as i64);
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let (dx, dy) = (x as f64 + 0.5 - c[0], y as f64 + 0.5 - c[1]);
+            if dx * dx + dy * dy <= r * r && x >= 0 && y >= 0 {
+                put(img, x as u32, y as u32, color);
+            }
+        }
+    }
+}
+
+fn ring(img: &mut Image, c: [f64; 2], r: f64, width: f64, color: [u8; 4]) {
+    let (x0, x1) = ((c[0] - r).floor() as i64, (c[0] + r).ceil() as i64);
+    let (y0, y1) = ((c[1] - r).floor() as i64, (c[1] + r).ceil() as i64);
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let d = (x as f64 + 0.5 - c[0]).hypot(y as f64 + 0.5 - c[1]);
+            if d <= r && d >= r - width && x >= 0 && y >= 0 {
+                put(img, x as u32, y as u32, color);
+            }
+        }
+    }
+}
+
+/// A line `width` wide: discs stamped along it.
+fn stroke(img: &mut Image, a: [f64; 2], b: [f64; 2], width: f64, color: [u8; 4]) {
+    let len = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let steps = len.ceil().max(1.0) as usize;
+    for k in 0..=steps {
+        let t = k as f64 / steps as f64;
+        disc(
+            img,
+            [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+            width / 2.0,
+            color,
+        );
+    }
+}
+
+/// The storyboard's 5x7 font, `scale` pixels per dot.
+fn draw_text_scaled(img: &mut Image, x: f64, y: f64, text: &str, scale: u32, color: [u8; 4]) {
+    let mut pen = x.max(0.0) as u32;
+    let y = y.max(0.0) as u32;
+    for ch in text.chars() {
+        if pen + 6 * scale > img.width {
+            break;
+        }
+        for (row, bits) in glyph(ch).iter().enumerate() {
+            for col in 0..5u32 {
+                if bits & (1u8 << (4 - col)) == 0 {
+                    continue;
+                }
+                for dy in 0..scale {
+                    for dx in 0..scale {
+                        put(
+                            img,
+                            pen + col * scale + dx,
+                            y + row as u32 * scale + dy,
+                            color,
+                        );
+                    }
+                }
+            }
+        }
+        pen += 6 * scale;
+    }
 }
 
 /// The node's pixel rect plus a margin, clamped to the frame. A node wholly
@@ -1427,6 +1591,48 @@ mod tests {
         assert_eq!(c.removed, vec!["frames/99.00.png".to_owned()]);
         assert_eq!(c.unchanged, frames.len() - 2);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_node_that_travels_is_in_motion_and_drawn() {
+        let checked = check(project(long), &Options::default()).unwrap();
+        let m = checked
+            .report
+            .motion
+            .iter()
+            .find(|m| m.node == "box")
+            .expect("box moves");
+        assert!(m.distance > 150.0, "{m:?}");
+        // Eased in and out over 30 s: it moves visibly through the middle.
+        assert!(
+            m.moves[0][0] < 10.0 && m.moves[0][1] > 20.0,
+            "{:?}",
+            m.moves
+        );
+        let json = serde_json::to_value(&checked.report).unwrap();
+        assert_eq!(json["motion"][0]["node"], "box");
+        assert!(json["motion"][0].get("path").is_none());
+        assert!(
+            checked
+                .frames
+                .iter()
+                .any(|(n, _)| n == "trajectories/main.png")
+        );
+        // Nothing moves: no motion in the JSON, no picture.
+        let still = check(project(hold), &Options::default()).unwrap();
+        assert!(still.report.motion.is_empty());
+        assert!(
+            serde_json::to_value(&still.report)
+                .unwrap()
+                .get("motion")
+                .is_none()
+        );
+        assert!(
+            !still
+                .frames
+                .iter()
+                .any(|(n, _)| n.starts_with("trajectories/"))
+        );
     }
 
     #[test]

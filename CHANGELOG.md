@@ -15,6 +15,12 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   share of changed pixels and `diff/<time>.png`, the frame dimmed with the
   changed pixels in red; `report.json` gets a `comparison` (changed, the
   same, added, removed). Check whether an edit changed only what it meant to.
+- `oxframe check` reports where things move: `report.json` gets `motion`,
+  each node that travels with its `file:line`, the stretches of time it
+  moves visibly (`moves`, its keyframes), where it starts and ends, and the
+  length of its path; a child that only rides with its parent is left out.
+  `out/check/trajectories/<scene>.png` draws the paths on the scene's last
+  frame, numbered as in `motion`.
 - The storyboard shows both sides of a hard cut between scenes: the last
   frame of a scene and the first of the next.
 - `Image::decode_png`.
