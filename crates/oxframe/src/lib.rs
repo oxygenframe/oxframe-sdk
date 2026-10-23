@@ -66,10 +66,11 @@ pub use oxframe_2d::Draw;
 pub use oxframe_2d::{
     Accent, Background, Camera, Circle, Code, CodeText, CodeTheme, CodeTween, Custom, Danger,
     Direction, DrawCtx, DrawRng, Edge, Effect, Fast, Grid, Group, Icon, IconStyle, Img, Ink, Input,
-    Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted, Node,
-    NodeBuilder, NodeId, Normal, OnAccent, Pace, Particles, Path, Pen, Percent, Polygon, Rect,
-    RichSpan, SANS, SafeArea, SceneGraph, Shader, Side, Slow, Sm, Span, Star, Step, Success,
-    Surface, Svg, Text, TextAlign, Theme, Txt, Video, View, Warning, Xl, Xs, pct, span, waves,
+    IntoScale, Justify, Layout, LayoutAlign, Lg, Line, LineCap, LineJoin, MONO, Md, Motion, Muted,
+    Node, NodeBuilder, NodeId, Normal, OnAccent, Pace, Particles, Path, Pen, Percent, Polygon,
+    Rect, RichSpan, SANS, SafeArea, ScaleSignal, SceneGraph, Shader, Side, Slow, Sm, Span, Star,
+    Step, Success, Surface, Svg, Text, TextAlign, Theme, Txt, Video, View, Warning, Xl, Xs, pct,
+    span, waves,
 };
 /// A formula set by Typst: `Math::new("e^(i pi) + 1 = 0")`. Behind the
 /// `math` feature.

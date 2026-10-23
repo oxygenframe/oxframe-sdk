@@ -212,3 +212,7 @@ fn layers_of(n: usize, links: &[(usize, usize)]) -> Vec<usize> {
     }
     layer
 }
+
+into_node! {
+    FlowDiagram => |c| c.host.root;
+}

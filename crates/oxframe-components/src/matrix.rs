@@ -287,6 +287,10 @@ impl NodeBuilder for MatrixBuilder {
     }
 }
 
+into_node! {
+    Matrix => |c| c.node();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

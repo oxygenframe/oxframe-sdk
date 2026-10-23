@@ -56,7 +56,6 @@ impl Node {
         y: f64,
         /// Degrees, clockwise.
         rotation: f64,
-        scale: Vec2,
         opacity: f64,
         fill: Color,
         stroke: Color,
@@ -84,6 +83,13 @@ impl Node {
         basis: Option<f64>,
         margin: f64,
         align_self: Option<crate::LayoutAlign>,
+    }
+
+    /// The scale as an animatable signal; 1 is the natural size.
+    /// `to` and `set` take one number for both axes or a pair:
+    /// `node.scale().to(1.2, 0.3)`, `node.scale().set((2.0, 0.5))`.
+    pub fn scale(self) -> crate::ScaleSignal {
+        crate::ScaleSignal(with_graph(|g| g.node(self.0).scale.clone()))
     }
 
     /// Adds a child node; children are positioned relative to the parent.
@@ -773,7 +779,7 @@ impl CodeText {
     /// Replaces the source immediately and cancels a running diff.
     pub fn set(&self, value: impl Into<String>) {
         self.editing.set(false);
-        self.code.set(value.into());
+        self.code.set(value);
     }
 
     /// Makes the source follow `f`, and cancels a running diff.
@@ -1158,6 +1164,22 @@ mod tests {
         let items = g.draw_list();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].transform * Point::ZERO, Point::new(20.0, 0.0));
+    }
+
+    #[test]
+    fn scale_takes_a_number_or_a_pair() {
+        scene(|view| {
+            let r = view.add(Rect::new().scale(Vec2::new(1.6, 1.6)));
+            assert_eq!(r.scale().get(), Vec2::new(1.6, 1.6));
+            let r = view.add(Rect::new().scale(2));
+            assert_eq!(r.scale().get(), Vec2::new(2.0, 2.0));
+            r.scale().set(0.5);
+            assert_eq!(r.scale().get(), Vec2::new(0.5, 0.5));
+            r.scale().set((2.0, 0.5));
+            assert_eq!(r.scale().get(), Vec2::new(2.0, 0.5));
+            drop::<Tween<Vec2>>(r.scale().to(1.1, 0.4));
+            drop::<Tween<Vec2>>(r.scale().to(Vec2::ZERO, 0.4));
+        });
     }
 
     #[test]

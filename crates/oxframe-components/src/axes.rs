@@ -1132,6 +1132,10 @@ impl NumberLine {
     }
 }
 
+into_node! {
+    Axes => |c| c.node;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1253,7 +1257,7 @@ mod tests {
                 .collect()
         };
         let before = read(&graph);
-        graph.enter(|| a.x_range().set((-4.8..5.2).into()));
+        graph.enter(|| a.x_range().set(-4.8..5.2));
         let after = read(&graph);
         for ((name, v), (_, w)) in before.iter().zip(&after) {
             if !v.is_empty() && !w.is_empty() {
@@ -1268,7 +1272,7 @@ mod tests {
         let a = axes(&graph);
         let sin = graph.enter(|| a.plot(f64::sin));
         let first = graph.enter(|| sin.data().get());
-        graph.enter(|| a.x_range().set((0.0..10.0).into()));
+        graph.enter(|| a.x_range().set(0.0..10.0));
         assert_ne!(first, graph.enter(|| sin.data().get()));
         let p = graph.enter(|| a.c2p(5.0, 0.0));
         assert!(p.x.abs() < 1e-9 && p.y.abs() < 1e-9, "{p:?}");

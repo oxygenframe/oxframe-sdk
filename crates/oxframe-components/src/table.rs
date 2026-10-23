@@ -439,6 +439,10 @@ impl NodeBuilder for TableBuilder {
     }
 }
 
+into_node! {
+    Table => |c| c.node();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

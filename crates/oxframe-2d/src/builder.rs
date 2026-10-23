@@ -146,9 +146,10 @@ pub trait NodeBuilder: Sized + 'static {
         self.base().rotation = v;
         self
     }
-    /// Uniform scale; 1 is the natural size.
-    fn scale(mut self, v: f64) -> Self {
-        self.base().scale = Vec2::new(v, v);
+    /// Scale; 1 is the natural size. One number for both axes (`1.5`) or a
+    /// pair (`(2.0, 0.5)`, a `Vec2`).
+    fn scale(mut self, v: impl crate::IntoScale) -> Self {
+        self.base().scale = v.into_scale();
         self
     }
     /// Separate horizontal and vertical scale.
@@ -647,14 +648,14 @@ impl TxtBuilder {
         self.spans = spans.into_iter().collect();
         self
     }
-    /// Font size in pixels. Default: 48.
-    pub fn font_size(mut self, v: f64) -> Self {
-        self.style.size = v;
+    /// Font size in pixels (`64` or `64.0`). Default: 48.
+    pub fn font_size(mut self, v: impl Into<f64>) -> Self {
+        self.style.size = v.into();
         self
     }
-    /// 100..=900.
-    pub fn weight(mut self, v: f64) -> Self {
-        self.style.weight = v;
+    /// 100..=900 (`700` or `700.0`).
+    pub fn weight(mut self, v: impl Into<f64>) -> Self {
+        self.style.weight = v.into();
         self
     }
     /// [`SANS`](crate::SANS), [`MONO`](crate::MONO) or a family registered
@@ -770,9 +771,9 @@ impl CodeBuilder {
         self.theme_set = true;
         self
     }
-    /// Font size in pixels.
-    pub fn font_size(mut self, v: f64) -> Self {
-        self.style.size = v;
+    /// Font size in pixels (`32` or `32.0`).
+    pub fn font_size(mut self, v: impl Into<f64>) -> Self {
+        self.style.size = v.into();
         self
     }
     /// Line height as a multiple of the font size.

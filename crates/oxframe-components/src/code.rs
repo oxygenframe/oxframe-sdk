@@ -124,3 +124,7 @@ impl NodeBuilder for CodeExplainerBuilder {
         }
     }
 }
+
+into_node! {
+    CodeExplainer => |c| c.root;
+}

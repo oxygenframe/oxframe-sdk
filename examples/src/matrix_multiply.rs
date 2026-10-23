@@ -24,7 +24,7 @@ pub async fn multiply(view: View) {
             .x(470.0),
     );
     for cell in (0..2).flat_map(|i| c.row(i)) {
-        cell.fill().set(Muted.into());
+        cell.fill().set(Muted);
     }
     let sum = view.add(Txt::new().text("").h2().y(280.0));
     let rows = [a.row_frame(0), a.row_frame(1)];
@@ -47,7 +47,7 @@ pub async fn multiply(view: View) {
             sum.fade_in().await;
             let cell = c.cell(i, j);
             cell.text().set(value.to_string());
-            cell.fill().set(Accent.into());
+            cell.fill().set(Accent);
             wait_for(0.4).await;
             all((
                 rows[i].opacity().to(0.0, 0.3),

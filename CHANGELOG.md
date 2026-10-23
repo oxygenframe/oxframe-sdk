@@ -10,6 +10,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ### Added
 
+- Components convert to `Node` (`From<X>` and `From<&X>`): `Axes`, `Callout`,
+  `CodeExplainer`, `FlowDiagram`, `LowerThird`, `ChapterMarker`, `Matrix`,
+  `Table`, `TitleCard`, `EndCard`, `BulletList` go wherever a node does, e.g.
+  `caption.next_to(&end_card, Side::Bottom)`.
+- `Txt::font_size`, `Txt::weight` and `Code::font_size` take integers too:
+  `.font_size(64)`.
+- `.scale(..)` on a builder takes one number, a pair or a `Vec2`:
+  `.scale(1.5)`, `.scale((2.0, 0.5))`, `.scale(2)`.
 - `oxframe check`: `low_contrast` reads the pixels behind text that lies
   over a shader, an image, a video, `Custom`, particles or 3D. The frame is
   drawn without text and the ratio is the median over the text's box; it
@@ -22,10 +30,21 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   the tip, so a vector along an axis no longer puts its label on the axis
   line.
 
-### Changed
+### Breaking
 
-- `lint::Sample` has a `contrast` field (measured contrast per text node);
-  code that builds samples adds `contrast: Vec::new()`.
+- `Signal::set` takes `impl Into<T>`, like `Signal::to`, so
+  `text.set("Done")` and `fill.set(Accent)` work. A value converted with a
+  bare `.into()` no longer infers its type: drop the `.into()`.
+  Before: `m.cell(0, 1).text().set("7".into());` → after:
+  `m.cell(0, 1).text().set("7");`
+- `Node::scale()` returns `ScaleSignal`, a `Signal<Vec2>` (it derefs to one)
+  whose `to` and `set` also take one number for both axes:
+  `node.scale().to(1.2, 0.3)`. Code that names the type changes.
+  Before: `let s: Signal<Vec2> = node.scale();` → after:
+  `let s: Signal<Vec2> = node.scale().signal();` (or `.into()`).
+- `lint::Sample` has a `contrast` field (measured contrast per text node).
+  Before: `Sample { time, nodes }` → after:
+  `Sample { time, nodes, contrast: Vec::new() }`.
 
 ## 0.22.0 — 2026-10-23
 
