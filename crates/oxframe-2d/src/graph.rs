@@ -205,10 +205,10 @@ pub enum NodeKind {
         radius: Signal<f64>,
     },
     /// Pixels from a WGSL `shade` function. No children in this version.
-    /// Presets are run here; a custom `shade` is type-checked.
+    /// Presets and a custom `shade` are both run on the CPU.
     Shader {
         code: crate::shader::ShaderCode,
-        /// Built-in that runs. A custom `shade` is checked, not executed.
+        /// Built-in this node is, or `Custom` for WGSL of your own.
         preset: crate::shader::Preset,
         width: Signal<f64>,
         height: Signal<f64>,
@@ -749,6 +749,7 @@ impl SceneGraph {
         self.resolve_places();
         let nodes = self.nodes.borrow();
         let mut out = Vec::new();
+        crate::shader::set_scene_size((f64::from(self.size.0), f64::from(self.size.1)));
         crate::shader::clear_diags();
         for n in nodes.iter() {
             for diag in crate::shader::problems(n) {

@@ -41,6 +41,8 @@ mod text;
 mod theme;
 mod trim;
 pub mod video;
+#[cfg(not(target_arch = "wasm32"))]
+mod wgsl_cpu;
 pub use video::{VideoInfo, VideoSource, set_video_opener};
 
 pub use builder::{
@@ -70,7 +72,7 @@ pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerpri
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use post::{Input, Shade, ShadeOp, apply as apply_shade};
 pub use scale::{IntoScale, ScaleSignal};
-pub use shader::{ShaderDiag, draft_shaders, set_shader_budget_ms};
+pub use shader::{ShaderDiag, draft_shaders, set_frame_rate, set_shader_budget_ms};
 pub use trim::trim;
 
 pub use oxframe_core::{BlendMode, Color, Gradient, GradientKind, Signal};
