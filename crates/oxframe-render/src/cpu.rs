@@ -173,7 +173,16 @@ impl CpuRenderer {
             Some((p, r, _, _, _, _)) => (p, *r),
             None => (&mut *base, *full),
         };
-        let shadow = composite(dst, dst_region, buf, region, &layer, ltf, cached, &mut self.pool);
+        let shadow = composite(
+            dst,
+            dst_region,
+            buf,
+            region,
+            &layer,
+            ltf,
+            cached,
+            &mut self.pool,
+        );
         if let (Some(sk), Some(sh)) = (shadow_key, shadow) {
             match self.layers.iter_mut().find(|slot| slot.key == key) {
                 Some(slot) => slot.shadow = Some((sk, sh)),
