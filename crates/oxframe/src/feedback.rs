@@ -577,7 +577,7 @@ fn against(reference: &std::path::Path, checked: &Checked) -> (Comparison, Vec<(
             continue;
         };
         match compare(&old, image) {
-            Some((share, _)) if share == 0.0 => comparison.unchanged += 1,
+            Some((0.0, _)) => comparison.unchanged += 1,
             Some((share, picture)) => {
                 let diff = name.replacen("frames/", "diff/", 1);
                 diffs.push((diff.clone(), picture));
