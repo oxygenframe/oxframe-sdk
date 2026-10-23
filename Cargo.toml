@@ -23,6 +23,7 @@ oxframe-protocol = { path = "crates/oxframe-protocol", version = "0.20.5" }
 oxframe-macros = { path = "crates/oxframe-macros", version = "0.20.5" }
 oxframe-icons = { path = "crates/oxframe-icons", version = "0.20.5" }
 oxframe-3d = { path = "crates/oxframe-3d", version = "0.20.5" }
+oxframe-math = { path = "crates/oxframe-math", version = "0.20.5" }
 oxframe = { path = "crates/oxframe", version = "0.20.5" }
 oxframe-components = { path = "crates/oxframe-components", version = "0.20.5" }
 

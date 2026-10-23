@@ -12,6 +12,9 @@ categories.workspace = true
 documentation = "https://docs.rs/oxframe"
 readme = "../../README.md"
 
+[package.metadata.docs.rs]
+features = ["icons", "3d", "math", "unstable-node-api"]
+
 [features]
 default = ["gpu"]
 # wasm-bindgen API for running a project in the browser (playground).
@@ -30,6 +33,9 @@ icons = ["dep:oxframe-icons"]
 # 3D scenes shown in the 2D scene with `View3d` (software renderer, also in
 # the browser).
 3d = ["dep:oxframe-3d"]
+# `Math::new("x^2")`: formulas set by Typst, native only for now. Adds the
+# Typst compiler and a 1.4 MB font, so the playground does not enable it.
+math = ["oxframe-2d/math"]
 
 [dependencies]
 oxframe-core.workspace = true

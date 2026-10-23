@@ -4,6 +4,23 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# All of these come in with Typst 0.15.1 behind the `math` feature
+# (oxframe-math) and are not in a default build. Drop them when Typst moves
+# off these crates.
+ignore = [
+  # Unmaintained, no known bug: bincode and yaml (syntect and data loading
+  # in typst-library), paste (macros), rustybuzz and ttf-parser (shaping).
+  { id = "RUSTSEC-2025-0141", reason = "bincode via typst, `math` feature only" },
+  { id = "RUSTSEC-2024-0436", reason = "paste via typst, `math` feature only" },
+  { id = "RUSTSEC-2026-0206", reason = "rustybuzz via typst, `math` feature only" },
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser via typst, `math` feature only" },
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via typst, `math` feature only" },
+  { id = "RUSTSEC-2024-0320", reason = "yaml-rust via typst, `math` feature only" },
+  # quick-xml 0.38 parses CSL bibliography styles in hayagriva. oxframe-math's
+  # Typst world refuses every file, so only the bundled styles reach it.
+  { id = "RUSTSEC-2026-0194", reason = "quick-xml via hayagriva; no outside XML reaches it" },
+  { id = "RUSTSEC-2026-0195", reason = "quick-xml via hayagriva; no outside XML reaches it" },
+]
 
 [licenses]
 version = 2
@@ -24,7 +41,11 @@ allow = [
 confidence-threshold = 0.9
 # Mozilla's root certificates, behind ureq in the examples' `elevenlabs`
 # feature (the `one_shot` voice).
-exceptions = [{ allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" }]
+exceptions = [
+  { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+  # The bundled New Computer Modern Math font (GUST Font License, LPPL based).
+  { allow = ["LPPL-1.3c"], crate = "oxframe-math" },
+]
 
 [bans]
 multiple-versions = "warn"

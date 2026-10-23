@@ -17,7 +17,13 @@ serde_json = { workspace = true, optional = true }
 ureq = { version = "2", features = ["json"], optional = true }
 
 [features]
+# The `formulas` example: Typst math, kept out of the default build.
+math = ["oxframe/math"]
 elevenlabs = ["dep:base64", "dep:dotenvy", "dep:serde_json", "dep:ureq"]
+
+[[bin]]
+name = "formulas"
+required-features = ["math"]
 
 [dev-dependencies]
 criterion.workspace = true
