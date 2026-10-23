@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- The quickstart example: install, `oxframe init` and `oxframe render` in a
+  terminal, then the rendered scene plays. It is the animation in the
+  README's quickstart (`scripts/readme-gif.sh` makes the GIF).
+
 ## 0.21.0 — 2026-10-23
 
 ### Changed

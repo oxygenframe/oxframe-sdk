@@ -34,7 +34,12 @@ fn main() {
 }
 ```
 
-Install the CLI, create a project, and that scene is its `src/main.rs`:
+Install the CLI and create a project; its `src/main.rs` starts from a scene
+like this one:
+
+![Install oxframe-cli, oxframe init my-video, oxframe render, then the rendered square-to-circle scene plays — every frame drawn by oxframe](https://raw.githubusercontent.com/oxygenframe/oxframe-sdk/main/docs/quickstart.gif)
+
+*Made by [`examples/src/quickstart.rs`](examples/src/quickstart.rs) (`scripts/readme-gif.sh`); the command output is oxframe-cli 0.21.0's.*
 
 ```sh
 cargo install oxframe-cli   # needs Rust; rendering needs ffmpeg on PATH
