@@ -6,6 +6,27 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- `oxframe check`: `low_contrast` reads the pixels behind text that lies
+  over a shader, an image, a video, `Custom`, particles or 3D. The frame is
+  drawn without text and the ratio is the median over the text's box; it
+  must last 0.5 s to count, so something moving past a label is not
+  reported. Text over plain fills is judged as before.
+
+### Fixed
+
+- A vector's label (`axes.vector(..).label("i")`) sits off to the side of
+  the tip, so a vector along an axis no longer puts its label on the axis
+  line.
+
+### Changed
+
+- `lint::Sample` has a `contrast` field (measured contrast per text node);
+  code that builds samples adds `contrast: Vec::new()`.
+
 ## 0.22.0 — 2026-10-23
 
 ### Added

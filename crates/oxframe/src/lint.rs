@@ -132,6 +132,10 @@ pub struct Sample {
     pub time: f64,
     /// Nodes, including the root.
     pub nodes: Vec<InspectNode>,
+    /// Contrast of text nodes (by id) with the pixels drawn behind them,
+    /// for text over a shader, an image or a drawing of its own, where the
+    /// color behind is not one fill. Other text is judged by fills.
+    pub contrast: Vec<(u32, f64)>,
 }
 
 /// Runs every rule. `size` is the project frame in pixels.
@@ -428,9 +432,16 @@ fn text_overflow(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
             }
         }
     }
-    grouped(hits, limits, "text_overflow", Severity::Error, |px| {
-        format!("Text is {px:.0} px wider than its block. Lower font_size or raise max_width.")
-    })
+    grouped(
+        hits,
+        limits,
+        limits.out_persist.min(0.2),
+        "text_overflow",
+        Severity::Error,
+        |px| {
+            format!("Text is {px:.0} px wider than its block. Lower font_size or raise max_width.")
+        },
+    )
 }
 
 fn backdrop(sample: &Sample, text: &InspectNode, background: Color) -> Color {
@@ -469,32 +480,55 @@ fn channel(c: f32) -> f32 {
     }
 }
 
-fn contrast(a: Color, b: Color) -> f64 {
+/// WCAG contrast ratio of two colors, 1 to 21.
+pub(crate) fn contrast(a: Color, b: Color) -> f64 {
     let lum = |c: Color| 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
     let (l1, l2) = (lum(a), lum(b));
     let (hi, lo) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
     f64::from((hi + 0.05) / (lo + 0.05))
 }
 
+/// Seconds that text over drawn pixels must stay hard to read before
+/// `low_contrast` reports it.
+const PIXEL_PERSIST: f64 = 0.5;
+
 fn low_contrast(samples: &[Sample], background: Color, limits: &Limits) -> Vec<Issue> {
-    let mut hits: Vec<(f64, &InspectNode, f64)> = Vec::new();
+    // Text over drawn pixels (a shader, an image, `Custom`) is judged on
+    // them, and only when it lasts: something moving past a label for a
+    // moment is animation, not unreadable text.
+    let mut fills: Vec<(f64, &InspectNode, f64)> = Vec::new();
+    let mut pixels: Vec<(f64, &InspectNode, f64)> = Vec::new();
     for s in samples {
         for n in s.nodes.iter().filter(|n| visible(n) && is_text(n)) {
             if n.fill.a * (n.opacity as f32) < 0.8 {
                 continue;
             }
-            let ratio = contrast(n.fill, backdrop(s, n, background));
+            let (ratio, hits) = match s.contrast.iter().find(|(id, _)| *id == n.id) {
+                Some(&(_, measured)) => (measured, &mut pixels),
+                None => (contrast(n.fill, backdrop(s, n, background)), &mut fills),
+            };
             if ratio + 1e-6 < limits.min_contrast {
                 hits.push((s.time, n, ratio));
             }
         }
     }
-    grouped(hits, limits, "low_contrast", Severity::Error, |ratio| {
+    let hint = |ratio: f64| {
         format!(
             "Contrast with the background is {ratio:.1}:1, below {:.1}:1. Change the text color or what is behind it.",
             limits.min_contrast
         )
-    })
+    };
+    let quick = limits.out_persist.min(0.2);
+    let mut issues = grouped(fills, limits, quick, "low_contrast", Severity::Error, hint);
+    issues.extend(grouped(
+        pixels,
+        limits,
+        PIXEL_PERSIST,
+        "low_contrast",
+        Severity::Error,
+        hint,
+    ));
+    issues
 }
 
 fn too_fast_text(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
@@ -758,6 +792,7 @@ fn issue(
 fn grouped(
     hits: Vec<(f64, &InspectNode, f64)>,
     limits: &Limits,
+    min_persist: f64,
     rule: &'static str,
     severity: Severity,
     hint: impl Fn(f64) -> String,
@@ -766,7 +801,7 @@ fn grouped(
     let mut group: Option<(f64, f64, &InspectNode, f64)> = None;
     let flush = |g: &mut Option<(f64, f64, &InspectNode, f64)>, issues: &mut Vec<Issue>| {
         if let Some((start, end, node, px)) = g.take()
-            && persist(start, end, limits.sample_step) + 1e-6 >= limits.out_persist.min(0.2)
+            && persist(start, end, limits.sample_step) + 1e-6 >= min_persist
         {
             issues.push(issue(rule, severity, [start, end], node, hint(px)));
         }
@@ -853,7 +888,11 @@ mod tests {
     }
 
     fn at(time: f64, nodes: Vec<InspectNode>) -> Sample {
-        Sample { time, nodes }
+        Sample {
+            time,
+            nodes,
+            contrast: Vec::new(),
+        }
     }
 
     fn limits() -> Limits {

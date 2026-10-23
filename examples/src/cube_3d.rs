@@ -88,7 +88,7 @@ pub async fn diagram(view: View) {
         frame,
         "front",
         Vec3::new(0.0, 0.0, 0.5),
-        Vec2::new(150.0, 90.0),
+        Vec2::new(260.0, 170.0),
     );
 
     // One full turn while the camera moves in.
