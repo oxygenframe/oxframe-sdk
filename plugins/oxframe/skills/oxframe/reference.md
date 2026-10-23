@@ -212,7 +212,7 @@ transition(Transition::custom(|t| Blend {                 // t is eased progress
 
 `Project::new("name").theme(Theme::dark().accent(color!("#68abdf")))` — also `Theme::light()`, `midnight`, `paper`, `vivid`. Colors: `Background Surface Text Muted Accent OnAccent Success Warning Danger` (`.fill(Accent)`, `.stroke(Muted)`). Type: `.display() .h1() .h2() .body() .caption() .code()`. Space and radius: `Xs Sm Md Lg Xl` (`.padding(Md)`, `.gap(Sm)`, `.margin(Lg)`, `.radius(Lg)`). Shadow: `.elevation(Md)`. Motion: `.to(v, Normal)` (`Fast`/`Slow` too); a tween takes tokens directly, `.fill().to(Accent, Normal)`. `node.fade_in()` / `fade_out()` use the theme's normal duration. `[theme]` in `oxframe.toml` (`name`, `accent`) overrides the compiled theme. Text with no fill uses `Text`.
 
-Every node: `.name("title")` (readable in check/inspect; otherwise the `add` call site), `x y rotation scale(Vec2) opacity fill stroke line_width start end`
+Every node: `.name("title")` (readable in check/inspect; otherwise the `add` call site), `x y rotation scale opacity fill stroke line_width start end`
 (`start/end` trim outlines 0..1), `fill_gradient(Gradient) stroke_gradient dash(vec) dash_offset
 line_cap line_join blur shadow(color, blur, (dx, dy)) glow(color, blur) clip(bool) blend(BlendMode)
 z_index anchor((ax, ay))`, and inside a `Layout`: `grow shrink basis margin align_self`.
@@ -263,13 +263,13 @@ cam.reset(1.2).await;                           // back to x = y = 0, zoom 1, ro
 s.x().to(300.0, 1.0).await;                                  // seconds
 s.x().to(300.0, 1.0).ease(presets::OUT_BACK).await;           // presets::*, oxframe::bounce_out, oxframe::elastic_out, |t| t * t
 s.fill().to(color!("#68abdf"), 0.5).await;                   // colors blend in OKLab
-s.scale().to(Vec2::new(2.0, 2.0), 0.5).await;
+s.scale().to(2.0, 0.5).await;                                // one number, or (x, y)
 all((a.x().to(1.0, 1.0), b.y().to(2.0, 0.5))).await;          // together (tuple ≤ 12)
 all(cards.iter().map(|c| c.fade_in())).await;                 // together, any count
 stagger(0.1, &cards, |c| c.pop_in()).await;                   // staggered starts
 stagger(0.1, &cards, |c| async move { c.pop_in().await; c.fade_out().await; }).await;
 let first = any((a.x().to(1.0, 2.0), wait_for(0.5))).await;   // first to finish (index)
-repeat(3, || dot.scale().to(Vec2::new(1.2, 1.2), 0.3)).await;
+repeat(3, || dot.scale().to(1.2, 0.3)).await;
 spawn(loop_while(|| true, move || dot.rotation().to(dot.rotation().get() + 360.0, 2.0)));  // background loop
 wait_for(0.5).await;  next_frame().await;
 let h = spawn(async move { /* … */ }); h.await;              // background task
