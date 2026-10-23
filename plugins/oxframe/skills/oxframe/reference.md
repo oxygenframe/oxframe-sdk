@@ -310,7 +310,7 @@ x.to(1.0, 1.0).ease(ease!("slide"));     // curve editor; ease!("slide", presets
 
 - `oxframe render` runs 2-second segments in parallel (`--jobs n`, default cores ≤ 8); output bytes do not depend on n.
 
-`oxframe check [--frames]` — storyboard and `report.json` in `out/check/`. `--frames` also writes full-size PNGs. Each issue on a node gets `bounds` and a `crop`: `out/check/issues/<n>-<rule>.png`, that part of the frame at full resolution with the node outlined. Thresholds live in `oxframe.toml` `[check]`. Errors exit 1.
+`oxframe check [--frames] [--against <dir>]` — storyboard and `report.json` in `out/check/`. `--frames` also writes full-size PNGs. `--against out/before` (after `oxframe check --frames --out out/before`) lists the frames an edit changed, with `diff/` pictures, so you can confirm it changed only what you meant. Each issue on a node gets `bounds` and a `crop`: `out/check/issues/<n>-<rule>.png`, that part of the frame at full resolution with the node outlined. Thresholds live in `oxframe.toml` `[check]`. Errors exit 1.
 `oxframe inspect --at <seconds> [--scene s] [--graph]` — JSON scene tree at that time. `--graph` adds the render passes.
 `oxframe render [--out out.mp4|.webm|.mov|dir] [--format mp4|webm|prores|png] [--scene s] [--range 1..3] [--size 1280x720] [--cpu]`
 `oxframe snapshot --at <seconds> [--at …] [--scene s] [--size WxH] [--out file.png]`
