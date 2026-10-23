@@ -85,10 +85,15 @@ pub fn check(project: Project, opts: &Options) -> Result<Checked, EngineError> {
     let mut frames = Vec::new();
     let jobs = variants(project);
     let multi = jobs.len() > 1;
+    let mut taken = 0;
     for (label, project) in jobs {
         let mut engine = Engine::new(project)?;
         let (mut report, cells) = pass(&mut engine, opts, true)?;
         stamp(&mut report.issues, label);
+        let prefix = label
+            .map(|l| format!("{}-", l.replace(':', "x")))
+            .unwrap_or_default();
+        frames.extend(crops(&mut engine, &mut report.issues, &prefix, &mut taken));
         duration = duration.max(report.duration);
         issues.append(&mut report.issues);
         let board = compose(&cells, engine.project().background);
@@ -262,6 +267,8 @@ fn pass(
                 source: diag.source,
                 hint: diag.hint,
                 aspect: None,
+                bounds: None,
+                crop: None,
             });
         }
     }
@@ -274,7 +281,12 @@ fn pass(
             source,
             hint: "This frame differs when it is drawn twice. Draw from the time and ctx.rng(seed), not from saved numbers.".into(),
             aspect: None,
+            bounds: None,
+            crop: None,
         });
+    }
+    for issue in &mut issues {
+        pin_bounds(issue, &samples);
     }
     issues.sort_by(|a, b| {
         a.time[0]
@@ -283,6 +295,159 @@ fn pass(
             .then(a.node.cmp(&b.node))
     });
     Ok((Report { duration, issues }, cells))
+}
+
+/// A rule may report a node's rect from any sample in its time range; the
+/// crop is drawn at `time[0]`, so take the rect from that sample. The same
+/// name can be used twice (a loop), so the node closest to the reported
+/// rect wins.
+fn pin_bounds(issue: &mut Issue, samples: &[Sample]) {
+    let Some(reported) = issue.bounds else {
+        return;
+    };
+    let Some(sample) = samples.iter().min_by(|a, b| {
+        (a.time - issue.time[0])
+            .abs()
+            .total_cmp(&(b.time - issue.time[0]).abs())
+    }) else {
+        return;
+    };
+    let center = |b: [f64; 4]| ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0);
+    let (rx, ry) = center(reported);
+    let found = sample
+        .nodes
+        .iter()
+        .filter(|n| n.name == issue.node && n.source == issue.source)
+        .filter(|n| n.bounds.iter().all(|v| v.is_finite()))
+        .min_by(|a, b| {
+            let d = |n: &oxframe_2d::InspectNode| {
+                let (x, y) = center(n.bounds);
+                (x - rx).powi(2) + (y - ry).powi(2)
+            };
+            d(a).total_cmp(&d(b))
+        });
+    if let Some(n) = found {
+        issue.bounds = Some(n.bounds);
+    }
+}
+
+/// At most this many crops per `check`; the rest of the issues keep their
+/// `bounds` only.
+const MAX_CROPS: usize = 24;
+
+/// Full-resolution crops for the issues that have a node rect, under
+/// `issues/`, named `<n>-<rule>.png`. One render per distinct frame.
+fn crops(
+    engine: &mut Engine,
+    issues: &mut [Issue],
+    prefix: &str,
+    taken: &mut usize,
+) -> Vec<(String, Image)> {
+    let size = engine.size();
+    let mut cpu = CpuRenderer::new();
+    let mut frame: Option<(u32, Image)> = None;
+    let mut out = Vec::new();
+    for issue in issues.iter_mut() {
+        if *taken >= MAX_CROPS {
+            break;
+        }
+        let Some(scene) = issue.bounds else {
+            continue;
+        };
+        let (cx, cy) = (f64::from(size.0) / 2.0, f64::from(size.1) / 2.0);
+        let bounds = [scene[0] + cx, scene[1] + cy, scene[2] + cx, scene[3] + cy];
+        let Some(rect) = crop_rect(bounds, size) else {
+            continue;
+        };
+        let at = frame_at(issue.time[0], engine.fps(), engine.total_frames());
+        if frame.as_ref().is_none_or(|(f, _)| *f != at) {
+            frame = Some((at, engine.render(at, &mut cpu, size)));
+        }
+        let (_, full) = frame.as_ref().expect("rendered above");
+        let mut img = cut(full, rect);
+        outline(
+            &mut img,
+            [
+                bounds[0] - f64::from(rect[0]),
+                bounds[1] - f64::from(rect[1]),
+                bounds[2] - f64::from(rect[0]),
+                bounds[3] - f64::from(rect[1]),
+            ],
+        );
+        *taken += 1;
+        let name = format!("issues/{prefix}{:02}-{}.png", *taken, issue.rule);
+        issue.crop = Some(name.clone());
+        out.push((name, img));
+    }
+    out
+}
+
+/// The node's pixel rect plus a margin, clamped to the frame. A node wholly
+/// outside the frame gets the strip along the edge it is past, so the crop
+/// shows where it went missing.
+fn crop_rect(b: [f64; 4], (w, h): (u32, u32)) -> Option<[u32; 4]> {
+    if !b.iter().all(|v| v.is_finite()) || w == 0 || h == 0 {
+        return None;
+    }
+    let (fw, fh) = (f64::from(w), f64::from(h));
+    let margin = ((b[2] - b[0]).max(b[3] - b[1]) * 0.25).clamp(32.0, 160.0);
+    let strip = 160.0_f64;
+    let axis = |lo: f64, hi: f64, max: f64| -> (f64, f64) {
+        let (a, z) = ((lo - margin).max(0.0), (hi + margin).min(max));
+        if z - a >= 16.0 {
+            (a, z)
+        } else if lo >= max {
+            ((max - strip).max(0.0), max)
+        } else {
+            (0.0, strip.min(max))
+        }
+    };
+    let (x0, x1) = axis(b[0], b[2], fw);
+    let (y0, y1) = axis(b[1], b[3], fh);
+    Some([
+        x0.floor() as u32,
+        y0.floor() as u32,
+        (x1.ceil() as u32).min(w),
+        (y1.ceil() as u32).min(h),
+    ])
+}
+
+fn cut(src: &Image, [x0, y0, x1, y1]: [u32; 4]) -> Image {
+    let (w, h) = (x1 - x0, y1 - y0);
+    let mut data = Vec::with_capacity((w * h * 4) as usize);
+    for y in y0..y1 {
+        let start = ((y * src.width + x0) * 4) as usize;
+        data.extend_from_slice(&src.data[start..start + (w * 4) as usize]);
+    }
+    Image {
+        width: w,
+        height: h,
+        data,
+    }
+}
+
+/// A 2 px red frame around `b` (crop pixels); the parts outside the crop
+/// are skipped.
+fn outline(img: &mut Image, b: [f64; 4]) {
+    let red = [0xff, 0x30, 0x30, 0xff];
+    let clamp = |v: f64, max: u32| v.round().clamp(-1.0, f64::from(max)) as i64;
+    let (x0, y0) = (clamp(b[0], img.width), clamp(b[1], img.height));
+    let (x1, y1) = (clamp(b[2], img.width) - 1, clamp(b[3], img.height) - 1);
+    let mut dot = |x: i64, y: i64| {
+        if x >= 0 && y >= 0 {
+            put(img, x as u32, y as u32, red);
+        }
+    };
+    for t in 0..2 {
+        for x in x0..=x1 {
+            dot(x, y0 + t);
+            dot(x, y1 - t);
+        }
+        for y in y0..=y1 {
+            dot(x0 + t, y);
+            dot(x1 - t, y);
+        }
+    }
 }
 
 fn marker_times(engine: &Engine) -> Vec<(f64, String)> {
@@ -672,6 +837,9 @@ pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i3
         .count();
     for issue in &checked.report.issues {
         eprintln!("{}", format_issue(issue));
+        if let Some(crop) = &issue.crop {
+            eprintln!("  crop: {}", opts.out.join(crop).display());
+        }
     }
     eprintln!(
         "check: {} issue(s), {} error(s), {:.2} s → {}/storyboard.png",
@@ -957,6 +1125,77 @@ mod tests {
                 .iter()
                 .any(|i| i.rule == "out_of_frame" && i.node == "gone")
         );
+    }
+
+    #[test]
+    fn an_issue_on_a_node_gets_a_crop_with_the_node_outlined() {
+        fn edge(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    crate::Rect::new()
+                        .size(200.0)
+                        .x(900.0)
+                        .fill(Color::WHITE)
+                        .name("edge"),
+                );
+                crate::wait_for(1.0).await;
+            })
+        }
+        let checked = check(project(edge), &Options::default()).unwrap();
+        let issue = checked
+            .report
+            .issues
+            .iter()
+            .find(|i| i.rule == "out_of_frame" && i.node == "edge")
+            .expect("out_of_frame on edge");
+        let crop = issue.crop.as_deref().expect("crop path");
+        assert!(crop.starts_with("issues/01-out_of_frame"), "{crop}");
+        let json = serde_json::to_value(issue).unwrap();
+        assert_eq!(json["crop"], crop);
+        assert_eq!(json["bounds"].as_array().map(Vec::len), Some(4));
+        let (_, img) = checked
+            .frames
+            .iter()
+            .find(|(name, _)| name == crop)
+            .expect("crop image written");
+        // The rect hangs off the right edge: the crop ends at the frame edge
+        // and is smaller than the frame.
+        assert!(
+            img.width < 1920 && img.height < 1080,
+            "{}x{}",
+            img.width,
+            img.height
+        );
+        let count = |rgba: [u8; 4]| img.data.chunks(4).filter(|p| *p == rgba).count();
+        assert!(count([0xff, 0x30, 0x30, 0xff]) > 100, "outline drawn");
+        // The visible part of the rect (40 x 200 px at the right edge) is in
+        // the crop.
+        let white = count([0xff, 0xff, 0xff, 0xff]);
+        assert!(white > 30 * 190, "node in the crop ({white} px)");
+    }
+
+    #[test]
+    fn a_node_wholly_outside_gets_the_edge_strip() {
+        assert_eq!(
+            crop_rect([2000.0, 500.0, 2080.0, 580.0], (1920, 1080)),
+            Some([1760, 468, 1920, 612])
+        );
+        assert_eq!(
+            crop_rect([-300.0, -300.0, -200.0, -200.0], (1920, 1080)),
+            Some([0, 0, 160, 160])
+        );
+        assert_eq!(
+            crop_rect([100.0, 100.0, 300.0, 200.0], (1920, 1080)),
+            Some([50, 50, 350, 250])
+        );
+        assert_eq!(crop_rect([f64::NAN, 0.0, 1.0, 1.0], (1920, 1080)), None);
+    }
+
+    #[test]
+    fn report_without_check_has_no_crops() {
+        let report = report(project(parked), &Options::default()).unwrap();
+        assert!(report.issues.iter().all(|i| i.crop.is_none()));
+        assert!(report.issues.iter().any(|i| i.bounds.is_some()));
     }
 
     #[test]

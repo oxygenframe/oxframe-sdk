@@ -6,6 +6,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- `oxframe check` writes a crop for each issue on a node:
+  `out/check/issues/<n>-<rule>.png`, the part of the frame around the node
+  at full resolution with the node outlined in red (up to 24 per check). In
+  `report.json` such an issue has `bounds`, the node's pixel rect at the
+  start of the issue, and `crop`, the path relative to `out/check/`. A node
+  wholly outside the frame gets the strip along the edge it is past.
+
 ## 0.20.5 — 2026-10-22
 
 ### Added

@@ -12,7 +12,12 @@ warnings do not fail it. `oxframe --json check` prints the report on stdout.
 
 Each issue has `rule`, `severity`, a time range, a node, `file:line` and (from
 oxframe 0.20.1) `docs`, a link to the rule's section of
-https://oxframe.dev/docs/check-rules with a before and after picture. Fix
+https://oxframe.dev/docs/check-rules with a before and after picture. An issue
+tied to one node also has `bounds`, its pixel rect `[x0, y0, x1, y1]` at the
+start of the range, and (from oxframe 0.21) `crop`, a full-resolution PNG of
+that part of the frame with the node outlined in red, relative to
+`out/check/` (for example `issues/01-out_of_frame.png`). Open the crop to see
+the problem up close instead of finding it on the storyboard. Fix
 errors first, then warnings, then run `check` again until it exits 0. Look at the
 storyboard before reporting: a clean report is necessary, not sufficient.
 
