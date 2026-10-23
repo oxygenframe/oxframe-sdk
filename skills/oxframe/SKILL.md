@@ -40,3 +40,21 @@ Never run `oxframe dev` (interactive server). Never hand-edit `meta.json` unless
 
 The full cheat sheet is in [reference.md](reference.md): nodes and their
 properties, flow functions, easing, signals, text, layout, effects, meta helpers.
+
+## Recipes
+
+Reach for the right node before writing the scene:
+
+- **Explaining code** (what an expression does, why a line matters, a bug fix):
+  a `Code` node is the tool, not plain `Txt`. Show the source, then walk
+  attention through it with `.focus(first, last)` or `.focus_lines(a, b, secs)`
+  and `.dim(0.3)` on the rest; to explain parts of one expression, focus each
+  column range in turn. Morph to the next version with `.code().to(next, secs)`,
+  or use `.insert`/`.remove`/`.replace`. For a line-by-line walkthrough with a
+  note per step, `CodeExplainer::new(src).step(line, line, "note")`.
+- **Vertical (9:16) or square short:** `Project::new(..).size(1080, 1920)` for
+  portrait, `(1080, 1080)` for square — or `Project::aspects([Aspect::Portrait])`
+  and `oxframe render --aspect 9:16`. `view.is_portrait()` adapts the layout.
+- **Charts and math:** `Axes`/`NumberLine` with `.plot(..)`, `bars`, `scatter`;
+  `Matrix`, `axes.vector(..)`. A title, bullets or an end card: the components
+  (`TitleCard`, `BulletList`, `EndCard`), not hand-placed `Txt`.
