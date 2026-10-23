@@ -35,6 +35,12 @@ storyboard before reporting: a clean report is necessary, not sufficient.
 | `nondeterministic` | Two paints of one frame differ | Draw only from signals and `ctx.time()`; randomness from `ctx.rng(seed)` |
 | `video_unavailable` | A clip cannot be opened | Check the path and the `video` feature; install ffmpeg |
 
+`report.json` also lists `motion`: every node that travels, when it moves
+(`moves`, in seconds), where it starts and ends, and its `file:line`; read it
+to check timing ("does the title arrive before the voice says its name?")
+without watching the video. `out/check/trajectories/<scene>.png` draws those
+paths over the scene's last frame, numbered as in `motion`.
+
 To see what an edit changed, keep the frames from before it and compare:
 `oxframe check --frames --out out/before`, edit, then
 `oxframe check --against out/before`. Each changed frame is listed with the
