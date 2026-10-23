@@ -61,7 +61,7 @@ pub use handles::{
 pub use icon::{Icon, IconBuilder, IconStyle};
 pub use image::{ImageSource, RasterImage, VectorImage, VectorShape};
 pub use node_api::Draw;
-pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph};
+pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerprint};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use post::{Input, Shade, ShadeOp, apply as apply_shade};
 pub use shader::{ShaderDiag, draft_shaders, set_shader_budget_ms};

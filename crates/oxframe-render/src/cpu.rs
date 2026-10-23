@@ -31,6 +31,8 @@ struct CachedLayer {
     key: u64,
     region: Region,
     buf: Pixmap,
+    /// The blurred shadow made from `buf`, with the key it was made for.
+    shadow: Option<(u64, Pixmap)>,
     seen: bool,
 }
 
@@ -145,21 +147,39 @@ impl CpuRenderer {
             if let Some(slot) = self.layers.iter_mut().find(|slot| slot.key == key) {
                 slot.buf = buf.clone();
                 slot.region = region;
+                slot.shadow = None;
                 slot.seen = true;
             } else {
                 self.layers.push(CachedLayer {
                     key,
                     region,
                     buf: buf.clone(),
+                    shadow: None,
                     seen: true,
                 });
             }
         }
+        // A shadow depends on the content (key), the clip, blur and shadow
+        // paint, and the scale: while those hold, blurring it again is waste.
+        let shadow_key = layer.shadow.as_ref().map(|_| {
+            key ^ oxframe_2d::shadow_fingerprint(&layer).rotate_left(29) ^ scale_of(ltf).to_bits()
+        });
+        let slot = self.layers.iter_mut().find(|slot| slot.key == key);
+        let cached = match (shadow_key, slot) {
+            (Some(sk), Some(slot)) => slot.shadow.take().filter(|(k, _)| *k == sk).map(|(_, p)| p),
+            _ => None,
+        };
         let (dst, dst_region) = match stack.last_mut() {
             Some((p, r, _, _, _, _)) => (p, *r),
             None => (&mut *base, *full),
         };
-        composite(dst, dst_region, buf, region, &layer, ltf, &mut self.pool);
+        let shadow = composite(dst, dst_region, buf, region, &layer, ltf, cached, &mut self.pool);
+        if let (Some(sk), Some(sh)) = (shadow_key, shadow) {
+            match self.layers.iter_mut().find(|slot| slot.key == key) {
+                Some(slot) => slot.shadow = Some((sk, sh)),
+                None => self.pool.push(sh),
+            }
+        }
     }
 }
 
@@ -245,6 +265,9 @@ fn scale_of(tf: Affine) -> f64 {
     tf.determinant().abs().sqrt()
 }
 
+/// Draws a finished layer into `dst`. Its shadow is `cached` when given, else
+/// made here and returned, so the caller can keep it for the next frame.
+#[allow(clippy::too_many_arguments)]
 fn composite(
     dst: &mut Pixmap,
     dst_region: Region,
@@ -252,8 +275,9 @@ fn composite(
     region: Region,
     layer: &Layer,
     tf: Affine,
+    cached: Option<Pixmap>,
     pool: &mut Vec<Pixmap>,
-) {
+) -> Option<Pixmap> {
     let (w, h) = (buf.width() as usize, buf.height() as usize);
     let k = scale_of(tf);
     if let Some(clip) = &layer.clip
@@ -278,18 +302,22 @@ fn composite(
         blend_mode: blend_mode(layer.blend),
         quality: FilterQuality::Nearest,
     };
+    let mut made = None;
     if let Some(shadow) = &layer.shadow {
-        // Shadow = the layer's coverage tinted, blurred and offset.
-        let mut sh = buf.clone();
-        let [r, g, b, a] = shadow.color.to_rgba8().map(u32::from);
-        for px in sh.data_mut().chunks_exact_mut(4) {
-            let cov = u32::from(px[3]) * a / 255;
-            px[0] = (r * cov / 255) as u8;
-            px[1] = (g * cov / 255) as u8;
-            px[2] = (b * cov / 255) as u8;
-            px[3] = cov as u8;
-        }
-        gaussian_blur(sh.data_mut(), w, h, shadow.blur * k);
+        let sh = cached.unwrap_or_else(|| {
+            // Shadow = the layer's coverage tinted, blurred and offset.
+            let mut sh = buf.clone();
+            let [r, g, b, a] = shadow.color.to_rgba8().map(u32::from);
+            for px in sh.data_mut().chunks_exact_mut(4) {
+                let cov = u32::from(px[3]) * a / 255;
+                px[0] = (r * cov / 255) as u8;
+                px[1] = (g * cov / 255) as u8;
+                px[2] = (b * cov / 255) as u8;
+                px[3] = cov as u8;
+            }
+            gaussian_blur(sh.data_mut(), w, h, shadow.blur * k);
+            sh
+        });
         let off = linear(tf) * shadow.offset.to_point();
         dst.draw_pixmap(
             dx,
@@ -299,10 +327,11 @@ fn composite(
             Transform::from_translate(off.x as f32, off.y as f32),
             None,
         );
-        pool.push(sh);
+        made = Some(sh);
     }
     dst.draw_pixmap(dx, dy, buf.as_ref(), &paint, Transform::identity(), None);
     pool.push(buf);
+    made
 }
 
 /// The linear part of an affine map (for offsets).
