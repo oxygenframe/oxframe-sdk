@@ -6,11 +6,11 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.22.0 — 2026-10-23
 
 ### Added
 
-- `oxframe check --against <dir>` compares this check's frames with an
+- `oxframe check --against` (a directory) compares this check's frames with an
   earlier `oxframe check --frames` output: each frame that changed gets a
   share of changed pixels and `diff/<time>.png`, the frame dimmed with the
   changed pixels in red; `report.json` gets a `comparison` (changed, the
@@ -27,6 +27,12 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - The quickstart example: install, `oxframe init` and `oxframe render` in a
   terminal, then the rendered scene plays. It is the animation in the
   README's quickstart (`scripts/readme-gif.sh` makes the GIF).
+
+### Tested
+
+- CPU frames are byte-for-byte the same on Linux (x86_64 and arm64), macOS
+  (Apple Silicon) and Windows: CI renders ten examples on each and compares
+  the hashes.
 
 ## 0.21.0 — 2026-10-23
 
