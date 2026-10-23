@@ -33,6 +33,14 @@ pub struct Issue {
     /// Frame shape this was found in, when the project declares several
     /// (left out of the JSON otherwise).
     pub aspect: Option<String>,
+    /// The node's rect `[x0, y0, x1, y1]` at `time[0]` in scene units (origin
+    /// at the frame center, y down, as in `inspect`), for a visual issue tied
+    /// to one node. `None` for scene-level or compile issues.
+    pub bounds: Option<[f64; 4]>,
+    /// `check` only: path of a full-resolution PNG of the frame at `time[0]`
+    /// around [`Issue::bounds`], with the node outlined, relative to the
+    /// check output directory.
+    pub crop: Option<String>,
 }
 
 impl Issue {
@@ -46,7 +54,7 @@ impl Issue {
 impl Serialize for Issue {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut st = s.serialize_struct("Issue", 8)?;
+        let mut st = s.serialize_struct("Issue", 10)?;
         st.serialize_field("rule", self.rule)?;
         st.serialize_field("severity", &self.severity)?;
         st.serialize_field("time", &self.time)?;
@@ -55,6 +63,12 @@ impl Serialize for Issue {
         st.serialize_field("hint", &self.hint)?;
         if let Some(aspect) = &self.aspect {
             st.serialize_field("aspect", aspect)?;
+        }
+        if let Some(bounds) = &self.bounds {
+            st.serialize_field("bounds", bounds)?;
+        }
+        if let Some(crop) = &self.crop {
+            st.serialize_field("crop", crop)?;
         }
         st.serialize_field("docs", &self.docs())?;
         st.end()
@@ -166,6 +180,8 @@ pub(crate) fn voice_lines(cues: &[crate::voice::Cue]) -> Vec<Issue> {
                     "This line runs past the end of the scene. Await it, or the last words are cut."
                         .into(),
                 aspect: None,
+                bounds: None,
+                crop: None,
             });
         }
     }
@@ -182,6 +198,8 @@ pub(crate) fn voice_lines(cues: &[crate::voice::Cue]) -> Vec<Issue> {
                 hint: "This line overlaps another. Await the first before starting the next."
                     .into(),
                 aspect: None,
+                bounds: None,
+                crop: None,
             });
         }
     }
@@ -649,6 +667,8 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                         "Nothing changes for {dur:.1} s. Shorten the pause or add motion."
                     ),
                     aspect: None,
+                    bounds: None,
+                    crop: None,
                 });
             }
             start = s.time;
@@ -666,6 +686,8 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
             source: None,
             hint: format!("Nothing changes for {dur:.1} s. Shorten the pause or add motion."),
             aspect: None,
+            bounds: None,
+            crop: None,
         });
     }
     issues
@@ -728,6 +750,8 @@ fn issue(
         source: node.source.clone(),
         hint: hint.into(),
         aspect: None,
+        bounds: Some(node.bounds),
+        crop: None,
     }
 }
 
@@ -777,6 +801,8 @@ mod tests {
             source: None,
             hint: "Hold it longer.".into(),
             aspect: None,
+            bounds: None,
+            crop: None,
         };
         let json = serde_json::to_value(&issue).unwrap();
         assert_eq!(json["rule"], "too_fast");
