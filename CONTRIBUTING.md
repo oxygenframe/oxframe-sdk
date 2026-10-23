@@ -5,6 +5,9 @@ Thanks for your interest. oxframe is pre-1.0 and changing quickly — the
 every page of [oxframe.dev](https://oxframe.dev) is a reminder that the API is
 not stable yet.
 
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+Report a problem to [conduct@oxframe.dev](mailto:conduct@oxframe.dev).
+
 ## Before a big change
 
 Open an issue or a GitHub Discussion first, so we can agree on the shape of it.
