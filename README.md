@@ -34,9 +34,19 @@ fn main() {
 }
 ```
 
+Install the CLI, create a project, and that scene is its `src/main.rs`:
+
 ```sh
-cargo run --release -p oxframe-examples --bin intro -- render --out out/intro
+cargo install oxframe-cli   # needs Rust; rendering needs ffmpeg on PATH
+oxframe init my-video
+cd my-video
+oxframe dev                 # live editor — or:
+oxframe render              # writes out/my-video.mp4
 ```
+
+Or skip the install and open the [playground](https://oxframe.dev/playground).
+(`cargo run -p oxframe-examples --bin <name>` runs the bundled examples from a
+clone of this repo.)
 
 ## With an AI agent
 
