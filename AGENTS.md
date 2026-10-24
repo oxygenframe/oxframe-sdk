@@ -225,7 +225,8 @@ the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
 `local`, `world`, `screen`). A name or type that is not in `Params` fails
 `check`. Saving the file updates the next draw without a rebuild.
 `shade` runs on the CPU (about 0.13 s for a 1080p frame in a release
-build), in `check`, `render` and `dev`; the playground does not paint it.
+build, about 0.3 s in the playground), in `check`, `render`, `dev` and the
+playground.
 It cannot use textures or derivatives; an input is read with a function
 instead: `.input("photo", Input::file("photo.png"))` gives
 `sample_photo(uv)`, and `.input("scene", Input::frame())` gives

@@ -1,9 +1,8 @@
 //! A magnifying glass written in WGSL: the shader reads the frame drawn
 //! before it (`Input::frame()`) and bends it inside a moving circle.
 //!
-//! A custom WGSL shader runs on the CPU in `oxframe dev`, `check` and
-//! `render`; the playground does not paint it, so this example is on the
-//! gallery as a video.
+//! A custom WGSL shader runs on the CPU, in `oxframe dev`, `check`,
+//! `render` and the playground alike.
 
 use oxframe::prelude::*;
 

@@ -5,8 +5,7 @@
 //! preset the same on either one. The lens_drops preset reads the frame
 //! drawn before it (see [`crate::post`]). A custom `shade` is checked on
 //! every draw (a changed file is picked up without a rebuild) and run on
-//! the CPU by [`crate::wgsl_cpu`], natively; the browser build checks
-//! nothing and paints nothing for it.
+//! the CPU by [`crate::wgsl_cpu`], natively and in the browser.
 
 use std::cell::Cell;
 
@@ -105,7 +104,6 @@ pub(crate) fn waves_wgsl() -> &'static str {
     WAVES
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 const PRELUDE: &str = r#"struct Ox {
     time: f32,
     frame: f32,
@@ -126,7 +124,6 @@ struct ShadeIn {
 
 "#;
 
-#[cfg(not(target_arch = "wasm32"))]
 const EPILOGUE: &str = r#"
 struct _OxVertexOut {
     @builtin(position) pos: vec4<f32>,
@@ -357,7 +354,6 @@ pub(crate) fn raster(
                 (w, h),
             )
         }
-        #[cfg(not(target_arch = "wasm32"))]
         Preset::Custom if !reads_frame_input(n) => {
             custom(n, code, uniforms, (w, h), tf, time, opacity, (iw, ih))
         }
@@ -408,7 +404,6 @@ pub(crate) fn raster(
 /// `area` is the node's box in scene coordinates. The node reads the frame
 /// drawn before it whatever its input is named: a backdrop outside a layer
 /// is the frame.
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub(crate) fn read_frame(
     nodes: &[NodeData],
     n: &NodeData,
@@ -417,7 +412,6 @@ pub(crate) fn read_frame(
     time: f64,
     opacity: f64,
 ) -> Option<crate::post::Shade> {
-    #[cfg(not(target_arch = "wasm32"))]
     if reads_frame_input(n) {
         return custom_read_frame(nodes, n, size, tf, time, opacity);
     }
@@ -454,7 +448,6 @@ pub(crate) fn read_frame(
 
 /// The frame-reading pass of a custom shader, or nothing (with a
 /// `shader_error`) when it does not compile.
-#[cfg(not(target_arch = "wasm32"))]
 fn custom_read_frame(
     nodes: &[NodeData],
     n: &NodeData,
@@ -595,7 +588,6 @@ fn paint(
 }
 
 /// A custom `shade`, run per pixel of its own box.
-#[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn custom(
     n: &NodeData,
@@ -648,7 +640,6 @@ fn custom(
 
 /// The compiled shader of `n` and the values it reads: `ox`, the `Params`
 /// fields, and its image inputs.
-#[cfg(not(target_arch = "wasm32"))]
 fn prepare(
     n: &NodeData,
     code: &ShaderCode,
@@ -726,7 +717,6 @@ fn prepare(
 
 /// Runs `shade` for pixels `0..total`, a tile at a time. `at` gives a
 /// pixel's `ShadeIn` (uv, local, world, screen); `put` takes its color.
-#[cfg(not(target_arch = "wasm32"))]
 fn run_tiles(
     program: &crate::wgsl_cpu::Program,
     globals: &crate::wgsl_cpu::Globals,
@@ -764,7 +754,6 @@ fn run_tiles(
 /// A custom `shade` with a frame or backdrop input. It runs between the
 /// parts of the draw list, over the pixels drawn before it (see
 /// [`crate::post`]), and is painted over them inside its box.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 pub struct CustomShade {
     program: std::rc::Rc<crate::wgsl_cpu::Program>,
@@ -780,7 +769,6 @@ pub struct CustomShade {
 
 /// A node a custom shader reads: its draw list and its box in scene
 /// coordinates.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 struct NodeInput {
     name: String,
@@ -788,7 +776,6 @@ struct NodeInput {
     bounds: kurbo::Rect,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl PartialEq for NodeInput {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
@@ -802,7 +789,6 @@ impl PartialEq for NodeInput {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl std::fmt::Debug for CustomShade {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CustomShade")
@@ -812,7 +798,6 @@ impl std::fmt::Debug for CustomShade {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl PartialEq for CustomShade {
     fn eq(&self, other: &Self) -> bool {
         std::rc::Rc::ptr_eq(&self.program, &other.program)
@@ -833,7 +818,6 @@ impl PartialEq for CustomShade {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl CustomShade {
     /// Draw lists of the nodes this shader reads, in order. The engine
     /// draws each alone on a clear target of the frame's size and passes
@@ -941,7 +925,6 @@ impl CustomShade {
 }
 
 /// The part of `img` under `bounds` (scene coordinates), at least a pixel.
-#[cfg(not(target_arch = "wasm32"))]
 fn crop(img: &oxframe_core::Image, to_px: Affine, bounds: kurbo::Rect) -> RasterImage {
     let r = to_px.transform_rect_bbox(bounds);
     let clampx = |v: f64| v.clamp(0.0, f64::from(img.width)) as u32;
@@ -971,14 +954,7 @@ fn crop(img: &oxframe_core::Image, to_px: Affine, bounds: kurbo::Rect) -> Raster
     }
 }
 
-/// True when a custom shader reads the frame or the backdrop. The browser
-/// build does not run custom shaders, so there it is always false.
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn reads_frame_input(_n: &NodeData) -> bool {
-    false
-}
-
-#[cfg(not(target_arch = "wasm32"))]
+/// True when a custom shader reads the frame, the backdrop or a node.
 pub(crate) fn reads_frame_input(n: &NodeData) -> bool {
     matches!(&n.kind, NodeKind::Shader { preset: Preset::Custom, inputs, .. }
         if inputs.iter().any(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop | crate::post::Input::Node(_))))
@@ -1025,19 +1001,8 @@ fn label(n: &NodeData) -> String {
         .unwrap_or_else(|| format!("{}#{}", n.kind.name(), n.id.0))
 }
 
-#[cfg(target_arch = "wasm32")]
-fn check_wgsl(
-    _text: &str,
-    _uniforms: &[Uniform],
-    _inputs: &[&str],
-) -> Result<(), (&'static str, String)> {
-    Ok(())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 type Compiled = Result<std::rc::Rc<crate::wgsl_cpu::Program>, (&'static str, String)>;
 
-#[cfg(not(target_arch = "wasm32"))]
 thread_local! {
     /// Parsed and validated shaders by the hash of their text: a file is
     /// read on every draw, but parsed once per change.
@@ -1046,7 +1011,6 @@ thread_local! {
 }
 
 /// The shader for `text`, parsed and validated once.
-#[cfg(not(target_arch = "wasm32"))]
 fn compiled(text: &str, inputs: &[&str]) -> Compiled {
     let key = hash_bytes(format!("{text}\0{}", inputs.join(",")).as_bytes());
     if let Some(hit) = PROGRAMS.with(|p| p.borrow().get(&key).cloned()) {
@@ -1063,7 +1027,6 @@ fn compiled(text: &str, inputs: &[&str]) -> Compiled {
     result
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn compile(text: &str, inputs: &[&str]) -> Compiled {
     // After the user's text, so naga's line numbers still point into it.
     let samplers: String = inputs
@@ -1093,7 +1056,6 @@ fn compile(text: &str, inputs: &[&str]) -> Compiled {
         .ok_or(("shader_error", "the shader has no `fn shade`".to_string()))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn check_wgsl(
     text: &str,
     uniforms: &[Uniform],
@@ -1112,7 +1074,6 @@ fn check_wgsl(
 
 /// The input name in naga's error for a `sample_<name>` that no input
 /// declares.
-#[cfg(not(target_arch = "wasm32"))]
 fn missing_sampler(message: &str) -> Option<String> {
     let at = message.find("sample_")?;
     let name: String = message[at + 7..]
@@ -1131,14 +1092,12 @@ fn is_ident(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn prelude_lines() -> usize {
     PRELUDE.lines().count()
 }
 
 /// naga reports lines in the wrapped source. Subtract the prelude so the
 /// number points at the user's text.
-#[cfg(not(target_arch = "wasm32"))]
 fn shift_lines(message: &str, by: usize) -> String {
     let chars: Vec<char> = message.chars().collect();
     let mut out = String::with_capacity(message.len());
@@ -1163,7 +1122,6 @@ fn shift_lines(message: &str, by: usize) -> String {
     out
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 enum WgslTy {
     F32,
     Vec2,
@@ -1172,7 +1130,6 @@ enum WgslTy {
     Other,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn params_of(module: &naga::Module) -> Option<Vec<(String, WgslTy)>> {
     for (_, ty) in module.types.iter() {
         if ty.name.as_deref() != Some("Params") {
@@ -1194,7 +1151,6 @@ fn params_of(module: &naga::Module) -> Option<Vec<(String, WgslTy)>> {
     None
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn wgsl_ty(inner: &naga::TypeInner) -> WgslTy {
     match inner {
         naga::TypeInner::Scalar(s) if s.kind == naga::ScalarKind::Float && s.width == 4 => {
@@ -1219,7 +1175,6 @@ fn wgsl_ty(inner: &naga::TypeInner) -> WgslTy {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn params(uniforms: &[Uniform], fields: &[(String, WgslTy)]) -> Result<(), String> {
     let names: Vec<&str> = fields.iter().map(|(n, _)| n.as_str()).collect();
     let list = names.join(", ");
@@ -1254,7 +1209,6 @@ fn params(uniforms: &[Uniform], fields: &[(String, WgslTy)]) -> Result<(), Strin
     Ok(())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn type_matches(value: &UniformValue, ty: &WgslTy) -> bool {
     matches!(
         (value, ty),
@@ -1265,7 +1219,6 @@ fn type_matches(value: &UniformValue, ty: &WgslTy) -> bool {
     )
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn ty_name(ty: &WgslTy) -> &'static str {
     match ty {
         WgslTy::F32 => "f32",
@@ -1276,7 +1229,6 @@ fn ty_name(ty: &WgslTy) -> &'static str {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn value_name(value: &UniformValue) -> &'static str {
     match value {
         UniformValue::Num(_) => "a number",
