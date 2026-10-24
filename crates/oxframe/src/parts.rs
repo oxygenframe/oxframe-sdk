@@ -204,6 +204,29 @@ mod tests {
         })
     }
 
+    /// Mirrors the frame left to right inside its box (the right half).
+    fn mirror(view: View) -> BoxFuture {
+        Box::pin(async move {
+            stripes(&view);
+            view.add(
+                crate::Shader::source(
+                    "struct Params { k: f32 }
+@group(1) @binding(0) var<uniform> p: Params;
+fn shade(i: ShadeIn) -> vec4<f32> {
+    let s = i.screen / ox.resolution;
+    return sample_scene(vec2<f32>(1.0 - s.x, s.y));
+}",
+                )
+                .uniform("k", 0.0)
+                .input("scene", crate::Input::frame())
+                .width(80.0)
+                .height(90.0)
+                .x(40.0),
+            );
+            crate::wait_for(0.2).await;
+        })
+    }
+
     fn max_diff(a: &Image, b: &Image) -> u8 {
         a.data
             .iter()
@@ -220,6 +243,28 @@ mod tests {
                 img.data[i..i + 4].to_vec()
             })
             .collect()
+    }
+
+    #[test]
+    fn a_custom_shader_reads_the_frame_in_a_render() {
+        let img = draw(mirror);
+        let base = draw(plain);
+        let w = img.width;
+        // The left half is the stripes; the right half shows them mirrored.
+        assert_eq!(column(&img, 10), column(&base, 10));
+        let right = column(&img, w - 11);
+        let mirrored = column(&base, 10);
+        let worst = right
+            .iter()
+            .zip(&mirrored)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap_or(0);
+        assert!(
+            worst <= 2,
+            "right edge mirrors the left edge, off by {worst}"
+        );
+        assert_ne!(column(&img, w - 11), column(&base, w - 11));
     }
 
     #[test]

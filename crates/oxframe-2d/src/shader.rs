@@ -875,9 +875,15 @@ impl CustomShade {
     }
 }
 
-/// True when a custom shader reads the frame or the backdrop.
+/// True when a custom shader reads the frame or the backdrop. The browser
+/// build does not run custom shaders, so there it is always false.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn reads_frame_input(_n: &NodeData) -> bool {
+    false
+}
+
 #[cfg(not(target_arch = "wasm32"))]
-fn reads_frame_input(n: &NodeData) -> bool {
+pub(crate) fn reads_frame_input(n: &NodeData) -> bool {
     matches!(&n.kind, NodeKind::Shader { preset: Preset::Custom, inputs, .. }
         if inputs.iter().any(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop)))
 }

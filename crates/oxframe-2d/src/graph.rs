@@ -732,6 +732,7 @@ impl SceneGraph {
                         ..
                     }
                 )
+                || crate::shader::reads_frame_input(n)
         })
     }
 
