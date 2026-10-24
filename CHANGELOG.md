@@ -34,6 +34,9 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   reads what was drawn before it and is painted over it inside its box,
   e.g. `sample_scene(i.screen / ox.resolution)`. Calling `sample_x` with no
   input `x` is a `shader_error` that says how to add it.
+- `.offscreen()` on any node: it is drawn only for a shader that reads it
+  with `Input::node(handle)` (`sample_<name>(uv)`, `uv` across the node's
+  box), never on screen, and `check` skips it.
 
 ### Fixed
 

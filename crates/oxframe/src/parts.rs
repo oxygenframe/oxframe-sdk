@@ -5,10 +5,11 @@
 //! rest is drawn over the result. A node between `BeginEffect` and
 //! `EndEffect` is drawn alone, shaded, and laid over the frame. Parts are
 //! drawn on a clear target and laid over each other, which matches drawing
-//! the list at once for nodes with the normal blend.
+//! the list at once for nodes with the normal blend. A shader that reads
+//! an offscreen node gets that node drawn alone first.
 
 use oxframe_2d::post::over;
-use oxframe_2d::{DrawItem, Primitive, SceneGraph, apply_shade};
+use oxframe_2d::{DrawItem, Primitive, SceneGraph, apply_shade, apply_shade_with};
 use oxframe_core::{Color, Image};
 use oxframe_render::{RenderOptions, Renderer, scene_to_pixels};
 
@@ -41,7 +42,13 @@ pub(crate) fn draw_items_in_parts(
         match &items[i].prim {
             Primitive::ReadFrame(shade) => {
                 let mut img = lay(graph, renderer, &items[start..i], options, frame.take());
-                apply_shade(shade, &mut img, view);
+                // Nodes the shader reads, each drawn alone.
+                let drawn: Vec<Image> = shade
+                    .offscreen_lists()
+                    .into_iter()
+                    .map(|list| renderer.render_list(graph, list, &clear))
+                    .collect();
+                apply_shade_with(shade, &mut img, view, &drawn);
                 frame = Some(img);
                 start = i + 1;
             }
@@ -265,6 +272,49 @@ fn shade(i: ShadeIn) -> vec4<f32> {
             "right edge mirrors the left edge, off by {worst}"
         );
         assert_ne!(column(&img, w - 11), column(&base, w - 11));
+    }
+
+    /// A white square drawn only for a shader, which shows it on the
+    /// right, tinted red.
+    fn offscreen_square(view: View) -> BoxFuture {
+        Box::pin(async move {
+            let square = view.add(
+                Rect::new()
+                    .size(20.0)
+                    .x(-50.0)
+                    .fill(Color::WHITE)
+                    .offscreen(),
+            );
+            view.add(
+                crate::Shader::source(
+                    "struct Params { k: f32 }
+@group(1) @binding(0) var<uniform> p: Params;
+fn shade(i: ShadeIn) -> vec4<f32> {
+    let c = sample_square(i.uv);
+    return vec4<f32>(c.r, 0.0, 0.0, c.a);
+}",
+                )
+                .uniform("k", 0.0)
+                .input("square", crate::Input::node(square))
+                .width(40.0)
+                .height(40.0)
+                .x(50.0),
+            );
+            crate::wait_for(0.2).await;
+        })
+    }
+
+    #[test]
+    fn a_shader_reads_an_offscreen_node() {
+        let img = draw(offscreen_square);
+        let px = |x: u32, y: u32| {
+            let i = ((y * img.width + x) * 4) as usize;
+            [img.data[i], img.data[i + 1], img.data[i + 2]]
+        };
+        // Scene 160x90: the square would sit at x = 30, the shader at 130.
+        assert_eq!(px(30, 45), [0, 0, 0], "an offscreen node is not drawn");
+        assert_eq!(px(130, 45), [255, 0, 0], "the shader shows it");
+        assert_eq!(px(5, 5), [0, 0, 0]);
     }
 
     #[test]

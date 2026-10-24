@@ -50,6 +50,7 @@ pub struct BaseProps {
     pub basis: Option<f64>,
     pub margin: f64,
     pub align_self: Option<LayoutAlign>,
+    pub offscreen: bool,
     pub children: Vec<ChildBuilder>,
     /// Resolved every frame. Set by `next_to`, `align_to`, `to_edge`, `center_in`.
     pub place: Option<Place>,
@@ -89,6 +90,7 @@ impl Default for BaseProps {
             basis: None,
             margin: 0.0,
             align_self: None,
+            offscreen: false,
             children: Vec::new(),
             place: None,
         }
@@ -253,6 +255,13 @@ pub trait NodeBuilder: Sized + 'static {
     /// How the node is composited onto what is below it.
     fn blend(mut self, v: BlendMode) -> Self {
         self.base().blend = v;
+        self
+    }
+    /// Not drawn on screen: the node and its children are drawn only for a
+    /// shader that reads them with [`Input::node`](crate::Input::node).
+    /// `check` skips them.
+    fn offscreen(mut self) -> Self {
+        self.base().offscreen = true;
         self
     }
     /// Paint order among siblings; higher is on top.

@@ -70,7 +70,7 @@ pub use math::{Math, MathBuilder};
 pub use node_api::Draw;
 pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerprint};
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
-pub use post::{Input, Shade, ShadeOp, apply as apply_shade};
+pub use post::{Input, Shade, ShadeOp, apply as apply_shade, apply_with as apply_shade_with};
 pub use scale::{IntoScale, ScaleSignal};
 #[cfg(not(target_arch = "wasm32"))]
 pub use shader::CustomShade;

@@ -229,7 +229,9 @@ It cannot use textures or derivatives; an input is read with a function
 instead: `.input("photo", Input::file("photo.png"))` gives
 `sample_photo(uv)`, and `.input("scene", Input::frame())` gives
 `sample_scene(i.screen / ox.resolution)`, the pixels drawn before the
-shader, which is then painted over them inside its box.
+shader, which is then painted over them inside its box. A node added with
+`.offscreen()` is not drawn; `.input("logo", Input::node(logo))` reads it
+with `sample_logo(uv)` across its box.
 
 Preset catalog, the first stop before any WGSL:
 

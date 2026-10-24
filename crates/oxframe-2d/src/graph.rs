@@ -299,6 +299,8 @@ pub struct NodeData {
     pub placed: Cell<(f64, f64)>,
     /// Shader effect on the node's own pixels, from [`Node::effect`](crate::Node::effect).
     pub effect: Option<crate::post::EffectData>,
+    /// Drawn only as a shader input, never on screen.
+    pub offscreen: bool,
 }
 
 impl NodeData {
@@ -686,6 +688,7 @@ impl SceneGraph {
             place: base.place,
             placed: Cell::new((base.x, base.y)),
             effect: None,
+            offscreen: base.offscreen,
             kind,
         });
         if let Some(p) = parent {
@@ -974,7 +977,12 @@ impl SceneGraph {
                 }),
                 source: n.source.clone(),
                 bounds: aabb(tf, w, h),
-                opacity: n.opacity.get().clamp(0.0, 1.0),
+                // An offscreen node is never seen, so `check` skips it.
+                opacity: if offscreen(&nodes, id) {
+                    0.0
+                } else {
+                    n.opacity.get().clamp(0.0, 1.0)
+                },
                 order,
                 text,
                 fill: n.fill.get(),
@@ -1317,7 +1325,7 @@ fn first_drift(a: &[DrawItem], b: &[DrawItem]) -> Option<NodeId> {
     None
 }
 
-fn prim_same(a: &Primitive, b: &Primitive) -> bool {
+pub(crate) fn prim_same(a: &Primitive, b: &Primitive) -> bool {
     use Primitive::{Fill, Image, PopLayer, PushLayer, Stroke};
     match (a, b) {
         (Fill { path: p, paint: c }, Fill { path: q, paint: d }) => p == q && c == d,
@@ -1413,7 +1421,7 @@ fn visit(
             prim: Primitive::BeginEffect(shade.clone()),
         });
     }
-    if let Some(shade) = crate::shader::read_frame(n, size, tf, time, opacity) {
+    if let Some(shade) = crate::shader::read_frame(nodes, n, size, tf, time, opacity) {
         if inside || effect.is_some() {
             cycle(
                 n,
@@ -1494,6 +1502,9 @@ fn visit(
             za.total_cmp(&zb)
         });
         for (_, c) in order {
+            if nodes[c.0 as usize].offscreen {
+                continue;
+            }
             let placement = map.and_then(|m| m.get(&c).copied());
             let inside = inside || layered || clipped || effect.is_some();
             visit(nodes, c, tf, placement, map, time, inside, out);
@@ -1520,6 +1531,38 @@ fn visit(
             prim: Primitive::EndEffect,
         });
     }
+}
+
+/// True when `id` or one of its ancestors is offscreen.
+fn offscreen(nodes: &[NodeData], id: NodeId) -> bool {
+    let mut cur = Some(id);
+    while let Some(c) = cur {
+        let n = &nodes[c.0 as usize];
+        if n.offscreen {
+            return true;
+        }
+        cur = n.parent;
+    }
+    false
+}
+
+/// The draw list of an offscreen node and its children alone, and its box
+/// in scene coordinates.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn offscreen_items(
+    nodes: &[NodeData],
+    id: NodeId,
+    time: f64,
+) -> (Vec<DrawItem>, kurbo::Rect) {
+    let n = &nodes[id.0 as usize];
+    let parent = n
+        .parent
+        .map_or(Affine::IDENTITY, |p| transform_without_layout(nodes, p));
+    let mut out = Vec::new();
+    visit(nodes, id, parent, None, None, time, false, &mut out);
+    let (w, h) = measure(nodes, id);
+    let [x0, y0, x1, y1] = aabb(transform_without_layout(nodes, id), w, h);
+    (out, kurbo::Rect::new(x0, y0, x1, y1))
 }
 
 /// Reports `input_cycle` for `n`.

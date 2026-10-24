@@ -79,7 +79,7 @@ sea.amp().to(0.12, 1.2).await;
 
 `Shader::source(wgsl)` and `Shader::file(path)` take WGSL that defines `struct Params`, `@group(1) @binding(0) var<uniform> p: Params`, and `fn shade(i: ShadeIn) -> vec4<f32>`. oxframe adds `ox` (`time`, `frame`, `resolution`, `size`, `seed`, `view`, `progress`) and `ShadeIn` (`uv`, `local`, `world`, `screen`). `.uniform("name", 0.3)` sets a number; a color uses `.uniform_color`. A name or type that is not in `Params` is `param_unknown`. WGSL that does not compile is `shader_error`, with the line in your source. `Shader::file` is read on every draw, so saving the file updates the scene without a rebuild.
 
-The waves preset is rasterized and then drawn by whichever backend is running, including a check with no GPU. A custom `shade` runs on the CPU the same way (about 0.13 s for a 1080p frame in a release build); the playground does not paint it. It cannot use textures or derivatives (`shader_error`). Read an image with `.input("photo", Input::file("photo.png"))` and `sample_photo(uv)` in WGSL (straight-alpha sRGB, `uv` 0..1, clamped). With `.input("scene", Input::frame())`, `sample_scene(i.screen / ox.resolution)` reads what was drawn before the shader, and the shader is painted over it inside its box. A shader that takes longer than the draft budget is `shader_slow`. An opaque shader painted over text is `covers_text`.
+The waves preset is rasterized and then drawn by whichever backend is running, including a check with no GPU. A custom `shade` runs on the CPU the same way (about 0.13 s for a 1080p frame in a release build); the playground does not paint it. It cannot use textures or derivatives (`shader_error`). Read an image with `.input("photo", Input::file("photo.png"))` and `sample_photo(uv)` in WGSL (straight-alpha sRGB, `uv` 0..1, clamped). With `.input("scene", Input::frame())`, `sample_scene(i.screen / ox.resolution)` reads what was drawn before the shader, and the shader is painted over it inside its box. A node added with `.offscreen()` is drawn only for a shader: `.input("logo", Input::node(logo))` and `sample_logo(uv)`, `uv` across the node's box; `check` skips it. A shader that takes longer than the draft budget is `shader_slow`. An opaque shader painted over text is `covers_text`.
 
 ### Shaders that read pixels
 
@@ -97,7 +97,7 @@ transition(Transition::shader(shaders::water_wipe().wave(0.04))).await;
 - `node.effect(shaders::ripple())` returns an `Effect`. `.strength()` (default 1) and `.speed()` (default 6) are signals. Colors move outward from the node's center, the outline stays. One effect per node; a second call replaces it.
 - `Transition::shader(shaders::water_wipe())`: a wavy waterline rises; below it is the next scene, rippled near the line. `.wave()` sets the wave height (fraction of the frame, default 0.04). Nodes the next scene adds before `transition` are under the water.
 - A shader inside a group with opacity below 1, a blur, a clip, a blend, a shadow or another effect cannot read finished pixels: `check` reports `input_cycle` (an error) and draws without it. Put the effect on the group.
-- All three run on the CPU, so `check` and `render --cpu` paint them; the GPU renderer gives the same picture. `inspect --graph` lists them as `effect` passes. `Input::node`, `Input::image` and `.offscreen()` do not exist yet.
+- All three run on the CPU, so `check` and `render --cpu` paint them; the GPU renderer gives the same picture. `inspect --graph` lists them as `effect` passes.
 
 ## Video (feature `video`, needs ffmpeg)
 
