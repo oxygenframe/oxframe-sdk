@@ -1,4 +1,4 @@
-<!-- oxframe-agents 0.22.0 -->
+<!-- oxframe-agents 0.23.0 -->
 # oxframe API cheat sheet
 
 `use oxframe::prelude::*;` brings everything below into scope.
@@ -229,6 +229,12 @@ Ready-made pieces copied into the project, each checked to pass `oxframe check`.
 - `blocks::quote_card(view, quote, author)` — a card with the quote and the author.
 - `blocks::before_after(view, before, after)` — two cards, "After" slides in.
 - `blocks::timeline(view, &[(date, text), ..])` — a line, then each date and text in turn.
+- `blocks::release_notes(view, version, &[change, ..])` — the version, then each change with a mark.
+- `blocks::terminal(view, command, &[output, ..])` — a terminal window: the command is typed, then the output lines appear.
+- `blocks::code_change(view, language, before, after)` — code that diffs into its new version.
+- `blocks::bar_chart(view, title, &[(label, value), ..])` — axes and a title, bars grow in turn.
+- `blocks::kinetic_title(view, text)` — the words pop in one after another.
+- `blocks::call_to_action(view, headline, link)` — a closing line and a link in a pill that pulses.
 
 `pop_in()` grows a node to its scale at the time of the call: add the node at full scale and call `pop_in()` right away; a node added with `.scale(0.0)` stays invisible.
 

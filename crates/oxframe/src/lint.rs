@@ -735,8 +735,8 @@ fn covers_text(samples: &[Sample]) -> Vec<Issue> {
         let shaders: Vec<&InspectNode> = s
             .nodes
             .iter()
-            // lens_drops bends what is under it instead of painting over it.
-            .filter(|n| n.kind == "Shader" && n.shader != Some("lens_drops"))
+            // lens_drops or a shader reading the frame shows what is under it.
+            .filter(|n| n.kind == "Shader" && !n.reads_frame)
             .filter(|n| n.opacity > 0.9 && n.order != u32::MAX)
             .filter(|n| !seen.contains(&n.name))
             .collect();
@@ -877,6 +877,7 @@ mod tests {
             parent_kind: Some("Group"),
             in_camera: false,
             shader: (kind == "Shader").then_some("waves"),
+            reads_frame: false,
             params: Vec::new(),
         }
     }
@@ -1096,6 +1097,23 @@ mod tests {
         let title = text(1, "Into the wave", [-40.0, -20.0, 40.0, 20.0]);
         let mut lens = node(2, "Shader", [-960.0, -540.0, 960.0, 540.0]);
         lens.shader = Some("lens_drops");
+        lens.reads_frame = true;
+        let issues = lint(
+            &[at(0.0, vec![title, lens])],
+            (1920, 1080),
+            Color::BLACK,
+            false,
+            &limits(),
+        );
+        assert!(issues.iter().all(|i| i.rule != "covers_text"), "{issues:?}");
+    }
+
+    #[test]
+    fn a_shader_reading_the_frame_over_text_is_not_covers_text() {
+        let title = text(1, "Read the fine print", [-40.0, -20.0, 40.0, 20.0]);
+        let mut lens = node(2, "Shader", [-960.0, -540.0, 960.0, 540.0]);
+        lens.shader = Some("custom");
+        lens.reads_frame = true;
         let issues = lint(
             &[at(0.0, vec![title, lens])],
             (1920, 1080),

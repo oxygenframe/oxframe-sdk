@@ -13,6 +13,7 @@ a picture: components, nodes, effects, camera, timing, rendering.
 
 from __future__ import annotations
 
+import html
 import re
 import sys
 from pathlib import Path
@@ -85,7 +86,8 @@ def live_docs() -> str:
             continue
         if path.suffix not in {".svelte", ".ts", ".md"}:
             continue
-        parts.append(path.read_text(errors="replace"))
+        # Pages are HTML: `&lt;name&gt;` in the source is `<name>` on the page.
+        parts.append(html.unescape(path.read_text(errors="replace")))
     return "\n".join(parts)
 
 

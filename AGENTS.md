@@ -4,8 +4,9 @@
 
 All crates and `oxframe-cli` share one version (see CHANGELOG.md).
 
-Cadence: about one release a week. Merged work collects under
-`## Unreleased` in CHANGELOG.md; do not tag a release per change. A
+Cadence: before 1.0 there is no fixed cycle; a release goes out when a
+finished feature or a coherent batch is merged and green. Merged work
+collects under `## Unreleased` in CHANGELOG.md until then. A
 breaking change (a removed or renamed API, a changed default) waits for
 the next minor version (0.21 → 0.22) and is listed under **Changed** or
 **Breaking** with a before → after example; additions and fixes may go

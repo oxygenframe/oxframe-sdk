@@ -33,6 +33,7 @@ pub mod learn_13_shaders;
 pub mod learn_14_charts;
 pub mod learn_15_matrices;
 pub mod linear_map;
+pub mod magnifier;
 pub mod matrix_multiply;
 pub mod morph;
 pub mod ocean;
@@ -101,6 +102,7 @@ pub fn all() -> Vec<(&'static str, ProjectFn)> {
         ("spray", spray::project),
         ("splash", splash::project),
         ("ocean", ocean::project),
+        ("magnifier", magnifier::project),
         ("sounds", sounds::project),
         ("voice", voice::project),
         ("waves", waves::project),
