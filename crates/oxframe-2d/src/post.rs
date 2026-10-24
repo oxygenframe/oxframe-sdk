@@ -17,7 +17,11 @@ use oxframe_core::{Image, Signal};
 /// that sits inside an unfinished layer (a group with opacity below 1, a
 /// blur, a clip, a blend or a shadow) cannot read them, and `check` reports
 /// `input_cycle`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// A custom `shade` reads an input named `"photo"` with
+/// `sample_photo(uv)`, which returns straight-alpha sRGB `vec4<f32>`;
+/// `uv` runs from 0 to 1 across the image and is clamped at the edges.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Input {
     /// Everything painted before this node, in screen coordinates.
@@ -25,6 +29,18 @@ pub enum Input {
     /// What the parent painted before this node. On a node that is not in a
     /// layer this is the same as [`Input::Frame`].
     Backdrop,
+    /// A PNG or JPEG image.
+    Image(std::rc::Rc<crate::image::RasterImage>),
+}
+
+impl PartialEq for Input {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Frame, Self::Frame) | (Self::Backdrop, Self::Backdrop) => true,
+            (Self::Image(a), Self::Image(b)) => a.id == b.id,
+            _ => false,
+        }
+    }
 }
 
 impl Input {
@@ -38,11 +54,40 @@ impl Input {
         Self::Backdrop
     }
 
-    /// `"frame"` or `"backdrop"`.
-    pub fn name(self) -> &'static str {
+    /// A PNG or JPEG image from its bytes, e.g. `include_bytes!`.
+    ///
+    /// # Panics
+    ///
+    /// If the bytes are not a PNG or JPEG image.
+    pub fn image(bytes: &[u8]) -> Self {
+        match crate::image::ImageSource::decode(bytes) {
+            Ok(crate::image::ImageSource::Raster(r)) => Self::Image(r),
+            Ok(crate::image::ImageSource::Vector(_)) => {
+                panic!("a shader input is a PNG or JPEG image, not an SVG")
+            }
+            Err(e) => panic!("cannot decode image: {e}"),
+        }
+    }
+
+    /// Reads a PNG or JPEG file (native only).
+    ///
+    /// # Panics
+    ///
+    /// If the file cannot be read or decoded.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn file(path: impl AsRef<std::path::Path>) -> Self {
+        let path = path.as_ref();
+        let bytes =
+            std::fs::read(path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        Self::image(&bytes)
+    }
+
+    /// `"frame"`, `"backdrop"` or `"image"`.
+    pub fn name(&self) -> &'static str {
         match self {
             Self::Frame => "frame",
             Self::Backdrop => "backdrop",
+            Self::Image(_) => "image",
         }
     }
 }
@@ -73,14 +118,19 @@ pub enum ShadeOp {
         /// Scene time in seconds.
         time: f64,
     },
+    /// A custom `shade` that reads the frame drawn before it.
+    #[cfg(not(target_arch = "wasm32"))]
+    Custom(Box<crate::shader::CustomShade>),
 }
 
 impl ShadeOp {
-    /// `"lens_drops"` or `"ripple"`.
+    /// `"lens_drops"`, `"ripple"` or `"custom"`.
     pub fn name(&self) -> &'static str {
         match self {
             Self::LensDrops { .. } => "lens_drops",
             Self::Ripple { .. } => "ripple",
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::Custom(_) => "custom",
         }
     }
 }
@@ -101,6 +151,12 @@ pub struct Shade {
 pub fn apply(shade: &Shade, img: &mut Image, to_px: Affine) {
     let opacity = shade.opacity.clamp(0.0, 1.0) as f32;
     if opacity <= 0.0 || img.width == 0 || img.height == 0 {
+        return;
+    }
+    // A custom shade samples the whole frame and limits itself to its box.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let ShadeOp::Custom(c) = &shade.op {
+        c.apply(img, to_px, opacity);
         return;
     }
     let Some(area) = shade.area else {
@@ -152,6 +208,8 @@ fn run(shade: &Shade, img: &mut Image, to_px: Affine, opacity: f32) {
             speed,
             time,
         } => ripple(img, to_px, *center, *strength, *speed, *time, opacity),
+        #[cfg(not(target_arch = "wasm32"))]
+        ShadeOp::Custom(c) => c.apply(img, to_px, opacity),
     }
 }
 

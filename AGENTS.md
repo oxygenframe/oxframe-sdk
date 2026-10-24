@@ -225,7 +225,11 @@ the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
 `check`. Saving the file updates the next draw without a rebuild.
 `shade` runs on the CPU (about 0.13 s for a 1080p frame in a release
 build), in `check`, `render` and `dev`; the playground does not paint it.
-It cannot sample textures or use derivatives.
+It cannot use textures or derivatives; an input is read with a function
+instead: `.input("photo", Input::file("photo.png"))` gives
+`sample_photo(uv)`, and `.input("scene", Input::frame())` gives
+`sample_scene(i.screen / ox.resolution)`, the pixels drawn before the
+shader, which is then painted over them inside its box.
 
 Preset catalog, the first stop before any WGSL:
 

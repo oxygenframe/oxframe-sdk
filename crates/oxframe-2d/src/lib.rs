@@ -72,6 +72,8 @@ pub use passes::{Pass, PassKind, layer_fingerprint, pass_graph, shadow_fingerpri
 pub use place::{Edge, Percent, Place, SafeArea, Side, Span, pct};
 pub use post::{Input, Shade, ShadeOp, apply as apply_shade};
 pub use scale::{IntoScale, ScaleSignal};
+#[cfg(not(target_arch = "wasm32"))]
+pub use shader::CustomShade;
 pub use shader::{ShaderDiag, draft_shaders, set_frame_rate, set_shader_budget_ms};
 pub use trim::trim;
 

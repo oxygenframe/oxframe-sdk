@@ -28,6 +28,12 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   pixels at a time, with the same bytes on every OS (about 0.13 s for a
   1080p frame in a release build). Textures, samplers and derivatives are
   a `shader_error`. The playground does not paint it.
+- Inputs of a custom shader: `.input("photo", Input::file("photo.png"))`
+  (or `Input::image(include_bytes!(..))`) is read in WGSL with
+  `sample_photo(uv)`. With `.input("scene", Input::frame())` the shader
+  reads what was drawn before it and is painted over it inside its box,
+  e.g. `sample_scene(i.screen / ox.resolution)`. Calling `sample_x` with no
+  input `x` is a `shader_error` that says how to add it.
 
 ### Fixed
 
@@ -50,6 +56,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - `lint::Sample` has a `contrast` field (measured contrast per text node).
   Before: `Sample { time, nodes }` → after:
   `Sample { time, nodes, contrast: Vec::new() }`.
+- `Input` is no longer `Copy` (it can hold an image); `Input::name` takes
+  `&self`. Clone it where it was copied.
 
 ## 0.22.0 — 2026-10-23
 

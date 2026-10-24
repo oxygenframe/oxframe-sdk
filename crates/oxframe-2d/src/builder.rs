@@ -1368,6 +1368,16 @@ impl ShaderBuilder {
     /// Names what the shader reads. `lens_drops` reads `"scene"`, which is
     /// the frame drawn before it whether or not this is called. A name the
     /// preset does not read fails `check` (`param_unknown`).
+    ///
+    /// A custom `shade` reads input `"photo"` with `sample_photo(uv)`:
+    ///
+    /// ```ignore
+    /// Shader::file("shaders/wobble.wgsl").input("photo", Input::file("photo.png"))
+    /// // in WGSL: return sample_photo(i.uv + vec2<f32>(sin(i.uv.y * 40.0) * 0.01, 0.0));
+    /// ```
+    ///
+    /// With [`Input::frame`](crate::Input::frame) the shader reads what was drawn before it and
+    /// is painted over it inside its box: `sample_scene(i.screen / ox.resolution)`.
     pub fn input(mut self, name: impl Into<String>, input: crate::post::Input) -> Self {
         let name = name.into();
         if let Some(slot) = self.inputs.iter_mut().find(|(n, _)| *n == name) {
