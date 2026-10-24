@@ -205,10 +205,10 @@ impl Node {
     /// ring.strength().to(1.0, 0.6).await;
     /// ```
     ///
-    /// A node has one effect; a second call replaces the first. The node
-    /// must not sit inside a group with opacity below 1, a blur, a clip, a
-    /// blend, a shadow or another effect: there its pixels are not
-    /// finished, and `check` reports `input_cycle`.
+    /// A node has one effect; a second call replaces the first. Inside a
+    /// group with opacity below 1, a blur, a clip, a blend, a shadow or
+    /// another effect, the group is drawn first and then gets its own
+    /// opacity, blur and the rest.
     pub fn effect(self, effect: crate::builder::EffectBuilder) -> Effect {
         with_graph(|g| g.set_effect(self.0, effect.build(self.0)));
         Effect(self.0)

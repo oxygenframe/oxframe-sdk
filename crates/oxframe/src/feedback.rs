@@ -1889,7 +1889,7 @@ mod tests {
     }
 
     #[test]
-    fn a_lens_in_a_fading_group_fails_check() {
+    fn a_lens_in_a_fading_group_passes_check() {
         fn fading(view: View) -> BoxFuture {
             Box::pin(async move {
                 let group = view.add(crate::Group::new().opacity(0.5));
@@ -1899,13 +1899,11 @@ mod tests {
             })
         }
         let report = report(project(fading), &Options::default()).unwrap();
-        let issue = report
-            .issues
-            .iter()
-            .find(|i| i.rule == "input_cycle")
-            .unwrap_or_else(|| panic!("{:?}", report.issues));
-        assert_eq!(issue.node, "lens");
-        assert_eq!(issue.severity, lint::Severity::Error);
+        assert!(
+            report.issues.iter().all(|i| i.rule != "input_cycle"),
+            "{:?}",
+            report.issues
+        );
     }
 
     #[test]

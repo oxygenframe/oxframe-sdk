@@ -17,6 +17,23 @@ pub struct RasterImage {
     pub id: u64,
 }
 
+impl RasterImage {
+    /// An image from straight-alpha sRGB pixels; the id is a hash of them,
+    /// so the same pixels share renderer caches.
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Self {
+        let mut id: u64 = 0xcbf2_9ce4_8422_2325;
+        for &b in &rgba {
+            id = (id ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        Self {
+            width,
+            height,
+            rgba,
+            id,
+        }
+    }
+}
+
 /// SVG converted to filled/stroked paths (gradients become their first
 /// stop color in v1).
 #[derive(Debug)]

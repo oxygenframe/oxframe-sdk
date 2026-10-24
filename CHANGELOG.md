@@ -34,6 +34,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   reads what was drawn before it and is painted over it inside its box,
   e.g. `sample_scene(i.screen / ox.resolution)`. Calling `sample_x` with no
   input `x` is a `shader_error` that says how to add it.
+- `.offscreen()` on any node: it is drawn only for a shader that reads it
+  with `Input::node(handle)` (`sample_<name>(uv)`, `uv` across the node's
+  box), never on screen, and `check` skips it.
+
+### Changed
+
+- `lens_drops`, `node.effect(..)` and a frame-reading shader work inside a
+  group with opacity below 1, a blur, a clip, a blend, a shadow or another
+  effect. The group is drawn in parts on its own, then faded or blurred as
+  a whole; a shader in it reads what the group drew before it. `check` no
+  longer reports `input_cycle`.
 
 ### Fixed
 

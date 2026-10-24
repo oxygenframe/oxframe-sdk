@@ -408,7 +408,9 @@ pub(crate) fn raster(
 /// `area` is the node's box in scene coordinates. The node reads the frame
 /// drawn before it whatever its input is named: a backdrop outside a layer
 /// is the frame.
+#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub(crate) fn read_frame(
+    nodes: &[NodeData],
     n: &NodeData,
     size: (f64, f64),
     tf: Affine,
@@ -417,7 +419,7 @@ pub(crate) fn read_frame(
 ) -> Option<crate::post::Shade> {
     #[cfg(not(target_arch = "wasm32"))]
     if reads_frame_input(n) {
-        return custom_read_frame(n, size, tf, time, opacity);
+        return custom_read_frame(nodes, n, size, tf, time, opacity);
     }
     let NodeKind::Shader {
         preset: Preset::LensDrops,
@@ -454,6 +456,7 @@ pub(crate) fn read_frame(
 /// `shader_error`) when it does not compile.
 #[cfg(not(target_arch = "wasm32"))]
 fn custom_read_frame(
+    nodes: &[NodeData],
     n: &NodeData,
     size: (f64, f64),
     tf: Affine,
@@ -486,6 +489,20 @@ fn custom_read_frame(
         .filter(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop))
         .map(|(name, _)| name.clone())
         .collect();
+    let offscreen = inputs
+        .iter()
+        .filter_map(|(name, i)| match i {
+            crate::post::Input::Node(id) if (id.0 as usize) < nodes.len() => {
+                let (items, bounds) = crate::graph::offscreen_items(nodes, *id, time);
+                Some(NodeInput {
+                    name: name.clone(),
+                    items,
+                    bounds,
+                })
+            }
+            _ => None,
+        })
+        .collect();
     let ((sw, sh), _) = SCENE.with(Cell::get);
     let (w, h) = (size.0.max(0.0), size.1.max(0.0));
     let area = tf.transform_rect_bbox(kurbo::Rect::new(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0));
@@ -494,6 +511,7 @@ fn custom_read_frame(
             program,
             globals,
             frame,
+            offscreen,
             tf,
             size: (w, h),
             scene: (sw, sh),
@@ -753,9 +771,35 @@ pub struct CustomShade {
     globals: crate::wgsl_cpu::Globals,
     /// Inputs that read the frame.
     frame: Vec<String>,
+    /// Inputs that read a node drawn alone.
+    offscreen: Vec<NodeInput>,
     tf: Affine,
     size: (f64, f64),
     scene: (f64, f64),
+}
+
+/// A node a custom shader reads: its draw list and its box in scene
+/// coordinates.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+struct NodeInput {
+    name: String,
+    items: Vec<crate::DrawItem>,
+    bounds: kurbo::Rect,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl PartialEq for NodeInput {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.bounds == other.bounds
+            && self.items.len() == other.items.len()
+            && self.items.iter().zip(&other.items).all(|(a, b)| {
+                a.node == b.node
+                    && a.transform == b.transform
+                    && crate::graph::prim_same(&a.prim, &b.prim)
+            })
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -782,6 +826,7 @@ impl PartialEq for CustomShade {
                 .zip(&other.globals.inputs)
                 .all(|(a, b)| a.0 == b.0 && a.1.id == b.1.id)
             && self.frame == other.frame
+            && self.offscreen == other.offscreen
             && self.tf == other.tf
             && self.size == other.size
             && self.scene == other.scene
@@ -790,10 +835,24 @@ impl PartialEq for CustomShade {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl CustomShade {
+    /// Draw lists of the nodes this shader reads, in order. The engine
+    /// draws each alone on a clear target of the frame's size and passes
+    /// the images to [`crate::post::apply_with`].
+    pub fn offscreen_lists(&self) -> Vec<&[crate::DrawItem]> {
+        self.offscreen.iter().map(|n| n.items.as_slice()).collect()
+    }
+
     /// Runs the shader over `img` inside the node's box. `to_px` maps
-    /// scene coordinates to the pixels of `img`. A shader that fails while
-    /// running leaves the pixels as they were; `check` reports it.
-    pub(crate) fn apply(&self, img: &mut oxframe_core::Image, to_px: Affine, opacity: f32) {
+    /// scene coordinates to the pixels of `img`; `drawn` holds the images
+    /// of [`offscreen_lists`](Self::offscreen_lists). A shader that fails
+    /// while running leaves the pixels as they were; `check` reports it.
+    pub(crate) fn apply(
+        &self,
+        img: &mut oxframe_core::Image,
+        to_px: Affine,
+        opacity: f32,
+        drawn: &[oxframe_core::Image],
+    ) {
         let (w, h) = self.size;
         if img.width == 0 || img.height == 0 || w <= 0.0 || h <= 0.0 {
             return;
@@ -807,6 +866,12 @@ impl CustomShade {
         let mut globals = self.globals.clone();
         for name in &self.frame {
             globals.inputs.push((name.clone(), snapshot.clone()));
+        }
+        for (input, pixels) in self.offscreen.iter().zip(drawn) {
+            globals.inputs.push((
+                input.name.clone(),
+                std::rc::Rc::new(crop(pixels, to_px, input.bounds)),
+            ));
         }
         let node_px = to_px * self.tf;
         let Some(inv) = (node_px.determinant().abs() > 1e-12).then(|| node_px.inverse()) else {
@@ -875,6 +940,37 @@ impl CustomShade {
     }
 }
 
+/// The part of `img` under `bounds` (scene coordinates), at least a pixel.
+#[cfg(not(target_arch = "wasm32"))]
+fn crop(img: &oxframe_core::Image, to_px: Affine, bounds: kurbo::Rect) -> RasterImage {
+    let r = to_px.transform_rect_bbox(bounds);
+    let clampx = |v: f64| v.clamp(0.0, f64::from(img.width)) as u32;
+    let clampy = |v: f64| v.clamp(0.0, f64::from(img.height)) as u32;
+    let (x0, y0) = (clampx(r.x0.floor()), clampy(r.y0.floor()));
+    let (x1, y1) = (
+        clampx(r.x1.ceil()).max(x0 + 1),
+        clampy(r.y1.ceil()).max(y0 + 1),
+    );
+    let (w, h) = (x1 - x0, y1 - y0);
+    let mut rgba = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let (sx, sy) = (x0 + x, y0 + y);
+            if sx < img.width && sy < img.height {
+                let s = ((sy * img.width + sx) * 4) as usize;
+                let d = ((y * w + x) * 4) as usize;
+                rgba[d..d + 4].copy_from_slice(&img.data[s..s + 4]);
+            }
+        }
+    }
+    RasterImage {
+        width: w,
+        height: h,
+        rgba,
+        id: 0,
+    }
+}
+
 /// True when a custom shader reads the frame or the backdrop. The browser
 /// build does not run custom shaders, so there it is always false.
 #[cfg(target_arch = "wasm32")]
@@ -885,7 +981,7 @@ pub(crate) fn reads_frame_input(_n: &NodeData) -> bool {
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn reads_frame_input(n: &NodeData) -> bool {
     matches!(&n.kind, NodeKind::Shader { preset: Preset::Custom, inputs, .. }
-        if inputs.iter().any(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop)))
+        if inputs.iter().any(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop | crate::post::Input::Node(_))))
 }
 
 fn wave_uniforms(uniforms: &[Uniform]) -> (f64, f64, Color, Color) {
@@ -1428,6 +1524,41 @@ fn shade(i: ShadeIn) -> vec4<f32> {
     }
 
     #[test]
+    fn an_offscreen_node_is_not_drawn_and_check_skips_it() {
+        let graph = paint(|view| {
+            let card = view.add(crate::Rect::new().size(20.0).name("card").offscreen());
+            view.add(
+                crate::Shader::source(SAMPLE_PHOTO.replace("photo", "card"))
+                    .uniform("k", 0.0)
+                    .input("card", crate::Input::node(card))
+                    .width(40.0)
+                    .height(40.0),
+            );
+        });
+        let list = graph.draw_list();
+        assert!(
+            list.iter().all(|i| i.prim.is_marker()),
+            "only the shader's pass is on screen"
+        );
+        let shade = list
+            .iter()
+            .find_map(|i| match &i.prim {
+                Primitive::ReadFrame(s) => Some(s),
+                _ => None,
+            })
+            .expect("a node input makes a frame pass");
+        assert_eq!(shade.offscreen_lists().len(), 1);
+        assert!(!shade.offscreen_lists()[0].is_empty());
+        let card = graph
+            .inspect_nodes()
+            .into_iter()
+            .find(|n| n.name == "card")
+            .expect("card");
+        assert_eq!(card.opacity, 0.0);
+        assert!(graph.has_post());
+    }
+
+    #[test]
     fn sampling_an_input_that_is_not_declared_says_how_to_add_it() {
         let graph = paint(|view| {
             view.add(
@@ -1634,31 +1765,31 @@ fn shade(i: ShadeIn) -> vec4<f32> {
     }
 
     #[test]
-    fn a_lens_inside_a_fading_group_is_an_input_cycle() {
+    fn a_lens_inside_a_fading_group_reads_the_layer() {
         let graph = paint(|view| {
             let group = view.add(crate::Group::new().opacity(0.5));
             group.add(crate::Rect::new().size(20.0));
             group.add(crate::lens_drops().fullscreen());
         });
-        assert_eq!(rules(&graph), ["input_cycle"]);
-        assert!(!reads_frame(&graph), "the lens is skipped");
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
+        assert!(reads_frame(&graph));
     }
 
     #[test]
-    fn an_effect_inside_an_effect_is_an_input_cycle() {
+    fn an_effect_inside_an_effect_runs_both() {
         let graph = paint(|view| {
             let outer = view.add(crate::Group::new());
             let inner = outer.add(crate::Rect::new().size(20.0));
             outer.effect(crate::ripple());
             inner.effect(crate::ripple());
         });
-        assert_eq!(rules(&graph), ["input_cycle"]);
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
         let items = graph.draw_list();
         let begins = items
             .iter()
             .filter(|i| matches!(i.prim, Primitive::BeginEffect(_)))
             .count();
-        assert_eq!(begins, 1, "only the outer effect runs");
+        assert_eq!(begins, 2);
         let passes = crate::pass_graph(&items);
         assert!(
             passes

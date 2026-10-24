@@ -13,10 +13,9 @@ use oxframe_core::{Image, Signal};
 
 /// What a shader reads besides its own parameters.
 ///
-/// The frame and the backdrop are the pixels drawn before the node. A node
-/// that sits inside an unfinished layer (a group with opacity below 1, a
-/// blur, a clip, a blend or a shadow) cannot read them, and `check` reports
-/// `input_cycle`.
+/// The frame and the backdrop are the pixels drawn before the node. Inside
+/// a layer (a group with opacity below 1, a blur, a clip, a blend, a shadow
+/// or an effect) both are what that layer drew before the node.
 ///
 /// A custom `shade` reads an input named `"photo"` with
 /// `sample_photo(uv)`, which returns straight-alpha sRGB `vec4<f32>`;
@@ -31,6 +30,8 @@ pub enum Input {
     Backdrop,
     /// A PNG or JPEG image.
     Image(std::rc::Rc<crate::image::RasterImage>),
+    /// Another node's pixels, usually one added with `.offscreen()`.
+    Node(crate::NodeId),
 }
 
 impl PartialEq for Input {
@@ -38,6 +39,7 @@ impl PartialEq for Input {
         match (self, other) {
             (Self::Frame, Self::Frame) | (Self::Backdrop, Self::Backdrop) => true,
             (Self::Image(a), Self::Image(b)) => a.id == b.id,
+            (Self::Node(a), Self::Node(b)) => a == b,
             _ => false,
         }
     }
@@ -82,12 +84,20 @@ impl Input {
         Self::image(&bytes)
     }
 
-    /// `"frame"`, `"backdrop"` or `"image"`.
+    /// The pixels of `node` and its children, drawn alone on a clear
+    /// background. `uv` runs from 0 to 1 across the node's box. Add the
+    /// node with `.offscreen()` to draw it only for the shader.
+    pub fn node(node: impl Into<crate::Node>) -> Self {
+        Self::Node(node.into().id())
+    }
+
+    /// `"frame"`, `"backdrop"`, `"image"` or `"node"`.
     pub fn name(&self) -> &'static str {
         match self {
             Self::Frame => "frame",
             Self::Backdrop => "backdrop",
             Self::Image(_) => "image",
+            Self::Node(_) => "node",
         }
     }
 }
@@ -147,8 +157,27 @@ pub struct Shade {
     pub area: Option<Rect>,
 }
 
+impl Shade {
+    /// Draw lists of the nodes this shade reads (`Input::node`), to draw
+    /// alone and pass to [`apply_with`]. Empty for the presets.
+    pub fn offscreen_lists(&self) -> Vec<&[crate::DrawItem]> {
+        match &self.op {
+            #[cfg(not(target_arch = "wasm32"))]
+            ShadeOp::Custom(c) => c.offscreen_lists(),
+            _ => Vec::new(),
+        }
+    }
+}
+
 /// Runs `shade` on `img`. `to_px` maps scene coordinates to the pixels of `img`.
 pub fn apply(shade: &Shade, img: &mut Image, to_px: Affine) {
+    apply_with(shade, img, to_px, &[]);
+}
+
+/// [`apply`] for a shade that reads nodes: `drawn` holds the images of
+/// [`Shade::offscreen_lists`], each drawn alone at the size of `img`.
+#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
+pub fn apply_with(shade: &Shade, img: &mut Image, to_px: Affine, drawn: &[Image]) {
     let opacity = shade.opacity.clamp(0.0, 1.0) as f32;
     if opacity <= 0.0 || img.width == 0 || img.height == 0 {
         return;
@@ -156,7 +185,7 @@ pub fn apply(shade: &Shade, img: &mut Image, to_px: Affine) {
     // A custom shade samples the whole frame and limits itself to its box.
     #[cfg(not(target_arch = "wasm32"))]
     if let ShadeOp::Custom(c) = &shade.op {
-        c.apply(img, to_px, opacity);
+        c.apply(img, to_px, opacity, drawn);
         return;
     }
     let Some(area) = shade.area else {
@@ -209,7 +238,7 @@ fn run(shade: &Shade, img: &mut Image, to_px: Affine, opacity: f32) {
             time,
         } => ripple(img, to_px, *center, *strength, *speed, *time, opacity),
         #[cfg(not(target_arch = "wasm32"))]
-        ShadeOp::Custom(c) => c.apply(img, to_px, opacity),
+        ShadeOp::Custom(c) => c.apply(img, to_px, opacity, &[]),
     }
 }
 
