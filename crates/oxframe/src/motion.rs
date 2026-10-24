@@ -155,6 +155,7 @@ mod tests {
             parent_kind: Some("Group"),
             in_camera: false,
             shader: None,
+            reads_frame: false,
             params: Vec::new(),
         }
     }

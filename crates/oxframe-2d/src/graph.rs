@@ -1004,6 +1004,13 @@ impl SceneGraph {
                     NodeKind::Shader { preset, .. } => Some(preset.name()),
                     _ => None,
                 },
+                reads_frame: matches!(
+                    n.kind,
+                    NodeKind::Shader {
+                        preset: crate::shader::Preset::LensDrops,
+                        ..
+                    }
+                ) || crate::shader::reads_frame_input(n),
                 params: params_of(n),
             });
         }
@@ -1045,6 +1052,9 @@ pub struct InspectNode {
     pub in_camera: bool,
     /// Preset of a `Shader` node: `"waves"`, `"lens_drops"` or `"custom"`.
     pub shader: Option<&'static str>,
+    /// A shader that reads the frame drawn before it (`lens_drops`, or an
+    /// `Input::frame()` input): what is under it shows through.
+    pub reads_frame: bool,
     /// Numeric shader parameters (`amp`, `wetness`, …), the strength and
     /// speed of an effect on the node (`effect.strength`), how much of it is
     /// drawn (`start` above 0, `end` below 1) and its glow or shadow

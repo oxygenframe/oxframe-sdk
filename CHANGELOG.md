@@ -6,7 +6,7 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.23.0 — 2026-10-24
 
 ### Added
 
@@ -35,6 +35,7 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   e.g. `sample_scene(i.screen / ox.resolution)`. Calling `sample_x` with no
   input `x` is a `shader_error` that says how to add it.
 - `Shader::size(width, height)`, like `width` and `height` together.
+- Example `magnifier`: a lens written in WGSL that reads the frame.
 - `.offscreen()` on any node: it is drawn only for a shader that reads it
   with `Input::node(handle)` (`sample_<name>(uv)`, `uv` across the node's
   box), never on screen, and `check` skips it.
@@ -49,6 +50,9 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ### Fixed
 
+- `check` no longer reports `covers_text` for a custom shader that reads
+  the frame (`Input::frame()`): the text shows through it, as under
+  `lens_drops`. `InspectNode` has a `reads_frame` field.
 - A vector's label (`axes.vector(..).label("i")`) sits off to the side of
   the tip, so a vector along an axis no longer puts its label on the axis
   line.
@@ -70,6 +74,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   `Sample { time, nodes, contrast: Vec::new() }`.
 - `Input` is no longer `Copy` (it can hold an image); `Input::name` takes
   `&self`. Clone it where it was copied.
+- `InspectNode` has a `reads_frame` field; add `reads_frame: false` where
+  you build one.
 
 ## 0.22.0 — 2026-10-23
 

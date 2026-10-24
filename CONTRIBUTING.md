@@ -31,7 +31,7 @@ cargo feature — are written down in [`AGENTS.md`](AGENTS.md).
 
 ## Releases
 
-oxframe releases about once a week (see
+Before 1.0 oxframe releases whenever finished work is ready (see
 [Versions and upgrades](https://oxframe.dev/docs/versions)). Add a line for
 a user-facing change under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md);
 a breaking one gets a before → after example and waits for the next minor
