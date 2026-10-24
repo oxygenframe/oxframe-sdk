@@ -1321,6 +1321,12 @@ impl ShaderBuilder {
         self
     }
 
+    /// Width and height together: `.size(800.0, 450.0)` or
+    /// `.size(pct(100), 300.0)`.
+    pub fn size(self, width: impl Into<Span>, height: impl Into<Span>) -> Self {
+        self.width(width).height(height)
+    }
+
     /// Uses the frame as the box. Put the node on the view so a camera
     /// does not move it.
     pub fn fullscreen(mut self) -> Self {

@@ -372,8 +372,7 @@ fn shade(i: ShadeIn) -> vec4<f32> {
                 )
                 .uniform("k", 0.0)
                 .input("square", crate::Input::node(square))
-                .width(40.0)
-                .height(40.0)
+                .size(40.0, 40.0)
                 .x(50.0),
             );
             crate::wait_for(0.2).await;
