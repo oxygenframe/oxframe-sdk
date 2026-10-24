@@ -2139,6 +2139,7 @@ version = "0.22.0"
 dependencies = [
  "image",
  "kurbo",
+ "libm",
  "naga",
  "oxframe-core",
  "oxframe-math",

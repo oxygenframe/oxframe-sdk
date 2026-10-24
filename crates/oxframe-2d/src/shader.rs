@@ -3,9 +3,10 @@
 //! The waves preset is rasterized on the CPU, so a check without a GPU
 //! still paints it. Both backends then draw that image, which keeps the
 //! preset the same on either one. The lens_drops preset reads the frame
-//! drawn before it (see [`crate::post`]). A custom `shade` is type-checked
-//! on every draw (a changed file is picked up without a rebuild) and is
-//! not executed.
+//! drawn before it (see [`crate::post`]). A custom `shade` is checked on
+//! every draw (a changed file is picked up without a rebuild) and run on
+//! the CPU by [`crate::wgsl_cpu`], natively; the browser build checks
+//! nothing and paints nothing for it.
 
 use std::cell::Cell;
 
@@ -30,7 +31,7 @@ pub enum ShaderCode {
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Preset {
-    /// User WGSL: checked, not executed.
+    /// User WGSL: checked, and run on the CPU per pixel (not in wasm).
     Custom,
     /// [`waves`](crate::waves): painted inside the node's box.
     Waves,
@@ -164,9 +165,24 @@ fn _ox_fs(in: _OxVertexOut) -> @location(0) vec4<f32> {
 "#;
 
 thread_local! {
+    /// Scene size and frame rate of the graph being drawn, for `ox`.
+    static SCENE: Cell<((f64, f64), f64)> = const { Cell::new(((1920.0, 1080.0), 60.0)) };
     static DRAFT: Cell<bool> = const { Cell::new(false) };
     static BUDGET_MS: Cell<f64> = const { Cell::new(250.0) };
     static DIAGS: std::cell::RefCell<Vec<ShaderDiag>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Sets the scene size for `ox.resolution` and `ox.screen`; the graph
+/// calls this before it builds a draw list.
+pub(crate) fn set_scene_size(size: (f64, f64)) {
+    SCENE.with(|s| s.set((size, s.get().1)));
+}
+
+/// Frames per second, for `ox.frame` in custom shaders. The engine sets it
+/// before it draws.
+#[doc(hidden)]
+pub fn set_frame_rate(fps: f64) {
+    SCENE.with(|s| s.set((s.get().0, fps.max(1.0))));
 }
 
 pub(crate) fn clear_diags() {
@@ -305,37 +321,53 @@ pub(crate) fn raster(
     opacity: f64,
 ) -> Option<Primitive> {
     let NodeKind::Shader {
-        preset, uniforms, ..
+        preset,
+        uniforms,
+        code,
+        ..
     } = &n.kind
     else {
         return None;
     };
-    if *preset != Preset::Waves {
-        return None;
-    }
     let (w, h) = (size.0.max(1.0), size.1.max(1.0));
     let scale = if draft() { 0.5 } else { 1.0 };
     let iw = ((w * scale).round() as u32).clamp(1, 1920);
     let ih = ((h * scale).round() as u32).clamp(1, 1080);
-    let (amp, speed, deep, foam) = wave_uniforms(uniforms);
     let started = Stopwatch::start();
-    let mut rgba = vec![0u8; iw as usize * ih as usize * 4];
-    for py in 0..ih {
-        for px in 0..iw {
-            let lx = (f64::from(px) + 0.5) / f64::from(iw) * w - w / 2.0;
-            let ly = (f64::from(py) + 0.5) / f64::from(ih) * h - h / 2.0;
-            let world = tf * Point::new(lx, ly);
-            let uv_y = (f64::from(py) + 0.5) / f64::from(ih);
-            let crest = (world.x * 0.008 + time * speed).sin() * amp;
-            let t = smoothstep(crest - 0.02, crest + 0.02, uv_y - 0.5);
-            let c = mix(foam, deep, t, opacity);
-            let i = (py as usize * iw as usize + px as usize) * 4;
-            rgba[i] = byte(c.r);
-            rgba[i + 1] = byte(c.g);
-            rgba[i + 2] = byte(c.b);
-            rgba[i + 3] = byte(c.a);
+    let rgba = match preset {
+        Preset::Waves => {
+            let (amp, speed, deep, foam) = wave_uniforms(uniforms);
+            paint(
+                iw,
+                ih,
+                |uv, local| {
+                    let world = tf * Point::new(local.0, local.1);
+                    let crest = (world.x * 0.008 + time * speed).sin() * amp;
+                    let t = smoothstep(crest - 0.02, crest + 0.02, uv.1 - 0.5);
+                    Ok(mix(foam, deep, t, opacity))
+                },
+                (w, h),
+            )
         }
-    }
+        #[cfg(not(target_arch = "wasm32"))]
+        Preset::Custom => custom(n, code, uniforms, (w, h), tf, time, opacity, (iw, ih)),
+        _ => {
+            let _ = code;
+            return None;
+        }
+    };
+    let rgba = match rgba {
+        Ok(rgba) => rgba,
+        Err(hint) => {
+            push_diag(ShaderDiag {
+                node: label(n),
+                source: n.source.clone(),
+                rule: "shader_error",
+                hint,
+            });
+            return None;
+        }
+    };
     let ms = started.millis();
     if ms > budget_ms() {
         push_diag(ShaderDiag {
@@ -452,6 +484,143 @@ impl Stopwatch {
     }
 }
 
+/// RGBA bytes of an `iw` × `ih` raster of a `size` box: `pixel` gets the
+/// uv (0..1, from the top left) and the local point (from the center).
+fn paint(
+    iw: u32,
+    ih: u32,
+    mut pixel: impl FnMut((f64, f64), (f64, f64)) -> Result<Color, String>,
+    size: (f64, f64),
+) -> Result<Vec<u8>, String> {
+    let (w, h) = size;
+    let mut rgba = vec![0u8; iw as usize * ih as usize * 4];
+    for py in 0..ih {
+        for px in 0..iw {
+            let u = (f64::from(px) + 0.5) / f64::from(iw);
+            let v = (f64::from(py) + 0.5) / f64::from(ih);
+            let c = pixel((u, v), (u * w - w / 2.0, v * h - h / 2.0))?;
+            let i = (py as usize * iw as usize + px as usize) * 4;
+            rgba[i] = byte(c.r);
+            rgba[i + 1] = byte(c.g);
+            rgba[i + 2] = byte(c.b);
+            rgba[i + 3] = byte(c.a);
+        }
+    }
+    Ok(rgba)
+}
+
+/// A custom `shade`, run per pixel.
+#[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
+fn custom(
+    n: &NodeData,
+    code: &ShaderCode,
+    uniforms: &[Uniform],
+    size: (f64, f64),
+    tf: Affine,
+    time: f64,
+    opacity: f64,
+    raster: (u32, u32),
+) -> Result<Vec<u8>, String> {
+    use crate::wgsl_cpu::{Globals, LANES, V, Value};
+    let _ = n;
+    let text = load(code)?;
+    let program = compiled(&text).map_err(|(_, hint)| hint)?;
+    let ((sw, sh), fps) = SCENE.with(Cell::get);
+    let identity = Value::C(
+        (0..4)
+            .map(|c| {
+                let mut col = [0.0; 4];
+                col[c] = 1.0;
+                Value::fv(&col)
+            })
+            .collect(),
+    );
+    let ox = Value::C(vec![
+        Value::f(time as f32),
+        Value::f((time * fps + 1e-6).floor() as f32),
+        Value::fv(&[sw as f32, sh as f32]),
+        Value::fv(&[size.0 as f32, size.1 as f32]),
+        Value::f(0.0),
+        identity,
+        Value::f(0.0),
+    ]);
+    let params = program
+        .params()
+        .into_iter()
+        .map(|name| {
+            uniforms
+                .iter()
+                .find(|u| u.name == name)
+                .map_or(Value::f(0.0), |u| match &u.value {
+                    UniformValue::Num(v) => Value::f(v.get() as f32),
+                    UniformValue::Vec2(v) => {
+                        let v = v.get();
+                        Value::fv(&[v.x as f32, v.y as f32])
+                    }
+                    UniformValue::Color(v) => {
+                        let c = v.get();
+                        Value::fv(&[c.r, c.g, c.b, c.a])
+                    }
+                    UniformValue::Bool(v) => Value::B(1, [v.get() > 0.5, false, false, false]),
+                })
+        })
+        .collect();
+    let globals = Globals {
+        ox,
+        params: Value::C(params),
+    };
+    let (iw, ih) = raster;
+    let a = opacity.clamp(0.0, 1.0) as f32;
+    let mut runner = program.runner(&globals);
+    let (w, h) = size;
+    let total = iw as usize * ih as usize;
+    let mut rgba = vec![0u8; total * 4];
+    let mut start = 0;
+    while start < total {
+        let count = (total - start).min(LANES);
+        let mut comps = vec![[0.0f32; LANES]; 8];
+        for k in 0..count {
+            let i = start + k;
+            let (px, py) = ((i % iw as usize) as f64, (i / iw as usize) as f64);
+            let u = (px + 0.5) / f64::from(iw);
+            let v = (py + 0.5) / f64::from(ih);
+            let local = (u * w - w / 2.0, v * h - h / 2.0);
+            let world = tf * Point::new(local.0, local.1);
+            let vals = [
+                u,
+                v,
+                local.0,
+                local.1,
+                world.x,
+                world.y,
+                world.x + sw / 2.0,
+                world.y + sh / 2.0,
+            ];
+            for (c, x) in comps.iter_mut().zip(vals) {
+                c[k] = x as f32;
+            }
+        }
+        let input = V::C(comps.chunks(2).map(|pair| V::F(pair.to_vec())).collect());
+        let out = runner
+            .run(&input, count)
+            .map_err(|e| format!("{e} (when oxframe runs the shader on the CPU)"))?;
+        for k in 0..count {
+            let [r, g, b, alpha] = out
+                .lane(k)
+                .floats()
+                .ok_or("`shade` must return vec4<f32>")?;
+            let o = (start + k) * 4;
+            rgba[o] = byte(r);
+            rgba[o + 1] = byte(g);
+            rgba[o + 2] = byte(b);
+            rgba[o + 3] = byte(alpha * a);
+        }
+        start += count;
+    }
+    Ok(rgba)
+}
+
 fn wave_uniforms(uniforms: &[Uniform]) -> (f64, f64, Color, Color) {
     let mut amp = 0.05;
     let mut speed = 1.0;
@@ -499,7 +668,36 @@ fn check_wgsl(_text: &str, _uniforms: &[Uniform]) -> Result<(), (&'static str, S
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn check_wgsl(text: &str, uniforms: &[Uniform]) -> Result<(), (&'static str, String)> {
+type Compiled = Result<std::rc::Rc<crate::wgsl_cpu::Program>, (&'static str, String)>;
+
+#[cfg(not(target_arch = "wasm32"))]
+thread_local! {
+    /// Parsed and validated shaders by the hash of their text: a file is
+    /// read on every draw, but parsed once per change.
+    static PROGRAMS: std::cell::RefCell<std::collections::HashMap<u64, Compiled>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// The shader for `text`, parsed and validated once.
+#[cfg(not(target_arch = "wasm32"))]
+fn compiled(text: &str) -> Compiled {
+    let key = hash_bytes(text.as_bytes());
+    if let Some(hit) = PROGRAMS.with(|p| p.borrow().get(&key).cloned()) {
+        return hit;
+    }
+    let result = compile(text);
+    PROGRAMS.with(|p| {
+        let mut p = p.borrow_mut();
+        if p.len() > 64 {
+            p.clear();
+        }
+        p.insert(key, result.clone());
+    });
+    result
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn compile(text: &str) -> Compiled {
     let full = format!("{PRELUDE}{text}{EPILOGUE}");
     let module = naga::front::wgsl::parse_str(&full).map_err(|e| {
         (
@@ -513,7 +711,15 @@ fn check_wgsl(text: &str, uniforms: &[Uniform]) -> Result<(), (&'static str, Str
     )
     .validate(&module)
     .map_err(|e| ("shader_error", shift_lines(&e.to_string(), prelude_lines())))?;
-    let fields = params_of(&module).ok_or((
+    crate::wgsl_cpu::Program::new(module)
+        .map(std::rc::Rc::new)
+        .ok_or(("shader_error", "the shader has no `fn shade`".to_string()))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn check_wgsl(text: &str, uniforms: &[Uniform]) -> Result<(), (&'static str, String)> {
+    let program = compiled(text)?;
+    let fields = params_of(program.module()).ok_or((
         "shader_error",
         "the shader has no `struct Params`".to_string(),
     ))?;
@@ -780,6 +986,85 @@ mod tests {
     }
 
     #[test]
+    fn custom_wgsl_runs_like_the_hand_written_preset() {
+        // The waves preset's own WGSL, run by the interpreter, against the
+        // preset's Rust code: the same picture up to f32 rounding.
+        let custom = paint(|view| {
+            view.add(
+                crate::Shader::source(waves_wgsl())
+                    .uniform("amp", 0.2)
+                    .uniform("speed", 1.0)
+                    .uniform_color("deep", Color::rgba(0.1, 0.3, 0.5, 1.0))
+                    .uniform_color("foam", Color::rgba(0.9, 0.95, 1.0, 1.0))
+                    .width(200.0)
+                    .height(80.0),
+            );
+        });
+        let preset = paint(|view| {
+            view.add(
+                crate::waves()
+                    .amp(0.2)
+                    .deep(Color::rgba(0.1, 0.3, 0.5, 1.0))
+                    .foam(Color::rgba(0.9, 0.95, 1.0, 1.0))
+                    .width(200.0)
+                    .height(80.0),
+            );
+        });
+        for t in [0.0, 1.3] {
+            custom.set_time(t);
+            preset.set_time(t);
+            let (a, b) = (image_of(&custom), image_of(&preset));
+            assert_eq!((a.width, a.height), (b.width, b.height));
+            let worst = a
+                .rgba
+                .iter()
+                .zip(&b.rgba)
+                .map(|(x, y)| x.abs_diff(*y))
+                .max()
+                .unwrap_or(0);
+            assert!(worst <= 2, "differs by {worst}/255 at t={t}");
+        }
+        assert!(
+            custom.shader_diags().is_empty(),
+            "{:?}",
+            custom.shader_diags()
+        );
+    }
+
+    #[test]
+    fn a_shader_that_fails_while_running_is_a_shader_error() {
+        let graph = paint(|view| {
+            view.add(
+                crate::Shader::source(
+                    "struct Params { k: f32 }
+@group(1) @binding(0) var<uniform> p: Params;
+fn shade(i: ShadeIn) -> vec4<f32> {
+    var x = 0.0;
+    loop { x += p.k; }
+    return vec4<f32>(x);
+}",
+                )
+                .uniform("k", 1.0)
+                .width(4.0)
+                .height(4.0),
+            );
+        });
+        let items = graph.draw_list();
+        assert!(
+            !items
+                .iter()
+                .any(|i| matches!(i.prim, Primitive::Image { .. }))
+        );
+        let diags = graph.shader_diags();
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.rule == "shader_error" && d.hint.contains("loops")),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
     fn the_crest_moves_along_the_wave() {
         let graph = paint(|view| {
             view.add(crate::waves().amp(0.2).width(200.0).height(80.0));
@@ -988,5 +1273,37 @@ mod tests {
             "{:?}",
             graph.shader_diags()
         );
+    }
+}
+
+#[cfg(test)]
+mod speed {
+    use super::*;
+
+    #[test]
+    #[ignore = "timing, run by hand in release"]
+    fn custom_waves_full_frame() {
+        let graph = crate::SceneGraph::new(1920, 1080);
+        graph.enter(|| {
+            crate::View::current().add(
+                crate::Shader::source(waves_wgsl())
+                    .uniform("amp", 0.2)
+                    .uniform("speed", 1.0)
+                    .uniform_color("deep", Color::BLACK)
+                    .uniform_color("foam", Color::WHITE)
+                    .width(1920.0)
+                    .height(1080.0),
+            );
+        });
+        let t = std::time::Instant::now();
+        let _ = graph.draw_list();
+        eprintln!("custom waves 1920x1080: {:?}", t.elapsed());
+        let graph = crate::SceneGraph::new(1920, 1080);
+        graph.enter(|| {
+            crate::View::current().add(crate::waves().width(1920.0).height(1080.0));
+        });
+        let t = std::time::Instant::now();
+        let _ = graph.draw_list();
+        eprintln!("preset waves 1920x1080: {:?}", t.elapsed());
     }
 }

@@ -222,9 +222,10 @@ above the water.
 the uniform `p`, and `fn shade`. oxframe adds `ox` (`time`, `frame`,
 `resolution`, `size`, `seed`, `view`, `progress`) and `ShadeIn` (`uv`,
 `local`, `world`, `screen`). A name or type that is not in `Params` fails
-`check`. Saving the file updates the next draw without a rebuild. The
-waves preset is what gets painted. A custom `shade` is type-checked on
-every draw.
+`check`. Saving the file updates the next draw without a rebuild.
+`shade` runs on the CPU (about 0.13 s for a 1080p frame in a release
+build), in `check`, `render` and `dev`; the playground does not paint it.
+It cannot sample textures or use derivatives.
 
 Preset catalog, the first stop before any WGSL:
 
@@ -235,7 +236,7 @@ Preset catalog, the first stop before any WGSL:
 | A wet camera lens | `shaders::lens_drops()`, last, `.fullscreen()` |
 | Rings on a node | `node.effect(shaders::ripple())` |
 | A scene change through water | `Transition::shader(shaders::water_wipe())` |
-| Anything else | `Custom`; custom WGSL is checked, not run |
+| Anything else | `Shader::source` with your own `shade`, or `Custom` |
 
 `examples/src/ocean.rs` uses all of them in the target scene of hybrid
 rendering. `oxframe mcp` has `render_graph`, the passes at one time.

@@ -686,6 +686,7 @@ impl Engine {
         present: bool,
     ) -> Image {
         let theme = self.project.theme.clone();
+        oxframe_2d::set_frame_rate(f64::from(self.fps()));
         let graph = self.seek(frame);
         let options = RenderOptions {
             width: size.0,

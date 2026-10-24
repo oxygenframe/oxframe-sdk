@@ -23,6 +23,11 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   drawn without text and the ratio is the median over the text's box; it
   must last 0.5 s to count, so something moving past a label is not
   reported. Text over plain fills is judged as before.
+- A custom WGSL `shade` (`Shader::source`, `Shader::file`) is painted, not
+  only checked: an interpreter over naga's IR runs it on the CPU, a tile of
+  pixels at a time, with the same bytes on every OS (about 0.13 s for a
+  1080p frame in a release build). Textures, samplers and derivatives are
+  a `shader_error`. The playground does not paint it.
 
 ### Fixed
 

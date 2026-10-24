@@ -58,8 +58,15 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# Full debug info made each test binary 0.5–0.9 GB; writing those on every
+# rebuild pushed the machine into memory pressure. Line tables keep panic
+# locations and backtraces.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
 
 [profile.bench]
 debug = false

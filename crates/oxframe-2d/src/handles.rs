@@ -322,8 +322,8 @@ impl Shader {
     /// A shader from WGSL text. The text defines `struct Params`, the
     /// uniform `p`, and `fn shade`. oxframe adds `ox` and `ShadeIn`.
     ///
-    /// The waves preset is what gets painted. A custom `shade` is
-    /// type-checked on every draw.
+    /// `shade` runs on the CPU for every pixel of the box, so `check` and
+    /// both renderers paint it; the browser build does not.
     #[allow(clippy::new_ret_no_self)]
     pub fn source(wgsl: impl Into<String>) -> ShaderBuilder {
         ShaderBuilder::new(crate::shader::ShaderCode::Wgsl(wgsl.into()))

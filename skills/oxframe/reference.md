@@ -79,7 +79,7 @@ sea.amp().to(0.12, 1.2).await;
 
 `Shader::source(wgsl)` and `Shader::file(path)` take WGSL that defines `struct Params`, `@group(1) @binding(0) var<uniform> p: Params`, and `fn shade(i: ShadeIn) -> vec4<f32>`. oxframe adds `ox` (`time`, `frame`, `resolution`, `size`, `seed`, `view`, `progress`) and `ShadeIn` (`uv`, `local`, `world`, `screen`). `.uniform("name", 0.3)` sets a number; a color uses `.uniform_color`. A name or type that is not in `Params` is `param_unknown`. WGSL that does not compile is `shader_error`, with the line in your source. `Shader::file` is read on every draw, so saving the file updates the scene without a rebuild.
 
-The waves preset is rasterized and then drawn by whichever backend is running, including a check with no GPU. A custom `shade` is type-checked on every draw and is not executed yet. A shader that takes longer than the draft budget is `shader_slow`. An opaque shader painted over text is `covers_text`.
+The waves preset is rasterized and then drawn by whichever backend is running, including a check with no GPU. A custom `shade` runs on the CPU the same way (about 0.13 s for a 1080p frame in a release build); the playground does not paint it. It cannot sample textures or use derivatives (`shader_error`). A shader that takes longer than the draft budget is `shader_slow`. An opaque shader painted over text is `covers_text`.
 
 ### Shaders that read pixels
 
@@ -97,7 +97,7 @@ transition(Transition::shader(shaders::water_wipe().wave(0.04))).await;
 - `node.effect(shaders::ripple())` returns an `Effect`. `.strength()` (default 1) and `.speed()` (default 6) are signals. Colors move outward from the node's center, the outline stays. One effect per node; a second call replaces it.
 - `Transition::shader(shaders::water_wipe())`: a wavy waterline rises; below it is the next scene, rippled near the line. `.wave()` sets the wave height (fraction of the frame, default 0.04). Nodes the next scene adds before `transition` are under the water.
 - A shader inside a group with opacity below 1, a blur, a clip, a blend, a shadow or another effect cannot read finished pixels: `check` reports `input_cycle` (an error) and draws without it. Put the effect on the group.
-- All three run on the CPU, so `check` and `render --cpu` paint them; the GPU renderer gives the same picture. `inspect --graph` lists them as `effect` passes. `Input::node`, `Input::image` and `.offscreen()` do not exist yet, and a custom `shade` still is not run.
+- All three run on the CPU, so `check` and `render --cpu` paint them; the GPU renderer gives the same picture. `inspect --graph` lists them as `effect` passes. `Input::node`, `Input::image` and `.offscreen()` do not exist yet.
 
 ## Video (feature `video`, needs ffmpeg)
 
