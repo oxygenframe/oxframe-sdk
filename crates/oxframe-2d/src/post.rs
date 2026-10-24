@@ -129,7 +129,6 @@ pub enum ShadeOp {
         time: f64,
     },
     /// A custom `shade` that reads the frame drawn before it.
-    #[cfg(not(target_arch = "wasm32"))]
     Custom(Box<crate::shader::CustomShade>),
 }
 
@@ -139,7 +138,6 @@ impl ShadeOp {
         match self {
             Self::LensDrops { .. } => "lens_drops",
             Self::Ripple { .. } => "ripple",
-            #[cfg(not(target_arch = "wasm32"))]
             Self::Custom(_) => "custom",
         }
     }
@@ -162,7 +160,6 @@ impl Shade {
     /// alone and pass to [`apply_with`]. Empty for the presets.
     pub fn offscreen_lists(&self) -> Vec<&[crate::DrawItem]> {
         match &self.op {
-            #[cfg(not(target_arch = "wasm32"))]
             ShadeOp::Custom(c) => c.offscreen_lists(),
             _ => Vec::new(),
         }
@@ -176,14 +173,12 @@ pub fn apply(shade: &Shade, img: &mut Image, to_px: Affine) {
 
 /// [`apply`] for a shade that reads nodes: `drawn` holds the images of
 /// [`Shade::offscreen_lists`], each drawn alone at the size of `img`.
-#[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
 pub fn apply_with(shade: &Shade, img: &mut Image, to_px: Affine, drawn: &[Image]) {
     let opacity = shade.opacity.clamp(0.0, 1.0) as f32;
     if opacity <= 0.0 || img.width == 0 || img.height == 0 {
         return;
     }
     // A custom shade samples the whole frame and limits itself to its box.
-    #[cfg(not(target_arch = "wasm32"))]
     if let ShadeOp::Custom(c) = &shade.op {
         c.apply(img, to_px, opacity, drawn);
         return;
@@ -237,7 +232,6 @@ fn run(shade: &Shade, img: &mut Image, to_px: Affine, opacity: f32) {
             speed,
             time,
         } => ripple(img, to_px, *center, *strength, *speed, *time, opacity),
-        #[cfg(not(target_arch = "wasm32"))]
         ShadeOp::Custom(c) => c.apply(img, to_px, opacity, &[]),
     }
 }

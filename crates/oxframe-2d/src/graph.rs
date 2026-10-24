@@ -1541,7 +1541,6 @@ fn offscreen(nodes: &[NodeData], id: NodeId) -> bool {
 
 /// The draw list of an offscreen node and its children alone, and its box
 /// in scene coordinates.
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn offscreen_items(
     nodes: &[NodeData],
     id: NodeId,

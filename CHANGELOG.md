@@ -6,6 +6,16 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- Custom WGSL shaders (`Shader::source`, `Shader::file`, and their
+  `Input::frame()` and `Input::node` inputs) paint in the browser
+  playground too: the CPU interpreter is built for wasm. A 1080p frame
+  takes about 0.3 s there; playback skips frames to keep time. The browser
+  bundle grows by about 360 KB gzipped.
+
 ## 0.23.0 — 2026-10-24
 
 ### Added
