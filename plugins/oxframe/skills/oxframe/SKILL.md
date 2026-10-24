@@ -2,13 +2,13 @@
 name: oxframe
 description: "Make videos from code with oxframe: explainers, code walkthroughs, charts, matrices, 3D, slides and release videos as Rust scenes, checked with `oxframe check` (storyboard and report) and rendered to MP4 without a browser. Use when the user asks for an animation, a motion graphic, a video from code, or changes to an oxframe project."
 ---
-<!-- oxframe-agents 0.23.0 -->
+<!-- oxframe-agents 0.23.2 -->
 # oxframe scenes
 
-The project is on oxframe 0.23.1: docs https://oxframe.dev/docs/0.23,
+The project is on oxframe 0.23.2: docs https://oxframe.dev/docs/0.23,
 model text https://oxframe.dev/docs/0.23/llms.txt
 (and https://oxframe.dev/docs/0.23/llms-full.txt),
-API https://docs.rs/oxframe/0.23.1/oxframe/.
+API https://docs.rs/oxframe/0.23.2/oxframe/.
 `oxframe mcp` exposes check, inspect, render_graph, render_frame and docs_search. `oxframe --json check` prints one JSON object.
 
 ## No project yet
@@ -35,6 +35,8 @@ scenes are short async functions, and `oxframe check` tells you what is wrong.
 6. Only then report. Mention the storyboard and which issues you fixed.
 
 Never run `oxframe dev` (interactive server). Never hand-edit `meta.json` unless asked.
+
+When the user asks for a link to the video, `oxframe publish --title "…"` renders it and prints a public oxframe.dev link (30 days, up to 30 s: `--range 0..30`). Never publish unasked: anyone with the link can watch.
 
 ## API
 
