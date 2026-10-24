@@ -13,10 +13,9 @@ use oxframe_core::{Image, Signal};
 
 /// What a shader reads besides its own parameters.
 ///
-/// The frame and the backdrop are the pixels drawn before the node. A node
-/// that sits inside an unfinished layer (a group with opacity below 1, a
-/// blur, a clip, a blend or a shadow) cannot read them, and `check` reports
-/// `input_cycle`.
+/// The frame and the backdrop are the pixels drawn before the node. Inside
+/// a layer (a group with opacity below 1, a blur, a clip, a blend, a shadow
+/// or an effect) both are what that layer drew before the node.
 ///
 /// A custom `shade` reads an input named `"photo"` with
 /// `sample_photo(uv)`, which returns straight-alpha sRGB `vec4<f32>`;

@@ -96,7 +96,7 @@ transition(Transition::shader(shaders::water_wipe().wave(0.04))).await;
 - `shaders::lens_drops()`: drops over everything drawn before this node, inside its box. Add it last and make it `.fullscreen()`. `.wetness()` 0..1 is a signal (default 0.6), `.seed()` places the drops, `.drop_size()` scales them. `.input("scene", Input::frame())` names the input; another name is `param_unknown`.
 - `node.effect(shaders::ripple())` returns an `Effect`. `.strength()` (default 1) and `.speed()` (default 6) are signals. Colors move outward from the node's center, the outline stays. One effect per node; a second call replaces it.
 - `Transition::shader(shaders::water_wipe())`: a wavy waterline rises; below it is the next scene, rippled near the line. `.wave()` sets the wave height (fraction of the frame, default 0.04). Nodes the next scene adds before `transition` are under the water.
-- A shader inside a group with opacity below 1, a blur, a clip, a blend, a shadow or another effect cannot read finished pixels: `check` reports `input_cycle` (an error) and draws without it. Put the effect on the group.
+- A shader inside a group with opacity below 1, a blur, a clip, a blend, a shadow or another effect reads what that group drew before it; the group is then faded, blurred or clipped as a whole.
 - All three run on the CPU, so `check` and `render --cpu` paint them; the GPU renderer gives the same picture. `inspect --graph` lists them as `effect` passes.
 
 ## Video (feature `video`, needs ffmpeg)

@@ -1765,31 +1765,31 @@ fn shade(i: ShadeIn) -> vec4<f32> {
     }
 
     #[test]
-    fn a_lens_inside_a_fading_group_is_an_input_cycle() {
+    fn a_lens_inside_a_fading_group_reads_the_layer() {
         let graph = paint(|view| {
             let group = view.add(crate::Group::new().opacity(0.5));
             group.add(crate::Rect::new().size(20.0));
             group.add(crate::lens_drops().fullscreen());
         });
-        assert_eq!(rules(&graph), ["input_cycle"]);
-        assert!(!reads_frame(&graph), "the lens is skipped");
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
+        assert!(reads_frame(&graph));
     }
 
     #[test]
-    fn an_effect_inside_an_effect_is_an_input_cycle() {
+    fn an_effect_inside_an_effect_runs_both() {
         let graph = paint(|view| {
             let outer = view.add(crate::Group::new());
             let inner = outer.add(crate::Rect::new().size(20.0));
             outer.effect(crate::ripple());
             inner.effect(crate::ripple());
         });
-        assert_eq!(rules(&graph), ["input_cycle"]);
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
         let items = graph.draw_list();
         let begins = items
             .iter()
             .filter(|i| matches!(i.prim, Primitive::BeginEffect(_)))
             .count();
-        assert_eq!(begins, 1, "only the outer effect runs");
+        assert_eq!(begins, 2);
         let passes = crate::pass_graph(&items);
         assert!(
             passes

@@ -38,6 +38,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   with `Input::node(handle)` (`sample_<name>(uv)`, `uv` across the node's
   box), never on screen, and `check` skips it.
 
+### Changed
+
+- `lens_drops`, `node.effect(..)` and a frame-reading shader work inside a
+  group with opacity below 1, a blur, a clip, a blend, a shadow or another
+  effect. The group is drawn in parts on its own, then faded or blurred as
+  a whole; a shader in it reads what the group drew before it. `check` no
+  longer reports `input_cycle`.
+
 ### Fixed
 
 - A vector's label (`axes.vector(..).label("i")`) sits off to the side of

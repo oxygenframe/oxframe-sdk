@@ -8,8 +8,13 @@
 //! the list at once for nodes with the normal blend. A shader that reads
 //! an offscreen node gets that node drawn alone first.
 
+use std::borrow::Cow;
+use std::rc::Rc;
+
+use oxframe_2d::RasterImage;
 use oxframe_2d::post::over;
 use oxframe_2d::{DrawItem, Primitive, SceneGraph, apply_shade, apply_shade_with};
+use oxframe_core::kurbo::{Affine, Rect as KRect};
 use oxframe_core::{Color, Image};
 use oxframe_render::{RenderOptions, Renderer, scene_to_pixels};
 
@@ -35,6 +40,8 @@ pub(crate) fn draw_items_in_parts(
         background: Color::TRANSPARENT,
         ..*options
     };
+    let flat = flatten_layers(graph, items, renderer, &clear, view);
+    let items = &flat[..];
     let mut frame: Option<Image> = None;
     let mut start = 0;
     let mut i = 0;
@@ -46,7 +53,7 @@ pub(crate) fn draw_items_in_parts(
                 let drawn: Vec<Image> = shade
                     .offscreen_lists()
                     .into_iter()
-                    .map(|list| renderer.render_list(graph, list, &clear))
+                    .map(|list| draw_items_in_parts(graph, list, renderer, &clear))
                     .collect();
                 apply_shade_with(shade, &mut img, view, &drawn);
                 frame = Some(img);
@@ -55,7 +62,7 @@ pub(crate) fn draw_items_in_parts(
             Primitive::BeginEffect(shade) => {
                 let end = matching_end(items, i);
                 let mut img = lay(graph, renderer, &items[start..i], options, frame.take());
-                let mut node = renderer.render_list(graph, &items[i + 1..end], &clear);
+                let mut node = draw_items_in_parts(graph, &items[i + 1..end], renderer, &clear);
                 apply_shade(shade, &mut node, view);
                 over(&mut img, &node);
                 frame = Some(img);
@@ -67,6 +74,71 @@ pub(crate) fn draw_items_in_parts(
         i += 1;
     }
     lay(graph, renderer, &items[start..], options, frame)
+}
+
+/// A layer (`PushLayer` … `PopLayer`) that holds a marker is drawn in parts
+/// on its own and put back as one image inside the same layer, so the
+/// renderer still applies the layer's opacity, blur, clip, blend and
+/// shadow. A shader in there reads what the layer drew before it.
+fn flatten_layers<'a>(
+    graph: &SceneGraph,
+    items: &'a [DrawItem],
+    renderer: &mut dyn Renderer,
+    clear: &RenderOptions,
+    view: Affine,
+) -> Cow<'a, [DrawItem]> {
+    let mut out: Option<Vec<DrawItem>> = None;
+    let mut i = 0;
+    while i < items.len() {
+        if matches!(items[i].prim, Primitive::PushLayer(_)) {
+            let end = matching_pop(items, i);
+            let inner = &items[i + 1..end];
+            if inner.iter().any(|item| item.prim.is_marker()) {
+                let out = out.get_or_insert_with(|| items[..i].to_vec());
+                let img = draw_items_in_parts(graph, inner, renderer, clear);
+                let (w, h) = (f64::from(img.width), f64::from(img.height));
+                out.push(items[i].clone());
+                out.push(DrawItem {
+                    node: items[i].node,
+                    transform: view.inverse(),
+                    prim: Primitive::Image {
+                        image: Rc::new(RasterImage::new(img.width, img.height, img.data)),
+                        rect: KRect::new(0.0, 0.0, w, h),
+                        opacity: 1.0,
+                    },
+                });
+                if let Some(pop) = items.get(end) {
+                    out.push(pop.clone());
+                }
+                i = end + 1;
+                continue;
+            }
+        }
+        if let Some(out) = out.as_mut() {
+            out.push(items[i].clone());
+        }
+        i += 1;
+    }
+    out.map_or(Cow::Borrowed(items), Cow::Owned)
+}
+
+/// Index of the `PopLayer` that closes the `PushLayer` at `start`, or the
+/// end of the list.
+fn matching_pop(items: &[DrawItem], start: usize) -> usize {
+    let mut depth = 0usize;
+    for (i, item) in items.iter().enumerate().skip(start) {
+        match item.prim {
+            Primitive::PushLayer(_) => depth += 1,
+            Primitive::PopLayer => {
+                depth -= 1;
+                if depth == 0 {
+                    return i;
+                }
+            }
+            _ => {}
+        }
+    }
+    items.len()
 }
 
 /// Draws `part` over `below`, or on the background when nothing is drawn yet.
@@ -147,7 +219,11 @@ mod tests {
 
     /// Stripes, so a shader that moves pixels changes them.
     fn stripes(view: &View) -> Node {
-        let card = view.add(crate::Group::new());
+        stripes_in(**view)
+    }
+
+    fn stripes_in(parent: Node) -> Node {
+        let card = parent.add(crate::Group::new());
         for i in 0..8 {
             let c = f64::from(i) / 7.0;
             card.add(
@@ -315,6 +391,38 @@ fn shade(i: ShadeIn) -> vec4<f32> {
         assert_eq!(px(30, 45), [0, 0, 0], "an offscreen node is not drawn");
         assert_eq!(px(130, 45), [255, 0, 0], "the shader shows it");
         assert_eq!(px(5, 5), [0, 0, 0]);
+    }
+
+    fn faded(ripple: bool) -> Image {
+        let scene = if ripple {
+            (|view: View| -> BoxFuture {
+                Box::pin(async move {
+                    let group = view.add(crate::Group::new().opacity(0.5));
+                    let card = stripes_in(*group);
+                    card.effect(shaders::ripple().speed(0.0));
+                    crate::wait_for(0.2).await;
+                })
+            }) as SceneFn
+        } else {
+            |view: View| -> BoxFuture {
+                Box::pin(async move {
+                    let group = view.add(crate::Group::new().opacity(0.5));
+                    stripes_in(*group);
+                    crate::wait_for(0.2).await;
+                })
+            }
+        };
+        draw(scene)
+    }
+
+    #[test]
+    fn an_effect_inside_a_fading_group_runs_and_fades() {
+        let (rippled, plain) = (faded(true), faded(false));
+        assert!(max_diff(&rippled, &plain) > 10, "the ripple moved pixels");
+        let full = draw(super::tests::plain);
+        // Away from the ripple's reach the group is just faded.
+        let at = |img: &Image| img.data[(45 * img.width as usize + 12) * 4 + 2];
+        assert!(at(&plain) < at(&full), "the group is faded");
     }
 
     #[test]

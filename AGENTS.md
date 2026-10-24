@@ -259,8 +259,8 @@ Shaders that read drawn pixels:
 - `transition(Transition::shader(shaders::water_wipe())).await` raises
   water into the next scene. Add the next scene's background before it.
 
-Do not put `lens_drops` or an effect inside a group with opacity below 1,
-a blur, a clip, a blend, a shadow or another effect: `check` reports
-`input_cycle` and skips the shader. Put the effect on that group instead.
-Events go through signals (`wetness`, `strength`) at the time they happen,
+Inside a group with opacity below 1, a blur, a clip, a blend, a shadow or
+another effect, the group's content is drawn first (a shader there reads
+what the group drew before it), then the group fades, blurs or clips as a
+whole. Events go through signals (`wetness`, `strength`) at the time they happen,
 not through `ox.time`.

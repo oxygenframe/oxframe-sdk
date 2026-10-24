@@ -767,7 +767,6 @@ impl SceneGraph {
             None,
             None,
             self.time.get(),
-            false,
             &mut out,
         );
         *self.shader_diags.borrow_mut() = crate::shader::take_diags();
@@ -1362,9 +1361,8 @@ pub(crate) fn prim_same(a: &Primitive, b: &Primitive) -> bool {
     }
 }
 
-/// `inside` is true under an open layer or effect. A marker there could not
-/// be drawn in parts, so the node reports `input_cycle` and draws without it.
-#[allow(clippy::too_many_arguments)]
+/// Markers may sit inside layers and effects: the engine draws such a
+/// layer in parts on its own (see `oxframe::parts`).
 fn visit(
     nodes: &[NodeData],
     id: NodeId,
@@ -1372,7 +1370,6 @@ fn visit(
     placement: Option<FlexBox>,
     flex: Option<&FlexMap>,
     time: f64,
-    inside: bool,
     out: &mut Vec<DrawItem>,
 ) {
     let n = &nodes[id.0 as usize];
@@ -1407,13 +1404,7 @@ fn visit(
         || blur > 0.0
         || shadow.is_some()
         || (opacity < 1.0 && !n.children.is_empty());
-    let effect = n.effect.as_ref().and_then(|e| {
-        if inside {
-            cycle(n, "This effect is inside a layer or another effect");
-            return None;
-        }
-        Some(e.shade(tf * Point::ZERO, time))
-    });
+    let effect = n.effect.as_ref().map(|e| e.shade(tf * Point::ZERO, time));
     if let Some(shade) = &effect {
         out.push(DrawItem {
             node: id,
@@ -1422,18 +1413,11 @@ fn visit(
         });
     }
     if let Some(shade) = crate::shader::read_frame(nodes, n, size, tf, time, opacity) {
-        if inside || effect.is_some() {
-            cycle(
-                n,
-                "This shader reads the frame, but it is inside a layer or an effect",
-            );
-        } else {
-            out.push(DrawItem {
-                node: id,
-                transform: tf,
-                prim: Primitive::ReadFrame(shade),
-            });
-        }
+        out.push(DrawItem {
+            node: id,
+            transform: tf,
+            prim: Primitive::ReadFrame(shade),
+        });
     }
     if layered {
         out.push(DrawItem {
@@ -1506,8 +1490,7 @@ fn visit(
                 continue;
             }
             let placement = map.and_then(|m| m.get(&c).copied());
-            let inside = inside || layered || clipped || effect.is_some();
-            visit(nodes, c, tf, placement, map, time, inside, out);
+            visit(nodes, c, tf, placement, map, time, out);
         }
         if clipped {
             out.push(DrawItem {
@@ -1559,27 +1542,10 @@ pub(crate) fn offscreen_items(
         .parent
         .map_or(Affine::IDENTITY, |p| transform_without_layout(nodes, p));
     let mut out = Vec::new();
-    visit(nodes, id, parent, None, None, time, false, &mut out);
+    visit(nodes, id, parent, None, None, time, &mut out);
     let (w, h) = measure(nodes, id);
     let [x0, y0, x1, y1] = aabb(transform_without_layout(nodes, id), w, h);
     (out, kurbo::Rect::new(x0, y0, x1, y1))
-}
-
-/// Reports `input_cycle` for `n`.
-fn cycle(n: &NodeData, what: &str) {
-    crate::shader::push_diag(crate::shader::ShaderDiag {
-        node: n
-            .name
-            .clone()
-            .unwrap_or_else(|| format!("{}#{}", n.kind.name(), n.id.0)),
-        source: n.source.clone(),
-        rule: "input_cycle",
-        hint: format!(
-            "{what} (a group with opacity below 1, a blur, a clip, a blend or a shadow). \
-             Its pixels are not finished there, so the shader is skipped. \
-             Put the effect on that group, or move the node out of it."
-        ),
-    });
 }
 
 impl DrawItem {
