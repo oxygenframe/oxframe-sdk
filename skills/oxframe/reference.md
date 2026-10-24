@@ -1,4 +1,4 @@
-<!-- oxframe-agents 0.23.2 -->
+<!-- oxframe-agents 0.23.3 -->
 # oxframe API cheat sheet
 
 `use oxframe::prelude::*;` brings everything below into scope.
@@ -235,6 +235,12 @@ Ready-made pieces copied into the project, each checked to pass `oxframe check`.
 - `blocks::bar_chart(view, title, &[(label, value), ..])` — axes and a title, bars grow in turn.
 - `blocks::kinetic_title(view, text)` — the words pop in one after another.
 - `blocks::call_to_action(view, headline, link)` — a closing line and a link in a pill that pulses.
+- `blocks::feature_grid(view, &[(title, text), ..])` — up to four cards in a row slide up in turn.
+- `blocks::checklist(view, title, &[item, ..])` — open boxes, then each item is ticked.
+- `blocks::comparison(view, ours, theirs, &[(feature, ours_has, theirs_has), ..])` — a table, a row at a time, "Yes" green and "No" red.
+- `blocks::chat_messages(view, &[(mine, text), ..])` — bubbles pop in, yours on the right in the accent color.
+- `blocks::pull_request(view, number, title, added, removed)` — a PR card, the line counts count up, then "Merged".
+- `blocks::countdown(view, from, done)` — a number per second in a filling ring, then `done`.
 
 `pop_in()` grows a node to its scale at the time of the call: add the node at full scale and call `pop_in()` right away; a node added with `.scale(0.0)` stays invisible.
 
