@@ -6,6 +6,16 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.23.2 — 2026-10-24
+
+### Added
+
+- `oxframe publish` (oxframe-cli): renders the project, or takes an MP4,
+  uploads it to oxframe.dev and prints a link with a player that unfolds as
+  a video in Discord and Slack. Up to 30 s and 16 MB (a larger render is
+  re-encoded at 720p); kept for 30 days. `--title` names the page. No SDK
+  code changed; the agent skill knows the command.
+
 ## 0.23.1 — 2026-10-24
 
 ### Added
