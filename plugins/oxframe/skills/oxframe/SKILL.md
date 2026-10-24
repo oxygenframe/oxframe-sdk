@@ -5,10 +5,10 @@ description: "Make videos from code with oxframe: explainers, code walkthroughs,
 <!-- oxframe-agents 0.23.0 -->
 # oxframe scenes
 
-The project is on oxframe 0.23.0: docs https://oxframe.dev/docs/0.23,
+The project is on oxframe 0.23.1: docs https://oxframe.dev/docs/0.23,
 model text https://oxframe.dev/docs/0.23/llms.txt
 (and https://oxframe.dev/docs/0.23/llms-full.txt),
-API https://docs.rs/oxframe/0.23.0/oxframe/.
+API https://docs.rs/oxframe/0.23.1/oxframe/.
 `oxframe mcp` exposes check, inspect, render_graph, render_frame and docs_search. `oxframe --json check` prints one JSON object.
 
 ## No project yet
