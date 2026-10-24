@@ -165,6 +165,7 @@ mod tests {
             .map(|&(t, a, b)| Sample {
                 time: t,
                 nodes: vec![node(1, 0, a), node(2, 1, a + 50.0), node(3, 0, b)],
+                contrast: Vec::new(),
             })
             .collect()
     }

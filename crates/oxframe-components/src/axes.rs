@@ -527,7 +527,12 @@ impl Vector {
                 } else {
                     Vec2::new(1.0, 0.0)
                 };
-                tip + dir * 30.0
+                // Past the tip and off to the side, toward the top right,
+                // so a vector along an axis keeps its label off the axis
+                // line and away from the tick labels (below and left).
+                let side = Vec2::new(dir.y, -dir.x);
+                let side = if side.x - side.y >= 0.0 { side } else { -side };
+                tip + dir * 22.0 + side * 22.0
             }
         };
         let p = place.clone();

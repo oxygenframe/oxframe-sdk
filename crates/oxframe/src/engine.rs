@@ -709,6 +709,35 @@ impl Engine {
         })
     }
 
+    /// Draws `frame` without the nodes in `hidden` (their children stay),
+    /// on the project background. A frame inside a transition is drawn as
+    /// the incoming scene alone.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn render_without(
+        &mut self,
+        frame: u32,
+        renderer: &mut dyn Renderer,
+        size: (u32, u32),
+        hidden: &[u32],
+    ) -> Image {
+        let theme = self.project.theme.clone();
+        let background = self.project.background;
+        let graph = self.seek(frame);
+        let options = RenderOptions {
+            width: size.0,
+            height: size.1,
+            background,
+        };
+        oxframe_2d::enter_theme(&theme, || {
+            let items: Vec<_> = graph
+                .draw_list()
+                .into_iter()
+                .filter(|item| !hidden.contains(&item.node.0))
+                .collect();
+            crate::parts::draw_items_in_parts(graph, &items, renderer, &options)
+        })
+    }
+
     fn write_scene_meta(&mut self, i: usize, meta: Meta) -> Result<(String, Meta), String> {
         meta.validate().map_err(|e| e.to_string())?;
         let scene = &mut self.scenes[i];

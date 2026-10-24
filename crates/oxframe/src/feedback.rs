@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use oxframe_2d::InspectNode;
 use oxframe_core::{Color, Image};
 use oxframe_protocol::MarkerInfo;
 use oxframe_render::CpuRenderer;
@@ -299,9 +300,11 @@ fn pass(
             shader_notes.push((when.t, diag));
         }
         let nodes = engine.seek(frame).inspect_nodes();
+        let contrast = pixel_contrast(engine, frame, &nodes, &mut cpu);
         samples.push(Sample {
             time: when.t,
             nodes,
+            contrast,
         });
         if draw && when.story {
             cells.push((
@@ -374,6 +377,94 @@ fn pass(
         },
         cells,
     ))
+}
+
+/// Node types drawn with one fill, where `low_contrast` reads the color
+/// behind text from the fills. Anything else (a shader, an image, a video,
+/// `Custom`, particles, 3D) is judged on drawn pixels.
+const FLAT: &[&str] = &[
+    "Rect", "Circle", "Polygon", "Star", "Path", "Line", "Group", "Layout", "Grid", "Camera",
+    "Txt", "Code", "Math",
+];
+
+/// Width of the frame `low_contrast` draws to read the pixels behind text.
+const CONTRAST_WIDTH: u32 = 480;
+
+/// Contrast of each `Txt` that lies over a node in [`FLAT`]'s complement,
+/// against the pixels behind it: the frame is drawn without text, and the
+/// ratio is the median over the text's box (a thin line through the box
+/// does not count, a light half of it does).
+fn pixel_contrast(
+    engine: &mut Engine,
+    frame: u32,
+    nodes: &[InspectNode],
+    renderer: &mut CpuRenderer,
+) -> Vec<(u32, f64)> {
+    let drawn = |n: &InspectNode| n.id != 0 && n.opacity > 0.05 && n.order != u32::MAX;
+    let meets = |a: [f64; 4], b: [f64; 4]| a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    let texts: Vec<&InspectNode> = nodes
+        .iter()
+        .filter(|t| {
+            t.kind == "Txt"
+                && drawn(t)
+                && t.text.as_ref().is_some_and(|s| !s.trim().is_empty())
+                && nodes.iter().any(|n| {
+                    drawn(n)
+                        && n.order < t.order
+                        && !FLAT.contains(&n.kind)
+                        && meets(n.bounds, t.bounds)
+                })
+        })
+        .collect();
+    if texts.is_empty() {
+        return Vec::new();
+    }
+    let scene = engine.size();
+    let size = (
+        CONTRAST_WIDTH,
+        (u64::from(CONTRAST_WIDTH) * u64::from(scene.1) / u64::from(scene.0.max(1))).max(1) as u32,
+    );
+    let hidden: Vec<u32> = nodes
+        .iter()
+        .filter(|n| n.kind == "Txt" || n.kind == "Code" || n.kind == "Math")
+        .map(|n| n.id)
+        .collect();
+    let image = engine.render_without(frame, renderer, size, &hidden);
+    texts
+        .into_iter()
+        .filter_map(|t| behind(&image, scene, t).map(|ratio| (t.id, ratio)))
+        .collect()
+}
+
+/// The median contrast over `text`'s box on `image` (the frame at its own
+/// size; `scene` is the scene size).
+fn behind(image: &Image, scene: (u32, u32), text: &InspectNode) -> Option<f64> {
+    let k = f64::from(image.width) / f64::from(scene.0.max(1));
+    let (hw, hh) = (f64::from(scene.0) / 2.0, f64::from(scene.1) / 2.0);
+    let col = |x: f64| ((x + hw) * k).clamp(0.0, f64::from(image.width));
+    let row = |y: f64| ((y + hh) * k).clamp(0.0, f64::from(image.height));
+    let b = text.bounds;
+    let (x0, x1) = (col(b[0]).floor() as u32, col(b[2]).ceil() as u32);
+    let (y0, y1) = (row(b[1]).floor() as u32, row(b[3]).ceil() as u32);
+    let ink = Color::rgb(text.fill.r, text.fill.g, text.fill.b);
+    let mut ratios = Vec::new();
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let i = ((y * image.width + x) * 4) as usize;
+            let px = &image.data[i..i + 3];
+            let c = Color::rgb(
+                f32::from(px[0]) / 255.0,
+                f32::from(px[1]) / 255.0,
+                f32::from(px[2]) / 255.0,
+            );
+            ratios.push(lint::contrast(ink, c));
+        }
+    }
+    if ratios.is_empty() {
+        return None;
+    }
+    ratios.sort_by(f64::total_cmp);
+    Some(ratios[ratios.len() / 2])
 }
 
 /// A rule may report a node's rect from any sample in its time range; the
@@ -1468,6 +1559,69 @@ mod tests {
                 .all(|i| i.severity != Severity::Error)
         );
         assert!(checked.storyboard.width > 100 && checked.storyboard.data.len() > 1000);
+    }
+
+    fn light_custom(view: View) -> BoxFuture {
+        Box::pin(async move {
+            let _ = view.add(
+                Custom::new(|ctx, _| {
+                    ctx.rect(oxframe_core::kurbo::Rect::new(-300.0, -100.0, 300.0, 100.0))
+                        .fill(Color::rgb(0.95, 0.95, 0.95));
+                })
+                .size(600.0, 200.0)
+                .name("panel"),
+            );
+            let _ = view.add(
+                crate::Txt::new()
+                    .text("Hard to read")
+                    .fill(Color::WHITE)
+                    .name("caption"),
+            );
+            crate::wait_for(0.5).await;
+        })
+    }
+
+    #[test]
+    fn low_contrast_reads_the_pixels_behind_text_over_custom() {
+        // The fills say white on the black background; the pixels say white
+        // on light gray.
+        let report = report(project(light_custom), &Options::default()).unwrap();
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.rule == "low_contrast" && i.node == "caption"),
+            "{:?}",
+            report.issues
+        );
+    }
+
+    #[test]
+    fn low_contrast_over_pixels_passes_readable_text() {
+        fn dark_custom(view: View) -> BoxFuture {
+            Box::pin(async move {
+                let _ = view.add(
+                    Custom::new(|ctx, _| {
+                        ctx.rect(oxframe_core::kurbo::Rect::new(-300.0, -100.0, 300.0, 100.0))
+                            .fill(Color::rgb(0.1, 0.1, 0.12));
+                    })
+                    .size(600.0, 200.0),
+                );
+                let _ = view.add(
+                    crate::Txt::new()
+                        .text("Easy to read")
+                        .fill(Color::WHITE)
+                        .name("caption"),
+                );
+                crate::wait_for(0.5).await;
+            })
+        }
+        let report = report(project(dark_custom), &Options::default()).unwrap();
+        assert!(
+            report.issues.iter().all(|i| i.rule != "low_contrast"),
+            "{:?}",
+            report.issues
+        );
     }
 
     #[test]

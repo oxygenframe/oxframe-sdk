@@ -18,6 +18,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   `.font_size(64)`.
 - `.scale(..)` on a builder takes one number, a pair or a `Vec2`:
   `.scale(1.5)`, `.scale((2.0, 0.5))`, `.scale(2)`.
+- `oxframe check`: `low_contrast` reads the pixels behind text that lies
+  over a shader, an image, a video, `Custom`, particles or 3D. The frame is
+  drawn without text and the ratio is the median over the text's box; it
+  must last 0.5 s to count, so something moving past a label is not
+  reported. Text over plain fills is judged as before.
+
+### Fixed
+
+- A vector's label (`axes.vector(..).label("i")`) sits off to the side of
+  the tip, so a vector along an axis no longer puts its label on the axis
+  line.
 
 ### Breaking
 
@@ -31,6 +42,9 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   `node.scale().to(1.2, 0.3)`. Code that names the type changes.
   Before: `let s: Signal<Vec2> = node.scale();` → after:
   `let s: Signal<Vec2> = node.scale().signal();` (or `.into()`).
+- `lint::Sample` has a `contrast` field (measured contrast per text node).
+  Before: `Sample { time, nodes }` → after:
+  `Sample { time, nodes, contrast: Vec::new() }`.
 
 ## 0.22.0 — 2026-10-23
 

@@ -18,7 +18,17 @@ pub(crate) fn draw_in_parts(
     renderer: &mut dyn Renderer,
     options: &RenderOptions,
 ) -> Image {
-    let items = graph.draw_list();
+    draw_items_in_parts(graph, &graph.draw_list(), renderer, options)
+}
+
+/// [`draw_in_parts`] for a given draw list, such as one with some nodes left
+/// out.
+pub(crate) fn draw_items_in_parts(
+    graph: &SceneGraph,
+    items: &[DrawItem],
+    renderer: &mut dyn Renderer,
+    options: &RenderOptions,
+) -> Image {
     let view = scene_to_pixels(graph.size(), (options.width.max(1), options.height.max(1)));
     let clear = RenderOptions {
         background: Color::TRANSPARENT,
@@ -36,7 +46,7 @@ pub(crate) fn draw_in_parts(
                 start = i + 1;
             }
             Primitive::BeginEffect(shade) => {
-                let end = matching_end(&items, i);
+                let end = matching_end(items, i);
                 let mut img = lay(graph, renderer, &items[start..i], options, frame.take());
                 let mut node = renderer.render_list(graph, &items[i + 1..end], &clear);
                 apply_shade(shade, &mut node, view);
