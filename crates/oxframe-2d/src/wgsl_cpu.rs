@@ -5,13 +5,16 @@
 //! come from `libm`, not the platform, so a frame is the same bytes on
 //! every operating system, like the rest of the CPU renderer.
 //!
-//! What a fragment shader cannot do here: textures and samplers,
-//! derivatives, atomics, barriers, subgroups. Using one is a
-//! `shader_error` naming it.
+//! What a fragment shader cannot do here: textures and samplers (an input
+//! is read with a `sample_<name>(uv)` function instead), derivatives,
+//! atomics, barriers, subgroups. Using one is a `shader_error` naming it.
 
 // Vector math indexes components of several arrays at once.
 #![allow(clippy::needless_range_loop)]
 
+use std::rc::Rc;
+
+use crate::image::RasterImage;
 use naga::{
     BinaryOperator, Expression, Function, Handle, Literal, MathFunction, Module, ScalarKind,
     Statement, TypeInner, UnaryOperator,
@@ -725,13 +728,57 @@ pub(crate) struct Program {
     shade: Handle<Function>,
     /// Global variables by index: `ox`, `p`.
     globals: Vec<Option<&'static str>>,
+    /// `sample_<name>` functions and the input name each one reads.
+    samplers: Vec<(Handle<Function>, String)>,
 }
 
-/// What [`Program::runner`] reads besides the pixels: the `ox` struct and
-/// the `Params` fields in declaration order.
+/// What [`Program::runner`] reads besides the pixels: the `ox` struct, the
+/// `Params` fields in declaration order, and the images behind
+/// `sample_<name>`.
+#[derive(Clone)]
 pub(crate) struct Globals {
     pub(crate) ox: Value,
     pub(crate) params: Value,
+    pub(crate) inputs: Vec<(String, Rc<RasterImage>)>,
+}
+
+/// Bilinear sample of `img` at `uv` (0 to 1 across the image, clamped at
+/// the edges) in every lane, as straight-alpha sRGB from 0 to 1.
+fn sample_v(img: &RasterImage, uv: &V) -> V {
+    let (w, h) = (img.width.max(1) as usize, img.height.max(1) as usize);
+    let at = |x: usize, y: usize, c: usize| -> f32 {
+        img.rgba
+            .get((y * w + x) * 4 + c)
+            .map_or(0.0, |b| f32::from(*b) / 255.0)
+    };
+    let px = |u: f32, v: f32| -> [f32; 4] {
+        let x = (u * w as f32 - 0.5).clamp(0.0, (w - 1) as f32);
+        let y = (v * h as f32 - 0.5).clamp(0.0, (h - 1) as f32);
+        let (x0, y0) = (x as usize, y as usize);
+        let (x1, y1) = ((x0 + 1).min(w - 1), (y0 + 1).min(h - 1));
+        let (fx, fy) = (x - x0 as f32, y - y0 as f32);
+        let mut out = [0.0; 4];
+        for (c, o) in out.iter_mut().enumerate() {
+            let top = at(x0, y0, c) * (1.0 - fx) + at(x1, y0, c) * fx;
+            let bottom = at(x0, y1, c) * (1.0 - fx) + at(x1, y1, c) * fx;
+            *o = top * (1.0 - fy) + bottom * fy;
+        }
+        out
+    };
+    if let V::Uni(Value::F(_, a)) = uv {
+        return V::Uni(Value::fv(&px(a[0], a[1])));
+    }
+    let c = uv.floats().unwrap_or_default();
+    let mut out = vec![[0.0f32; LANES]; 4];
+    if c.len() >= 2 {
+        for k in 0..LANES {
+            let p = px(c[0][k], c[1][k]);
+            for (o, v) in out.iter_mut().zip(p) {
+                o[k] = v;
+            }
+        }
+    }
+    V::F(out)
 }
 
 impl Program {
@@ -751,10 +798,19 @@ impl Program {
                 _ => None,
             })
             .collect();
+        let samplers = module
+            .functions
+            .iter()
+            .filter_map(|(h, f)| {
+                let input = f.name.as_deref()?.strip_prefix("sample_")?;
+                Some((h, input.to_string()))
+            })
+            .collect();
         Some(Self {
             module,
             shade,
             globals,
+            samplers,
         })
     }
 
@@ -815,11 +871,20 @@ impl Program {
             .filter(|(_, (_, g))| g.space == naga::AddressSpace::Private)
             .map(|(i, _)| i)
             .collect();
+        let textures = self
+            .samplers
+            .iter()
+            .filter_map(|(h, name)| {
+                let (_, img) = globals.inputs.iter().find(|(n, _)| n == name)?;
+                Some((*h, img.clone()))
+            })
+            .collect();
         Runner {
             program: self,
             initial: store.clone(),
             store,
             private,
+            textures,
         }
     }
 }
@@ -831,6 +896,8 @@ pub(crate) struct Runner<'p> {
     initial: Vec<V>,
     /// Indices of `var<private>` globals, reset before every tile.
     private: Vec<usize>,
+    /// The image behind each `sample_<name>` function that has one.
+    textures: Vec<(Handle<Function>, Rc<RasterImage>)>,
 }
 
 impl Runner<'_> {
@@ -851,6 +918,7 @@ impl Runner<'_> {
             globals: &mut self.store,
             steps: &mut steps,
             full,
+            textures: &self.textures,
         };
         m.call(self.program.shade, vec![input.clone()], full)?
             .ok_or_else(|| "`shade` returned nothing".to_string())
@@ -863,6 +931,7 @@ struct Machine<'a> {
     steps: &'a mut u32,
     /// Lanes that hold pixels.
     full: Mask,
+    textures: &'a [(Handle<Function>, Rc<RasterImage>)],
 }
 
 /// One function call across the tile.
@@ -886,6 +955,10 @@ impl Machine<'_> {
         args: Vec<V>,
         active: Mask,
     ) -> Result<Option<V>, String> {
+        if let Some((_, img)) = self.textures.iter().find(|(h, _)| *h == f) {
+            let uv = args.first().ok_or("`sample_` takes the uv")?;
+            return Ok(Some(sample_v(img, uv)));
+        }
         let module = self.module;
         let fun = &module.functions[f];
         let mut frame = Frame {
@@ -2044,6 +2117,7 @@ mod tests {
 
     fn globals() -> Globals {
         Globals {
+            inputs: Vec::new(),
             ox: Value::C(vec![Value::f(2.0)]),
             params: Value::C(vec![Value::f(0.5), Value::fv(&[1.0, 0.0, 0.0, 1.0])]),
         }

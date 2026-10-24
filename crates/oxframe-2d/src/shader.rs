@@ -269,10 +269,17 @@ pub(crate) fn problems(n: &NodeData) -> Vec<ShaderDiag> {
     let known: &[&str] = match preset {
         Preset::LensDrops => &LENS_INPUTS,
         Preset::Waves => &[],
-        // Inputs of a custom shade are not executed, so any name is kept.
         Preset::Custom => &[],
     };
-    if *preset != Preset::Custom {
+    if *preset == Preset::Custom {
+        for (name, _) in inputs {
+            if !is_ident(name) {
+                return diag(format!(
+                    "input `{name}` is read as `sample_{name}(uv)`, so its name must be letters, digits and `_`."
+                ));
+            }
+        }
+    } else {
         for (name, _) in inputs {
             if !known.contains(&name.as_str()) {
                 return diag(unknown("input", name, known));
@@ -301,7 +308,8 @@ pub(crate) fn problems(n: &NodeData) -> Vec<ShaderDiag> {
             }];
         }
     };
-    match check_wgsl(&text, uniforms) {
+    let names: Vec<&str> = inputs.iter().map(|(n, _)| n.as_str()).collect();
+    match check_wgsl(&text, uniforms, &names) {
         Ok(()) => Vec::new(),
         Err(diag) => vec![ShaderDiag {
             node: label,
@@ -350,7 +358,9 @@ pub(crate) fn raster(
             )
         }
         #[cfg(not(target_arch = "wasm32"))]
-        Preset::Custom => custom(n, code, uniforms, (w, h), tf, time, opacity, (iw, ih)),
+        Preset::Custom if !reads_frame_input(n) => {
+            custom(n, code, uniforms, (w, h), tf, time, opacity, (iw, ih))
+        }
         _ => {
             let _ = code;
             return None;
@@ -405,6 +415,10 @@ pub(crate) fn read_frame(
     time: f64,
     opacity: f64,
 ) -> Option<crate::post::Shade> {
+    #[cfg(not(target_arch = "wasm32"))]
+    if reads_frame_input(n) {
+        return custom_read_frame(n, size, tf, time, opacity);
+    }
     let NodeKind::Shader {
         preset: Preset::LensDrops,
         uniforms,
@@ -431,6 +445,59 @@ pub(crate) fn read_frame(
             scale: num("drop_size", 1.0),
             time,
         },
+        opacity,
+        area: Some(area),
+    })
+}
+
+/// The frame-reading pass of a custom shader, or nothing (with a
+/// `shader_error`) when it does not compile.
+#[cfg(not(target_arch = "wasm32"))]
+fn custom_read_frame(
+    n: &NodeData,
+    size: (f64, f64),
+    tf: Affine,
+    time: f64,
+    opacity: f64,
+) -> Option<crate::post::Shade> {
+    let NodeKind::Shader {
+        code,
+        uniforms,
+        inputs,
+        ..
+    } = &n.kind
+    else {
+        return None;
+    };
+    let (program, globals) = match prepare(n, code, uniforms, size, time) {
+        Ok(ok) => ok,
+        Err(hint) => {
+            push_diag(ShaderDiag {
+                node: label(n),
+                source: n.source.clone(),
+                rule: "shader_error",
+                hint,
+            });
+            return None;
+        }
+    };
+    let frame = inputs
+        .iter()
+        .filter(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop))
+        .map(|(name, _)| name.clone())
+        .collect();
+    let ((sw, sh), _) = SCENE.with(Cell::get);
+    let (w, h) = (size.0.max(0.0), size.1.max(0.0));
+    let area = tf.transform_rect_bbox(kurbo::Rect::new(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0));
+    Some(crate::post::Shade {
+        op: crate::post::ShadeOp::Custom(Box::new(CustomShade {
+            program,
+            globals,
+            frame,
+            tf,
+            size: (w, h),
+            scene: (sw, sh),
+        })),
         opacity,
         area: Some(area),
     })
@@ -509,7 +576,7 @@ fn paint(
     Ok(rgba)
 }
 
-/// A custom `shade`, run per pixel.
+/// A custom `shade`, run per pixel of its own box.
 #[cfg(not(target_arch = "wasm32"))]
 #[allow(clippy::too_many_arguments)]
 fn custom(
@@ -522,10 +589,69 @@ fn custom(
     opacity: f64,
     raster: (u32, u32),
 ) -> Result<Vec<u8>, String> {
-    use crate::wgsl_cpu::{Globals, LANES, V, Value};
-    let _ = n;
+    let (program, globals) = prepare(n, code, uniforms, size, time)?;
+    let ((sw, sh), _) = SCENE.with(Cell::get);
+    let (iw, ih) = raster;
+    let a = opacity.clamp(0.0, 1.0) as f32;
+    let (w, h) = size;
+    let total = iw as usize * ih as usize;
+    let mut rgba = vec![0u8; total * 4];
+    run_tiles(
+        &program,
+        &globals,
+        total,
+        |i| {
+            let (px, py) = ((i % iw as usize) as f64, (i / iw as usize) as f64);
+            let u = (px + 0.5) / f64::from(iw);
+            let v = (py + 0.5) / f64::from(ih);
+            let local = (u * w - w / 2.0, v * h - h / 2.0);
+            let world = tf * Point::new(local.0, local.1);
+            [
+                u,
+                v,
+                local.0,
+                local.1,
+                world.x,
+                world.y,
+                world.x + sw / 2.0,
+                world.y + sh / 2.0,
+            ]
+        },
+        |i, [r, g, b, alpha]| {
+            let o = i * 4;
+            rgba[o] = byte(r);
+            rgba[o + 1] = byte(g);
+            rgba[o + 2] = byte(b);
+            rgba[o + 3] = byte(alpha * a);
+        },
+    )?;
+    Ok(rgba)
+}
+
+/// The compiled shader of `n` and the values it reads: `ox`, the `Params`
+/// fields, and its image inputs.
+#[cfg(not(target_arch = "wasm32"))]
+fn prepare(
+    n: &NodeData,
+    code: &ShaderCode,
+    uniforms: &[Uniform],
+    size: (f64, f64),
+    time: f64,
+) -> Result<
+    (
+        std::rc::Rc<crate::wgsl_cpu::Program>,
+        crate::wgsl_cpu::Globals,
+    ),
+    String,
+> {
+    use crate::wgsl_cpu::{Globals, Value};
+    let inputs = match &n.kind {
+        NodeKind::Shader { inputs, .. } => inputs.as_slice(),
+        _ => &[],
+    };
+    let names: Vec<&str> = inputs.iter().map(|(n, _)| n.as_str()).collect();
     let text = load(code)?;
-    let program = compiled(&text).map_err(|(_, hint)| hint)?;
+    let program = compiled(&text, &names).map_err(|(_, hint)| hint)?;
     let ((sw, sh), fps) = SCENE.with(Cell::get);
     let identity = Value::C(
         (0..4)
@@ -569,35 +695,35 @@ fn custom(
     let globals = Globals {
         ox,
         params: Value::C(params),
+        inputs: inputs
+            .iter()
+            .filter_map(|(name, input)| match input {
+                crate::post::Input::Image(img) => Some((name.clone(), img.clone())),
+                _ => None,
+            })
+            .collect(),
     };
-    let (iw, ih) = raster;
-    let a = opacity.clamp(0.0, 1.0) as f32;
-    let mut runner = program.runner(&globals);
-    let (w, h) = size;
-    let total = iw as usize * ih as usize;
-    let mut rgba = vec![0u8; total * 4];
+    Ok((program, globals))
+}
+
+/// Runs `shade` for pixels `0..total`, a tile at a time. `at` gives a
+/// pixel's `ShadeIn` (uv, local, world, screen); `put` takes its color.
+#[cfg(not(target_arch = "wasm32"))]
+fn run_tiles(
+    program: &crate::wgsl_cpu::Program,
+    globals: &crate::wgsl_cpu::Globals,
+    total: usize,
+    at: impl Fn(usize) -> [f64; 8],
+    mut put: impl FnMut(usize, [f32; 4]),
+) -> Result<(), String> {
+    use crate::wgsl_cpu::{LANES, V};
+    let mut runner = program.runner(globals);
     let mut start = 0;
     while start < total {
         let count = (total - start).min(LANES);
         let mut comps = vec![[0.0f32; LANES]; 8];
         for k in 0..count {
-            let i = start + k;
-            let (px, py) = ((i % iw as usize) as f64, (i / iw as usize) as f64);
-            let u = (px + 0.5) / f64::from(iw);
-            let v = (py + 0.5) / f64::from(ih);
-            let local = (u * w - w / 2.0, v * h - h / 2.0);
-            let world = tf * Point::new(local.0, local.1);
-            let vals = [
-                u,
-                v,
-                local.0,
-                local.1,
-                world.x,
-                world.y,
-                world.x + sw / 2.0,
-                world.y + sh / 2.0,
-            ];
-            for (c, x) in comps.iter_mut().zip(vals) {
+            for (c, x) in comps.iter_mut().zip(at(start + k)) {
                 c[k] = x as f32;
             }
         }
@@ -606,19 +732,154 @@ fn custom(
             .run(&input, count)
             .map_err(|e| format!("{e} (when oxframe runs the shader on the CPU)"))?;
         for k in 0..count {
-            let [r, g, b, alpha] = out
+            let rgba = out
                 .lane(k)
                 .floats()
                 .ok_or("`shade` must return vec4<f32>")?;
-            let o = (start + k) * 4;
-            rgba[o] = byte(r);
-            rgba[o + 1] = byte(g);
-            rgba[o + 2] = byte(b);
-            rgba[o + 3] = byte(alpha * a);
+            put(start + k, rgba);
         }
         start += count;
     }
-    Ok(rgba)
+    Ok(())
+}
+
+/// A custom `shade` with a frame or backdrop input. It runs between the
+/// parts of the draw list, over the pixels drawn before it (see
+/// [`crate::post`]), and is painted over them inside its box.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+pub struct CustomShade {
+    program: std::rc::Rc<crate::wgsl_cpu::Program>,
+    globals: crate::wgsl_cpu::Globals,
+    /// Inputs that read the frame.
+    frame: Vec<String>,
+    tf: Affine,
+    size: (f64, f64),
+    scene: (f64, f64),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl std::fmt::Debug for CustomShade {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CustomShade")
+            .field("frame", &self.frame)
+            .field("size", &self.size)
+            .finish_non_exhaustive()
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl PartialEq for CustomShade {
+    fn eq(&self, other: &Self) -> bool {
+        std::rc::Rc::ptr_eq(&self.program, &other.program)
+            && self.globals.ox == other.globals.ox
+            && self.globals.params == other.globals.params
+            && self.globals.inputs.len() == other.globals.inputs.len()
+            && self
+                .globals
+                .inputs
+                .iter()
+                .zip(&other.globals.inputs)
+                .all(|(a, b)| a.0 == b.0 && a.1.id == b.1.id)
+            && self.frame == other.frame
+            && self.tf == other.tf
+            && self.size == other.size
+            && self.scene == other.scene
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl CustomShade {
+    /// Runs the shader over `img` inside the node's box. `to_px` maps
+    /// scene coordinates to the pixels of `img`. A shader that fails while
+    /// running leaves the pixels as they were; `check` reports it.
+    pub(crate) fn apply(&self, img: &mut oxframe_core::Image, to_px: Affine, opacity: f32) {
+        let (w, h) = self.size;
+        if img.width == 0 || img.height == 0 || w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        let snapshot = std::rc::Rc::new(RasterImage {
+            width: img.width,
+            height: img.height,
+            rgba: img.data.clone(),
+            id: 0,
+        });
+        let mut globals = self.globals.clone();
+        for name in &self.frame {
+            globals.inputs.push((name.clone(), snapshot.clone()));
+        }
+        let node_px = to_px * self.tf;
+        let Some(inv) = (node_px.determinant().abs() > 1e-12).then(|| node_px.inverse()) else {
+            return;
+        };
+        let r = node_px.transform_rect_bbox(kurbo::Rect::new(-w / 2.0, -h / 2.0, w / 2.0, h / 2.0));
+        let x0 = r.x0.floor().clamp(0.0, f64::from(img.width)) as usize;
+        let y0 = r.y0.floor().clamp(0.0, f64::from(img.height)) as usize;
+        let x1 = r.x1.ceil().clamp(0.0, f64::from(img.width)) as usize;
+        let y1 = r.y1.ceil().clamp(0.0, f64::from(img.height)) as usize;
+        if x1 <= x0 || y1 <= y0 {
+            return;
+        }
+        let cols = x1 - x0;
+        let total = cols * (y1 - y0);
+        let (sw, sh) = self.scene;
+        let tf = self.tf;
+        let width = img.width as usize;
+        let pixel = |i: usize| (x0 + i % cols, y0 + i / cols);
+        let local = |i: usize| {
+            let (x, y) = pixel(i);
+            inv * Point::new(x as f64 + 0.5, y as f64 + 0.5)
+        };
+        let src = &snapshot.rgba;
+        let data = &mut img.data;
+        let _ = run_tiles(
+            &self.program,
+            &globals,
+            total,
+            |i| {
+                let l = local(i);
+                let world = tf * l;
+                [
+                    (l.x + w / 2.0) / w,
+                    (l.y + h / 2.0) / h,
+                    l.x,
+                    l.y,
+                    world.x,
+                    world.y,
+                    world.x + sw / 2.0,
+                    world.y + sh / 2.0,
+                ]
+            },
+            |i, [r, g, b, a]| {
+                let l = local(i);
+                if l.x.abs() > w / 2.0 || l.y.abs() > h / 2.0 {
+                    return;
+                }
+                let (x, y) = pixel(i);
+                let o = (y * width + x) * 4;
+                let a = (a.clamp(0.0, 1.0) * opacity).clamp(0.0, 1.0);
+                let under = f32::from(src[o + 3]) / 255.0;
+                let out_a = a + under * (1.0 - a);
+                for (c, v) in [r, g, b].into_iter().enumerate() {
+                    let below = f32::from(src[o + c]) / 255.0;
+                    let mixed = if out_a > 0.0 {
+                        (v.clamp(0.0, 1.0) * a + below * under * (1.0 - a)) / out_a
+                    } else {
+                        0.0
+                    };
+                    data[o + c] = byte(mixed);
+                }
+                data[o + 3] = byte(out_a);
+            },
+        );
+    }
+}
+
+/// True when a custom shader reads the frame or the backdrop.
+#[cfg(not(target_arch = "wasm32"))]
+fn reads_frame_input(n: &NodeData) -> bool {
+    matches!(&n.kind, NodeKind::Shader { preset: Preset::Custom, inputs, .. }
+        if inputs.iter().any(|(_, i)| matches!(i, crate::post::Input::Frame | crate::post::Input::Backdrop)))
 }
 
 fn wave_uniforms(uniforms: &[Uniform]) -> (f64, f64, Color, Color) {
@@ -663,7 +924,11 @@ fn label(n: &NodeData) -> String {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn check_wgsl(_text: &str, _uniforms: &[Uniform]) -> Result<(), (&'static str, String)> {
+fn check_wgsl(
+    _text: &str,
+    _uniforms: &[Uniform],
+    _inputs: &[&str],
+) -> Result<(), (&'static str, String)> {
     Ok(())
 }
 
@@ -680,12 +945,12 @@ thread_local! {
 
 /// The shader for `text`, parsed and validated once.
 #[cfg(not(target_arch = "wasm32"))]
-fn compiled(text: &str) -> Compiled {
-    let key = hash_bytes(text.as_bytes());
+fn compiled(text: &str, inputs: &[&str]) -> Compiled {
+    let key = hash_bytes(format!("{text}\0{}", inputs.join(",")).as_bytes());
     if let Some(hit) = PROGRAMS.with(|p| p.borrow().get(&key).cloned()) {
         return hit;
     }
-    let result = compile(text);
+    let result = compile(text, inputs);
     PROGRAMS.with(|p| {
         let mut p = p.borrow_mut();
         if p.len() > 64 {
@@ -697,13 +962,23 @@ fn compiled(text: &str) -> Compiled {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn compile(text: &str) -> Compiled {
-    let full = format!("{PRELUDE}{text}{EPILOGUE}");
+fn compile(text: &str, inputs: &[&str]) -> Compiled {
+    // After the user's text, so naga's line numbers still point into it.
+    let samplers: String = inputs
+        .iter()
+        .map(|name| {
+            format!("\nfn sample_{name}(uv: vec2<f32>) -> vec4<f32> {{ return vec4<f32>(0.0); }}\n")
+        })
+        .collect();
+    let full = format!("{PRELUDE}{text}{samplers}{EPILOGUE}");
     let module = naga::front::wgsl::parse_str(&full).map_err(|e| {
-        (
-            "shader_error",
-            shift_lines(&e.emit_to_string(&full), prelude_lines()),
-        )
+        let mut hint = shift_lines(&e.emit_to_string(&full), prelude_lines());
+        if let Some(name) = missing_sampler(&hint) {
+            hint.push_str(&format!(
+                "\nRead an image with `.input(\"{name}\", Input::file(\"…png\"))` on the shader."
+            ));
+        }
+        ("shader_error", hint)
     })?;
     naga::valid::Validator::new(
         naga::valid::ValidationFlags::all(),
@@ -717,8 +992,12 @@ fn compile(text: &str) -> Compiled {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn check_wgsl(text: &str, uniforms: &[Uniform]) -> Result<(), (&'static str, String)> {
-    let program = compiled(text)?;
+fn check_wgsl(
+    text: &str,
+    uniforms: &[Uniform],
+    inputs: &[&str],
+) -> Result<(), (&'static str, String)> {
+    let program = compiled(text, inputs)?;
     let fields = params_of(program.module()).ok_or((
         "shader_error",
         "the shader has no `struct Params`".to_string(),
@@ -727,6 +1006,27 @@ fn check_wgsl(text: &str, uniforms: &[Uniform]) -> Result<(), (&'static str, Str
         Ok(()) => Ok(()),
         Err(hint) => Err(("param_unknown", hint)),
     }
+}
+
+/// The input name in naga's error for a `sample_<name>` that no input
+/// declares.
+#[cfg(not(target_arch = "wasm32"))]
+fn missing_sampler(message: &str) -> Option<String> {
+    let at = message.find("sample_")?;
+    let name: String = message[at + 7..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    (message.contains("no definition in scope") && !name.is_empty()).then_some(name)
+}
+
+/// A WGSL identifier: a letter or `_`, then letters, digits and `_`.
+fn is_ident(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1029,6 +1329,129 @@ mod tests {
             "{:?}",
             custom.shader_diags()
         );
+    }
+
+    fn two_pixels() -> crate::Input {
+        crate::Input::Image(Rc::new(RasterImage {
+            width: 2,
+            height: 1,
+            rgba: vec![255, 0, 0, 255, 0, 0, 255, 255],
+            id: 9_001,
+        }))
+    }
+
+    const SAMPLE_PHOTO: &str = "struct Params { k: f32 }
+@group(1) @binding(0) var<uniform> p: Params;
+fn shade(i: ShadeIn) -> vec4<f32> {
+    return sample_photo(i.uv);
+}";
+
+    #[test]
+    fn a_custom_shade_reads_an_image_input() {
+        let graph = paint(|view| {
+            view.add(
+                crate::Shader::source(SAMPLE_PHOTO)
+                    .uniform("k", 0.0)
+                    .input("photo", two_pixels())
+                    .width(40.0)
+                    .height(4.0),
+            );
+        });
+        let img = image_of(&graph);
+        let px = |x: u32| {
+            let o = ((img.height / 2 * img.width + x) * 4) as usize;
+            [img.rgba[o], img.rgba[o + 1], img.rgba[o + 2]]
+        };
+        assert_eq!(px(0), [255, 0, 0]);
+        assert_eq!(px(img.width - 1), [0, 0, 255]);
+        let mid = px(img.width / 2);
+        assert!(mid[0] > 60 && mid[2] > 60, "bilinear between: {mid:?}");
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
+    }
+
+    #[test]
+    fn a_custom_shade_with_a_frame_input_reads_what_was_drawn() {
+        // A mirror over the right half of a 320x180 frame whose left half
+        // is red and right half blue: the right half turns red.
+        let graph = paint(|view| {
+            view.add(
+                crate::Shader::source(
+                    "struct Params { k: f32 }
+@group(1) @binding(0) var<uniform> p: Params;
+fn shade(i: ShadeIn) -> vec4<f32> {
+    let s = i.screen / ox.resolution;
+    return sample_scene(vec2<f32>(1.0 - s.x, s.y));
+}",
+                )
+                .uniform("k", 0.0)
+                .input("scene", crate::Input::frame())
+                .width(160.0)
+                .height(180.0)
+                .x(80.0),
+            );
+        });
+        assert!(reads_frame(&graph));
+        assert!(rules(&graph).is_empty(), "{:?}", graph.shader_diags());
+        let shade = graph
+            .draw_list()
+            .iter()
+            .find_map(|i| match &i.prim {
+                Primitive::ReadFrame(s) => Some(s.clone()),
+                _ => None,
+            })
+            .expect("a frame pass");
+        assert_eq!(shade.op.name(), "custom");
+        let mut img = oxframe_core::Image {
+            width: 320,
+            height: 180,
+            data: (0..320 * 180)
+                .flat_map(|i| {
+                    if i % 320 < 160 {
+                        [255, 0, 0, 255]
+                    } else {
+                        [0, 0, 255, 255]
+                    }
+                })
+                .collect(),
+        };
+        let to_px = Affine::translate((160.0, 90.0));
+        crate::post::apply(&shade, &mut img, to_px);
+        let px = |x: usize| &img.data[(90 * 320 + x) * 4..(90 * 320 + x) * 4 + 3];
+        assert_eq!(px(10), [255, 0, 0], "left half is not touched");
+        assert_eq!(px(300), [255, 0, 0], "right half mirrors the left");
+    }
+
+    #[test]
+    fn sampling_an_input_that_is_not_declared_says_how_to_add_it() {
+        let graph = paint(|view| {
+            view.add(
+                crate::Shader::source(SAMPLE_PHOTO)
+                    .uniform("k", 0.0)
+                    .width(4.0)
+                    .height(4.0),
+            );
+        });
+        let _ = graph.draw_list();
+        let diags = graph.shader_diags();
+        let d = diags
+            .iter()
+            .find(|d| d.rule == "shader_error")
+            .expect("shader_error");
+        assert!(d.hint.contains(".input(\"photo\""), "{}", d.hint);
+    }
+
+    #[test]
+    fn an_input_name_must_be_a_wgsl_name() {
+        let graph = paint(|view| {
+            view.add(
+                crate::Shader::source(SAMPLE_PHOTO)
+                    .uniform("k", 0.0)
+                    .input("my photo", two_pixels())
+                    .width(4.0)
+                    .height(4.0),
+            );
+        });
+        assert!(rules(&graph).contains(&"param_unknown"));
     }
 
     #[test]

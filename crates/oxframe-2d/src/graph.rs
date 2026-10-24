@@ -1416,7 +1416,7 @@ fn visit(
         if inside || effect.is_some() {
             cycle(
                 n,
-                "lens_drops reads the frame, but it is inside a layer or an effect",
+                "This shader reads the frame, but it is inside a layer or an effect",
             );
         } else {
             out.push(DrawItem {
