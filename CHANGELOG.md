@@ -6,6 +6,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## 0.23.3 — 2026-10-24
+
+### Added
+
+- Six more blocks for `oxframe add` (oxframe-cli): `feature-grid`,
+  `checklist`, `comparison`, `chat-messages`, `pull-request` and
+  `countdown`, eighteen in all, every one passing `oxframe check`.
+- The agent skill: a request to explain or show something means a scene,
+  not an answer in chat; hints for the compile errors seen most in the
+  0.23.2 agent eval. No SDK code changed.
+
 ## 0.23.2 — 2026-10-24
 
 ### Added
