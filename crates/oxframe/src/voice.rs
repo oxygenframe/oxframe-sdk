@@ -278,9 +278,9 @@ fn caption_parts(text: &str, words: &[TimedWord], seconds: f64) -> Vec<(String, 
     };
     let mut parts: Vec<(usize, usize)> = Vec::new();
     let mut start = 0;
-    for i in 0..words.len() {
+    for (i, word) in shown.iter().enumerate() {
         let len = i + 1 - start;
-        let sentence_end = shown[i].ends_with(['.', '!', '?', ';', ':']);
+        let sentence_end = word.ends_with(['.', '!', '?', ';', ':']);
         if len == CAPTION_WORDS || (sentence_end && len >= CAPTION_MIN_WORDS) {
             parts.push((start, i + 1));
             start = i + 1;
