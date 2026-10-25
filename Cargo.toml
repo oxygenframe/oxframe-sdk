@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "examples"]
 
 [workspace.package]
-version = "0.23.6"
+version = "0.23.7"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -13,19 +13,19 @@ keywords = ["animation", "video", "motion-graphics", "agents", "mcp"]
 categories = ["graphics", "multimedia::video", "rendering"]
 
 [workspace.dependencies]
-oxframe-core = { path = "crates/oxframe-core", version = "0.23.6" }
-oxframe-2d = { path = "crates/oxframe-2d", version = "0.23.6" }
-oxframe-render = { path = "crates/oxframe-render", version = "0.23.6" }
-oxframe-text = { path = "crates/oxframe-text", version = "0.23.6" }
-oxframe-export = { path = "crates/oxframe-export", version = "0.23.6" }
-oxframe-preview = { path = "crates/oxframe-preview", version = "0.23.6", default-features = false }
-oxframe-protocol = { path = "crates/oxframe-protocol", version = "0.23.6" }
-oxframe-macros = { path = "crates/oxframe-macros", version = "0.23.6" }
-oxframe-icons = { path = "crates/oxframe-icons", version = "0.23.6" }
-oxframe-3d = { path = "crates/oxframe-3d", version = "0.23.6" }
-oxframe-math = { path = "crates/oxframe-math", version = "0.23.6" }
-oxframe = { path = "crates/oxframe", version = "0.23.6" }
-oxframe-components = { path = "crates/oxframe-components", version = "0.23.6" }
+oxframe-core = { path = "crates/oxframe-core", version = "0.23.7" }
+oxframe-2d = { path = "crates/oxframe-2d", version = "0.23.7" }
+oxframe-render = { path = "crates/oxframe-render", version = "0.23.7" }
+oxframe-text = { path = "crates/oxframe-text", version = "0.23.7" }
+oxframe-export = { path = "crates/oxframe-export", version = "0.23.7" }
+oxframe-preview = { path = "crates/oxframe-preview", version = "0.23.7", default-features = false }
+oxframe-protocol = { path = "crates/oxframe-protocol", version = "0.23.7" }
+oxframe-macros = { path = "crates/oxframe-macros", version = "0.23.7" }
+oxframe-icons = { path = "crates/oxframe-icons", version = "0.23.7" }
+oxframe-3d = { path = "crates/oxframe-3d", version = "0.23.7" }
+oxframe-math = { path = "crates/oxframe-math", version = "0.23.7" }
+oxframe = { path = "crates/oxframe", version = "0.23.7" }
+oxframe-components = { path = "crates/oxframe-components", version = "0.23.7" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
