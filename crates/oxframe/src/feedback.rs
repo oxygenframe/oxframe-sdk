@@ -342,6 +342,7 @@ fn pass(
                 aspect: None,
                 bounds: None,
                 crop: None,
+                fix: None,
             });
         }
     }
@@ -356,6 +357,7 @@ fn pass(
             aspect: None,
             bounds: None,
             crop: None,
+            fix: None,
         });
     }
     for issue in &mut issues {
