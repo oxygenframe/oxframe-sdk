@@ -8,6 +8,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.8 — 2026-10-25
+
 ### Added
 
 - The browser build of a project can run the checks: the wasm module exports
