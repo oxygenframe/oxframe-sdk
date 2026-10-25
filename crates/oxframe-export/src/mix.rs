@@ -65,6 +65,9 @@ pub struct MixRequest {
     pub master_fade_in: f64,
     /// Fade at the end of the whole mix.
     pub master_fade_out: f64,
+    /// Bring the whole mix to this integrated loudness (LUFS, EBU R128)
+    /// before the limiter. `None` leaves the levels as they are.
+    pub loudness: Option<f64>,
     /// Clips, in any order.
     pub clips: Vec<MixClip>,
 }
@@ -152,12 +155,84 @@ pub fn mix(req: &MixRequest) -> Result<Mixed, MixError> {
         req.master_fade_in.max(EDGE),
         req.master_fade_out.max(EDGE),
     );
+    if let Some(target) = req.loudness
+        && let Some(measured) = integrated_loudness(&acc, rate)
+    {
+        let gain = 10f64.powf((target - measured) / 20.0) as f32;
+        for s in &mut acc {
+            *s *= gain;
+        }
+    }
     let limited = limit(&acc, rate);
     let samples = limited
         .into_iter()
         .map(|s| (s.clamp(-1.0, 1.0) * 32767.0).round() as i16)
         .collect();
     Ok(Mixed { rate, samples })
+}
+
+/// Integrated loudness of `mixed` in LUFS (EBU R128 / ITU-R BS.1770), as
+/// players and platforms measure the video: the stereo file, both channels
+/// the same. `None` for silence.
+pub fn loudness(mixed: &Mixed) -> Option<f64> {
+    let samples: Vec<f32> = mixed
+        .samples
+        .iter()
+        .map(|s| f32::from(*s) / 32768.0)
+        .collect();
+    integrated_loudness(&samples, mixed.rate)
+}
+
+/// K-weighting (BS.1770 at 48 kHz), 400 ms blocks every 100 ms, an absolute
+/// gate at -70 LUFS and a relative one 10 LU below the mean. The mono mix is
+/// written as two equal channels, so their powers add (+3 dB).
+fn integrated_loudness(samples: &[f32], rate: u32) -> Option<f64> {
+    debug_assert_eq!(rate, SAMPLE_RATE, "K-weighting coefficients are for 48 kHz");
+    // (b0, b1, b2, a1, a2): the high shelf, then the high pass.
+    const STAGES: [[f64; 5]; 2] = [
+        [
+            1.535_124_859_586_97,
+            -2.691_696_189_406_38,
+            1.198_392_810_852_85,
+            -1.690_659_293_182_41,
+            0.732_480_774_215_85,
+        ],
+        [1.0, -2.0, 1.0, -1.990_047_454_833_98, 0.990_072_250_366_21],
+    ];
+    let mut weighted: Vec<f64> = samples.iter().map(|s| f64::from(*s)).collect();
+    for [b0, b1, b2, a1, a2] in STAGES {
+        let (mut x1, mut x2, mut y1, mut y2) = (0.0, 0.0, 0.0, 0.0);
+        for v in &mut weighted {
+            let x = *v;
+            let y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            (x2, x1, y2, y1) = (x1, x, y1, y);
+            *v = y;
+        }
+    }
+    let block = (0.4 * f64::from(rate)) as usize;
+    let step = (0.1 * f64::from(rate)) as usize;
+    if weighted.is_empty() {
+        return None;
+    }
+    let power = |w: &[f64]| 2.0 * w.iter().map(|v| v * v).sum::<f64>() / w.len() as f64;
+    let blocks: Vec<f64> = if weighted.len() < block {
+        vec![power(&weighted)]
+    } else {
+        (0..=(weighted.len() - block) / step)
+            .map(|i| power(&weighted[i * step..i * step + block]))
+            .collect()
+    };
+    let lufs = |p: f64| -0.691 + 10.0 * p.log10();
+    let loud: Vec<f64> = blocks.into_iter().filter(|p| lufs(*p) > -70.0).collect();
+    if loud.is_empty() {
+        return None;
+    }
+    let relative = lufs(loud.iter().sum::<f64>() / loud.len() as f64) - 10.0;
+    let kept: Vec<f64> = loud.into_iter().filter(|p| lufs(*p) > relative).collect();
+    if kept.is_empty() {
+        return None;
+    }
+    Some(lufs(kept.iter().sum::<f64>() / kept.len() as f64))
 }
 
 /// Write mono PCM as a stereo 16-bit WAV (both channels identical).
@@ -455,6 +530,51 @@ mod tests {
         .unwrap();
     }
 
+    #[test]
+    fn a_sine_at_minus_20_dbfs_is_minus_20_lufs() {
+        // BS.1770: a 997 Hz sine in both channels reads its peak level.
+        let n = 5 * SAMPLE_RATE as usize;
+        let samples: Vec<i16> = (0..n)
+            .map(|i| {
+                let t = i as f32 / SAMPLE_RATE as f32;
+                (0.1 * (t * 997.0 * std::f32::consts::TAU).sin() * 32767.0).round() as i16
+            })
+            .collect();
+        let l = loudness(&Mixed {
+            rate: SAMPLE_RATE,
+            samples,
+        })
+        .unwrap();
+        assert!((l + 20.0).abs() < 0.1, "{l} LUFS");
+        let silent = Mixed {
+            rate: SAMPLE_RATE,
+            samples: vec![0; n],
+        };
+        assert_eq!(loudness(&silent), None);
+    }
+
+    #[test]
+    fn a_quiet_mix_is_brought_to_the_target_loudness() {
+        let dir = std::env::temp_dir().join(format!("oxframe-loud-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let quiet = dir.join("quiet.wav");
+        tone(&quiet, 440.0, 4.0, 0.03);
+        let mut req = MixRequest {
+            seconds: 4.0,
+            duck: false,
+            master_fade_in: 0.0,
+            master_fade_out: 0.0,
+            loudness: None,
+            clips: vec![clip(&quiet, 0.0, false, false)],
+        };
+        let before = loudness(&mix(&req).unwrap()).unwrap();
+        req.loudness = Some(-14.0);
+        let after = loudness(&mix(&req).unwrap()).unwrap();
+        assert!(before < -25.0, "{before}");
+        assert!((after + 14.0).abs() < 0.2, "{after} LUFS");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     fn clip(file: &Path, start: f64, priority: bool, music: bool) -> MixClip {
         MixClip {
             file: file.into(),
@@ -482,6 +602,7 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
+            loudness: None,
             clips: vec![clip(&a, 0.0, false, false), clip(&b, 0.0, false, false)],
         };
         let once = mix(&req).unwrap();
@@ -506,6 +627,7 @@ mod tests {
             duck: true,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
+            loudness: None,
             clips: vec![
                 clip(&music, 0.0, false, true),
                 clip(&voice, 0.3, true, false),
@@ -517,6 +639,7 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
+            loudness: None,
             clips: vec![clip(&music, 0.0, false, true)],
         })
         .unwrap();
@@ -547,6 +670,7 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
+            loudness: None,
             clips: vec![clip(&click, 0.2, false, false)],
         })
         .unwrap();

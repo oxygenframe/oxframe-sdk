@@ -720,6 +720,14 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     } else {
         None
     };
+    if let Some(mixed) = &mixed
+        && let Some(lufs) = oxframe_export::loudness(mixed)
+    {
+        let target = engine
+            .loudness()
+            .map_or_else(String::new, |t| format!(" (target {t:.1})"));
+        eprintln!("sound: {lufs:.1} LUFS{target}");
+    }
     let mix_path = if let Some(mixed) = mixed {
         let path = std::env::temp_dir().join(format!("oxframe-mix-{}.wav", std::process::id()));
         if let Err(e) = oxframe_export::write_wav(&path, &mixed) {
