@@ -73,7 +73,7 @@ cargo build -q 2>/dev/null
 "$oxframe" check >/dev/null 2>&1 || true
 
 # A one-line edit, then cargo build.
-sed -i 's/"Measured"/"Measured again"/' src/main.rs
+perl -pi -e 's/"Measured"/"Measured again"/' src/main.rs
 t0=$(seconds); cargo build -q 2>/dev/null; t1=$(seconds)
 edit=$(elapsed "$t0" "$t1")
 
@@ -81,7 +81,7 @@ edit=$(elapsed "$t0" "$t1")
 check_warm=$(timed "$oxframe" check)
 
 # check right after another edit: includes cargo check and the build.
-sed -i 's/"Measured again"/"Measured"/' src/main.rs
+perl -pi -e 's/"Measured again"/"Measured"/' src/main.rs
 t0=$(seconds); "$oxframe" check >/dev/null 2>&1 || true; t1=$(seconds)
 check_after=$(elapsed "$t0" "$t1")
 
