@@ -318,7 +318,8 @@ fn show_caption(text: &str, words: &[TimedWord], seconds: f64) {
     let group = View::current().add(Group::new().name("caption").to_edge(Edge::Bottom));
     let back = group.add(Rect::new().radius(16.0).fill(Background).opacity(0.85));
     let label = group.add(Txt::new().text("").h2().max_width(1500.0));
-    let _ = oxframe_core::spawn(async move {
+    // Runs on its own; the scene does not wait for it.
+    drop(oxframe_core::spawn(async move {
         let mut at = 0.0;
         for (part, begin, end) in parts {
             wait_for((begin - at).max(0.0)).await;
@@ -330,7 +331,7 @@ fn show_caption(text: &str, words: &[TimedWord], seconds: f64) {
             at = end;
         }
         group.remove();
-    });
+    }));
 }
 
 struct Spoken {
