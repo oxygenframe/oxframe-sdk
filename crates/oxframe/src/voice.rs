@@ -118,6 +118,7 @@ pub(crate) fn install(project: &Project, def: &SceneDef) {
 pub struct Voice {
     text: String,
     voice: Option<String>,
+    caption: bool,
     line: Option<Line>,
 }
 
@@ -139,6 +140,7 @@ pub fn voice(text: impl Into<String>) -> Voice {
     Voice {
         text: text.into(),
         voice: None,
+        caption: false,
         line: None,
     }
 }
@@ -147,6 +149,15 @@ impl Voice {
     /// Speak with this voice instead of the project's.
     pub fn speaker(mut self, name: impl Into<String>) -> Self {
         self.voice = Some(name.into());
+        self
+    }
+
+    /// Also show the line at the bottom of the frame while it is spoken, a
+    /// few words at a time, each part on screen while its words are said.
+    /// The caption is a node named `caption`, on top of the scene, removed
+    /// when the line ends.
+    pub fn caption(mut self) -> Self {
+        self.caption = true;
         self
     }
 
@@ -183,6 +194,9 @@ impl Voice {
                 priority: true,
                 speech: true,
             });
+        }
+        if self.caption {
+            show_caption(&self.text, &spoken.words, spoken.seconds);
         }
         Line {
             text: self.text.clone(),
@@ -242,6 +256,82 @@ impl Future for Line {
         }
         Pin::new(this.wait.as_mut().expect("wait was just set")).poll(cx)
     }
+}
+
+/// Most words on screen at once.
+const CAPTION_WORDS: usize = 7;
+/// A shorter last part joins the one before it.
+const CAPTION_MIN_WORDS: usize = 3;
+
+/// The parts a caption shows in turn: (text, start, end) in seconds from
+/// the start of the line. The words come from `text` when it splits into as
+/// many words as were timed (keeping punctuation), else from the timings.
+fn caption_parts(text: &str, words: &[TimedWord], seconds: f64) -> Vec<(String, f64, f64)> {
+    let tokens: Vec<&str> = text
+        .split_whitespace()
+        .filter(|t| !bare(t).is_empty())
+        .collect();
+    let shown: Vec<&str> = if tokens.len() == words.len() {
+        tokens
+    } else {
+        words.iter().map(|w| w.text.as_str()).collect()
+    };
+    let mut parts: Vec<(usize, usize)> = Vec::new();
+    let mut start = 0;
+    for (i, word) in shown.iter().enumerate() {
+        let len = i + 1 - start;
+        let sentence_end = word.ends_with(['.', '!', '?', ';', ':']);
+        if len == CAPTION_WORDS || (sentence_end && len >= CAPTION_MIN_WORDS) {
+            parts.push((start, i + 1));
+            start = i + 1;
+        }
+    }
+    if start < words.len() {
+        match parts.last_mut() {
+            Some(last) if words.len() - start < CAPTION_MIN_WORDS => last.1 = words.len(),
+            _ => parts.push((start, words.len())),
+        }
+    }
+    let count = parts.len();
+    parts
+        .into_iter()
+        .enumerate()
+        .map(|(n, (a, b))| {
+            let begin = if n == 0 { 0.0 } else { words[a].start };
+            // Each part stays until the next one starts; the last until the line ends.
+            let end = if n + 1 == count {
+                seconds
+            } else {
+                words[b].start
+            };
+            (shown[a..b].join(" "), begin, end)
+        })
+        .collect()
+}
+
+fn show_caption(text: &str, words: &[TimedWord], seconds: f64) {
+    use oxframe_2d::{Background, Edge, Group, NodeBuilder, Rect, Txt, View};
+    let parts = caption_parts(text, words, seconds);
+    if parts.is_empty() {
+        return;
+    }
+    let group = View::current().add(Group::new().name("caption").to_edge(Edge::Bottom));
+    let back = group.add(Rect::new().radius(16.0).fill(Background).opacity(0.85));
+    let label = group.add(Txt::new().text("").h2().max_width(1500.0));
+    // Runs on its own; the scene does not wait for it.
+    drop(oxframe_core::spawn(async move {
+        let mut at = 0.0;
+        for (part, begin, end) in parts {
+            wait_for((begin - at).max(0.0)).await;
+            label.text().set(part);
+            let (w, h) = label.size();
+            back.width().set(w + 48.0);
+            back.height().set(h + 24.0);
+            wait_for((end - begin).max(0.0)).await;
+            at = end;
+        }
+        group.remove();
+    }));
 }
 
 struct Spoken {
@@ -316,6 +406,34 @@ fn estimate(text: &str) -> Spoken {
         seconds,
         words,
         file: None,
+    }
+}
+
+#[cfg(test)]
+mod caption_tests {
+    use super::*;
+
+    #[test]
+    fn parts_keep_punctuation_and_follow_the_words() {
+        let text = "Rust compiles to fast code. Scenes are async functions that wait for words.";
+        let spoken = estimate(text);
+        let parts = caption_parts(text, &spoken.words, spoken.seconds);
+        let texts: Vec<&str> = parts.iter().map(|p| p.0.as_str()).collect();
+        assert_eq!(texts[0], "Rust compiles to fast code.");
+        assert_eq!(texts[1], "Scenes are async functions that wait for words.");
+        assert_eq!(parts[0].1, 0.0);
+        assert_eq!(parts[1].1, parts[0].2);
+        assert!((parts[1].2 - spoken.seconds).abs() < 1e-9);
+    }
+
+    #[test]
+    fn long_lines_split_every_seven_words() {
+        let text = "one two three four five six seven eight nine ten eleven twelve";
+        let spoken = estimate(text);
+        let parts = caption_parts(text, &spoken.words, spoken.seconds);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].0, "one two three four five six seven");
+        assert_eq!(parts[1].0, "eight nine ten eleven twelve");
     }
 }
 

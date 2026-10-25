@@ -10,6 +10,11 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ### Added
 
+- `voice("…").caption()`: the line is shown at the bottom of the frame
+  while it is spoken, up to seven words at a time, each part on screen
+  while its words are said (word timings from the provider, or the
+  estimate). Captions burned into the video, for feeds that play muted.
+
 - `oxframe check`: most issues carry `fix`, the change that clears them with
   the numbers worked out — `move` by `dx`/`dy` pixels, `shrink` to a size,
   a text `color` (the same hue, lightened or darkened) and the `contrast` it
