@@ -288,6 +288,7 @@ pub(crate) fn mix_range(
         duck,
         master_fade_in: master_in,
         master_fade_out: master_out,
+        loudness: engine.loudness(),
         clips,
     })?))
 }

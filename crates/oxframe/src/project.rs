@@ -24,6 +24,7 @@ pub struct Project {
     pub(crate) write_meta: bool,
     pub(crate) meta_dir: Option<PathBuf>,
     pub(crate) audio: Option<Audio>,
+    pub(crate) loudness: Option<f64>,
     pub(crate) tts: Option<Provider>,
     pub(crate) tts_dir: Option<PathBuf>,
     /// Voice name used by [`voice`](crate::voice) unless a line sets its own.
@@ -91,6 +92,7 @@ impl Project {
             write_meta: true,
             meta_dir: None,
             audio: None,
+            loudness: None,
             tts: None,
             tts_dir: None,
             speaker: "default".into(),
@@ -220,6 +222,15 @@ impl Project {
     /// `meta.json`. A path is the same as [`Audio::track`](crate::Audio::track).
     pub fn audio(mut self, track: impl Into<Audio>) -> Self {
         self.audio = Some(track.into());
+        self
+    }
+
+    /// Bring the rendered sound (music, voice and effects together) to this
+    /// integrated loudness in LUFS: `-14.0` for YouTube and most players,
+    /// `-16.0` for podcasts. Peaks stay under -1 dBFS. Without it the mix
+    /// keeps the levels of its files.
+    pub fn loudness(mut self, lufs: f64) -> Self {
+        self.loudness = lufs.is_finite().then_some(lufs.clamp(-40.0, -5.0));
         self
     }
 
