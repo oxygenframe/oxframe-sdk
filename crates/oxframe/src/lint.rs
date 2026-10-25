@@ -14,6 +14,52 @@ pub enum Severity {
     Warning,
 }
 
+/// A concrete change that clears an [`Issue`], with the numbers worked out.
+/// In `report.json` it is an object with an `action` and its fields.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum Fix {
+    /// Move the node by `dx`, `dy` pixels (x to the right, y down).
+    Move {
+        /// Pixels to the right (negative: to the left).
+        dx: f64,
+        /// Pixels down (negative: up).
+        dy: f64,
+    },
+    /// The node is bigger than the room it has: make it at most this size.
+    Shrink {
+        /// Largest width that fits, in pixels.
+        width: f64,
+        /// Largest height that fits, in pixels.
+        height: f64,
+    },
+    /// Give the text this color (`#rrggbb`); `contrast` is what it reaches.
+    Color {
+        /// The nearest color to the current one that is readable.
+        color: String,
+        /// Its contrast with the background, e.g. `4.6`.
+        contrast: f64,
+    },
+    /// Make the text block `by` pixels wider, or scale the font size by
+    /// `font_scale` (below 1).
+    Widen {
+        /// Extra width the text needs, in pixels.
+        by: f64,
+        /// Font size factor that fits the text in its current width.
+        font_scale: f64,
+    },
+    /// Keep the text on screen at least this many seconds.
+    Hold {
+        /// Seconds the text needs to be read.
+        seconds: f64,
+    },
+    /// Make the move last at least this many seconds.
+    Slow {
+        /// Shortest duration for a move that large.
+        seconds: f64,
+    },
+}
+
 /// One problem found in a scene. In `report.json` it also has `docs`, the
 /// page that explains its rule ([`Issue::docs`]).
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +87,8 @@ pub struct Issue {
     /// around [`Issue::bounds`], with the node outlined, relative to the
     /// check output directory.
     pub crop: Option<String>,
+    /// The change that clears it, when one can be worked out.
+    pub fix: Option<Fix>,
 }
 
 impl Issue {
@@ -49,12 +97,17 @@ impl Issue {
     pub fn docs(&self) -> String {
         format!("https://oxframe.dev/docs/check-rules#{}", self.rule)
     }
+
+    fn with_fix(mut self, fix: Option<Fix>) -> Self {
+        self.fix = fix;
+        self
+    }
 }
 
 impl Serialize for Issue {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut st = s.serialize_struct("Issue", 10)?;
+        let mut st = s.serialize_struct("Issue", 11)?;
         st.serialize_field("rule", self.rule)?;
         st.serialize_field("severity", &self.severity)?;
         st.serialize_field("time", &self.time)?;
@@ -69,6 +122,9 @@ impl Serialize for Issue {
         }
         if let Some(crop) = &self.crop {
             st.serialize_field("crop", crop)?;
+        }
+        if let Some(fix) = &self.fix {
+            st.serialize_field("fix", fix)?;
         }
         st.serialize_field("docs", &self.docs())?;
         st.end()
@@ -186,6 +242,7 @@ pub(crate) fn voice_lines(cues: &[crate::voice::Cue]) -> Vec<Issue> {
                 aspect: None,
                 bounds: None,
                 crop: None,
+                fix: None,
             });
         }
     }
@@ -204,6 +261,7 @@ pub(crate) fn voice_lines(cues: &[crate::voice::Cue]) -> Vec<Issue> {
                 aspect: None,
                 bounds: None,
                 crop: None,
+                fix: None,
             });
         }
     }
@@ -309,30 +367,77 @@ fn out_of_frame(samples: &[Sample], size: (u32, u32), limits: &Limits) -> Vec<Is
         {
             continue;
         }
-        issues.push(issue(
-            "out_of_frame",
-            Severity::Error,
-            [start, end],
-            last,
-            "The node sits outside the frame. Move it inward or make it smaller.",
-        ));
+        let (hint, fix) = into_rect(last.bounds, frame, "the frame");
+        issues.push(issue("out_of_frame", Severity::Error, [start, end], last, hint).with_fix(fix));
     }
     for (start, end, _, last) in spans(&safe_hits, limits.sample_step) {
         if persist(start, end, limits.sample_step) + 1e-6 < limits.out_persist {
             continue;
         }
-        issues.push(issue(
-            "out_of_frame",
-            Severity::Warning,
-            [start, end],
-            last,
-            format!(
-                "The node is outside the safe area ({:.0} px from the edge). Move it inward.",
-                limits.safe_inset
-            ),
-        ));
+        let area = format!("the safe area ({:.0} px from the edge)", limits.safe_inset);
+        let (hint, fix) = into_rect(last.bounds, safe, &area);
+        issues
+            .push(issue("out_of_frame", Severity::Warning, [start, end], last, hint).with_fix(fix));
     }
     issues
+}
+
+/// How to bring `b` inside `room`: the move, or the size it must shrink to
+/// when it is bigger than the room.
+fn into_rect(b: [f64; 4], room: [f64; 4], name: &str) -> (String, Option<Fix>) {
+    let (w, h) = (b[2] - b[0], b[3] - b[1]);
+    let (rw, rh) = (room[2] - room[0], room[3] - room[1]);
+    if w > rw + 1.0 || h > rh + 1.0 {
+        let (width, height) = (w.min(rw).floor(), h.min(rh).floor());
+        return (
+            format!(
+                "The node is {w:.0}×{h:.0} px and {name} is {rw:.0}×{rh:.0}: make it at most {width:.0}×{height:.0}."
+            ),
+            Some(Fix::Shrink { width, height }),
+        );
+    }
+    let shift = |lo: f64, hi: f64, min: f64, max: f64| {
+        if lo < min {
+            (min - lo).ceil()
+        } else if hi > max {
+            -(hi - max).ceil()
+        } else {
+            0.0
+        }
+    };
+    let dx = shift(b[0], b[2], room[0], room[2]);
+    let dy = shift(b[1], b[3], room[1], room[3]);
+    let mut parts = Vec::new();
+    if dx != 0.0 {
+        let side = if dx > 0.0 { "right" } else { "left" };
+        parts.push(format!("{:.0} px to the {side}", dx.abs()));
+    }
+    if dy != 0.0 {
+        let side = if dy > 0.0 { "down" } else { "up" };
+        parts.push(format!("{:.0} px {side}", dy.abs()));
+    }
+    (
+        format!(
+            "The node reaches outside {name}. Move it {} (or make it smaller).",
+            parts.join(" and ")
+        ),
+        Some(Fix::Move { dx, dy }),
+    )
+}
+
+/// The shortest move of `a` that clears `b`, with a small gap.
+fn apart(a: [f64; 4], b: [f64; 4]) -> (f64, f64) {
+    const GAP: f64 = 8.0;
+    let options = [
+        (b[2] - a[0] + GAP, 0.0),
+        (-(a[2] - b[0] + GAP), 0.0),
+        (0.0, b[3] - a[1] + GAP),
+        (0.0, -(a[3] - b[1] + GAP)),
+    ];
+    options
+        .into_iter()
+        .min_by(|p, q| (p.0.abs() + p.1.abs()).total_cmp(&(q.0.abs() + q.1.abs())))
+        .map_or((0.0, 0.0), |(x, y)| (x.ceil(), y.ceil()))
 }
 
 fn overlap_area(a: [f64; 4], b: [f64; 4]) -> f64 {
@@ -367,29 +472,40 @@ fn text_overlap(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                 } else {
                     (texts[j], texts[i])
                 };
-                hits.push((s.time, top, other.name.clone()));
+                hits.push((s.time, top, other.name.clone(), other.bounds));
             }
         }
     }
     let mut issues = Vec::new();
-    let mut group: Option<(f64, f64, &InspectNode, String)> = None;
-    let flush = |group: &mut Option<(f64, f64, &InspectNode, String)>, issues: &mut Vec<Issue>| {
-        if let Some((start, end, node, other)) = group.take()
+    type Group<'a> = (f64, f64, &'a InspectNode, String, [f64; 4]);
+    let mut group: Option<Group<'_>> = None;
+    let flush = |group: &mut Option<Group<'_>>, issues: &mut Vec<Issue>| {
+        if let Some((start, end, node, other, other_bounds)) = group.take()
             && persist(start, end, limits.sample_step) + 1e-6 >= limits.out_persist
         {
-            issues.push(issue(
-                "text_overlap",
-                Severity::Error,
-                [start, end],
-                node,
-                format!(
-                    "Text overlaps `{other}`. Move one of them so they no longer cover each other."
-                ),
-            ));
+            let (dx, dy) = apart(node.bounds, other_bounds);
+            let way = match (dx, dy) {
+                (x, _) if x > 0.0 => format!("{x:.0} px to the right"),
+                (x, _) if x < 0.0 => format!("{:.0} px to the left", -x),
+                (_, y) if y > 0.0 => format!("{y:.0} px down"),
+                (_, y) => format!("{:.0} px up", -y),
+            };
+            issues.push(
+                issue(
+                    "text_overlap",
+                    Severity::Error,
+                    [start, end],
+                    node,
+                    format!(
+                        "Text overlaps `{other}`. Move it {way}, or move `{other}` the other way."
+                    ),
+                )
+                .with_fix(Some(Fix::Move { dx, dy })),
+            );
         }
     };
-    for (time, node, other) in &hits {
-        let same = group.as_ref().is_some_and(|(start, end, n, o)| {
+    for (time, node, other, other_bounds) in &hits {
+        let same = group.as_ref().is_some_and(|(start, end, n, o, _)| {
             n.id == node.id
                 && o == other
                 && *time - *end <= limits.sample_step * 1.5
@@ -401,7 +517,7 @@ fn text_overlap(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
             }
         } else {
             flush(&mut group, &mut issues);
-            group = Some((*time, *time, node, other.clone()));
+            group = Some((*time, *time, node, other.clone(), *other_bounds));
         }
     }
     flush(&mut group, &mut issues);
@@ -418,7 +534,7 @@ fn protrusion(node: &InspectNode, parent: &InspectNode) -> f64 {
 }
 
 fn text_overflow(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
-    let mut hits: Vec<(f64, &InspectNode, f64)> = Vec::new();
+    let mut hits: Vec<(f64, &InspectNode, f64, ())> = Vec::new();
     for s in samples {
         for n in s.nodes.iter().filter(|n| visible(n) && is_text(n)) {
             let mut px = n.text_overflow;
@@ -428,7 +544,7 @@ fn text_overflow(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                 px = px.max(protrusion(n, parent));
             }
             if px > 2.0 {
-                hits.push((s.time, n, px));
+                hits.push((s.time, n, px, ()));
             }
         }
     }
@@ -438,8 +554,17 @@ fn text_overflow(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
         limits.out_persist.min(0.2),
         "text_overflow",
         Severity::Error,
-        |px| {
-            format!("Text is {px:.0} px wider than its block. Lower font_size or raise max_width.")
+        |px, node, ()| {
+            let room = (node.bounds[2] - node.bounds[0]).max(1.0);
+            let by = px.ceil();
+            // Two decimals, rounded down so the smaller size fits.
+            let font_scale = ((room / (room + px)) * 100.0).floor() / 100.0;
+            (
+                format!(
+                    "Text is {px:.0} px wider than its block. Raise max_width by {by:.0} px, or scale font_size by {font_scale:.2}."
+                ),
+                Some(Fix::Widen { by, font_scale }),
+            )
         },
     )
 }
@@ -496,27 +621,50 @@ fn low_contrast(samples: &[Sample], background: Color, limits: &Limits) -> Vec<I
     // Text over drawn pixels (a shader, an image, `Custom`) is judged on
     // them, and only when it lasts: something moving past a label for a
     // moment is animation, not unreadable text.
-    let mut fills: Vec<(f64, &InspectNode, f64)> = Vec::new();
-    let mut pixels: Vec<(f64, &InspectNode, f64)> = Vec::new();
+    let mut fills: Vec<(f64, &InspectNode, f64, Option<Color>)> = Vec::new();
+    let mut pixels: Vec<(f64, &InspectNode, f64, Option<Color>)> = Vec::new();
     for s in samples {
         for n in s.nodes.iter().filter(|n| visible(n) && is_text(n)) {
             if n.fill.a * (n.opacity as f32) < 0.8 {
                 continue;
             }
-            let (ratio, hits) = match s.contrast.iter().find(|(id, _)| *id == n.id) {
-                Some(&(_, measured)) => (measured, &mut pixels),
-                None => (contrast(n.fill, backdrop(s, n, background)), &mut fills),
+            let (ratio, behind, hits) = match s.contrast.iter().find(|(id, _)| *id == n.id) {
+                Some(&(_, measured)) => (measured, None, &mut pixels),
+                None => {
+                    let bg = backdrop(s, n, background);
+                    (contrast(n.fill, bg), Some(bg), &mut fills)
+                }
             };
             if ratio + 1e-6 < limits.min_contrast {
-                hits.push((s.time, n, ratio));
+                hits.push((s.time, n, ratio, behind));
             }
         }
     }
-    let hint = |ratio: f64| {
-        format!(
-            "Contrast with the background is {ratio:.1}:1, below {:.1}:1. Change the text color or what is behind it.",
+    let hint = |ratio: f64, node: &InspectNode, behind: Option<Color>| {
+        let base = format!(
+            "Contrast with the background is {ratio:.1}:1, below {:.1}:1.",
             limits.min_contrast
-        )
+        );
+        // Over one known color: the nearest readable text color. Over drawn
+        // pixels there is no single color to aim for.
+        match behind.and_then(|bg| readable(node.fill, bg, limits.min_contrast)) {
+            Some((color, reached)) => {
+                let hex = hex(color);
+                (
+                    format!(
+                        "{base} Use {hex} for the text ({reached:.1}:1), or change what is behind it."
+                    ),
+                    Some(Fix::Color {
+                        color: hex,
+                        contrast: (reached * 10.0).floor() / 10.0,
+                    }),
+                )
+            }
+            None => (
+                format!("{base} Change the text color or what is behind it."),
+                None,
+            ),
+        }
     };
     let quick = limits.out_persist.min(0.2);
     let mut issues = grouped(fills, limits, quick, "low_contrast", Severity::Error, hint);
@@ -529,6 +677,22 @@ fn low_contrast(samples: &[Sample], background: Color, limits: &Limits) -> Vec<I
         hint,
     ));
     issues
+}
+
+fn hex(c: Color) -> String {
+    let [r, g, b, _] = c.to_rgba8();
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+/// `text` lightened or darkened (same hue) until it reaches `min` contrast
+/// on `bg`, with a small margin so the `#rrggbb` it is written as still
+/// passes; and the contrast it reaches.
+fn readable(text: Color, bg: Color, min: f64) -> Option<(Color, f64)> {
+    let c = Color::rgb(text.r, text.g, text.b).readable_on(bg, (min + 0.05) as f32);
+    let [r, g, b, _] = c.to_rgba8();
+    let c = Color::from_rgba8(r, g, b, 255);
+    let reached = contrast(c, bg);
+    (reached + 1e-6 >= min).then_some((c, reached))
 }
 
 fn too_fast_text(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
@@ -556,15 +720,20 @@ fn too_fast_text(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
         let visible_for = persist(start, end, limits.sample_step);
         let needed = chars as f64 / limits.chars_per_second.max(1.0);
         if visible_for + 1e-6 < needed && visible_for < limits.text_flash {
-            issues.push(issue(
-                "too_fast",
-                Severity::Error,
-                [start, end],
-                node,
-                format!(
-                    "The text is on screen for {visible_for:.1} s but needs about {needed:.1} s to be read. Hold it longer."
-                ),
-            ));
+            let seconds = (needed * 10.0).ceil() / 10.0;
+            issues.push(
+                issue(
+                    "too_fast",
+                    Severity::Error,
+                    [start, end],
+                    node,
+                    format!(
+                        "The text is on screen for {visible_for:.1} s but needs about {needed:.1} s to be read. Keep it on screen at least {seconds:.1} s: wait {:.1} s longer before it leaves.",
+                        (seconds - visible_for).max(0.1)
+                    ),
+                )
+                .with_fix(Some(Fix::Hold { seconds })),
+            );
         }
     }
     issues
@@ -594,16 +763,21 @@ fn too_fast_motion(samples: &[Sample], size: (u32, u32), limits: &Limits) -> Vec
         let dist = ((x - run.x0).powi(2) + (y - run.y0).powi(2)).sqrt();
         let dur = run.end - run.start;
         if dur + 1e-6 < limits.min_motion && dist >= large {
-            issues.push(issue(
-                "too_fast",
-                Severity::Warning,
-                [run.start, run.end],
-                run.node,
-                format!(
-                    "The node travels {dist:.0} px in {dur:.2} s. Slow the move so it lasts at least {:.2} s.",
-                    limits.min_motion
-                ),
-            ));
+            issues.push(
+                issue(
+                    "too_fast",
+                    Severity::Warning,
+                    [run.start, run.end],
+                    run.node,
+                    format!(
+                        "The node travels {dist:.0} px in {dur:.2} s. Slow the move so it lasts at least {:.2} s.",
+                        limits.min_motion
+                    ),
+                )
+                .with_fix(Some(Fix::Slow {
+                    seconds: limits.min_motion,
+                })),
+            );
         }
     };
     for s in samples {
@@ -703,6 +877,7 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
                     aspect: None,
                     bounds: None,
                     crop: None,
+                    fix: None,
                 });
             }
             start = s.time;
@@ -722,6 +897,7 @@ fn dead_time(samples: &[Sample], limits: &Limits) -> Vec<Issue> {
             aspect: None,
             bounds: None,
             crop: None,
+            fix: None,
         });
     }
     issues
@@ -786,38 +962,48 @@ fn issue(
         aspect: None,
         bounds: Some(node.bounds),
         crop: None,
+        fix: None,
     }
 }
 
-fn grouped(
-    hits: Vec<(f64, &InspectNode, f64)>,
+/// Hits of one node in consecutive samples become one issue. The largest
+/// measure of the run (with its node and `extra`) goes to `hint`, which
+/// writes the text and the fix.
+fn grouped<'a, T>(
+    hits: Vec<(f64, &'a InspectNode, f64, T)>,
     limits: &Limits,
     min_persist: f64,
     rule: &'static str,
     severity: Severity,
-    hint: impl Fn(f64) -> String,
+    hint: impl Fn(f64, &InspectNode, T) -> (String, Option<Fix>),
 ) -> Vec<Issue> {
+    type Run<'a, T> = (f64, f64, &'a InspectNode, f64, T);
     let mut issues = Vec::new();
-    let mut group: Option<(f64, f64, &InspectNode, f64)> = None;
-    let flush = |g: &mut Option<(f64, f64, &InspectNode, f64)>, issues: &mut Vec<Issue>| {
-        if let Some((start, end, node, px)) = g.take()
+    let mut group: Option<Run<'a, T>> = None;
+    let flush = |g: &mut Option<Run<'a, T>>, issues: &mut Vec<Issue>| {
+        if let Some((start, end, node, px, extra)) = g.take()
             && persist(start, end, limits.sample_step) + 1e-6 >= min_persist
         {
-            issues.push(issue(rule, severity, [start, end], node, hint(px)));
+            let (text, fix) = hint(px, node, extra);
+            issues.push(issue(rule, severity, [start, end], node, text).with_fix(fix));
         }
     };
-    for (time, node, px) in hits {
-        let same = group.as_ref().is_some_and(|(_, end, n, _)| {
+    for (time, node, px, extra) in hits {
+        let same = group.as_ref().is_some_and(|(_, end, n, _, _)| {
             n.id == node.id && time - *end <= limits.sample_step * 1.5
         });
         if same {
             if let Some(g) = group.as_mut() {
                 g.1 = time;
-                g.3 = g.3.max(px);
+                if px > g.3 {
+                    g.2 = node;
+                    g.3 = px;
+                    g.4 = extra;
+                }
             }
         } else {
             flush(&mut group, &mut issues);
-            group = Some((time, time, node, px));
+            group = Some((time, time, node, px, extra));
         }
     }
     flush(&mut group, &mut issues);
@@ -838,6 +1024,7 @@ mod tests {
             aspect: None,
             bounds: None,
             crop: None,
+            fix: None,
         };
         let json = serde_json::to_value(&issue).unwrap();
         assert_eq!(json["rule"], "too_fast");
@@ -910,10 +1097,35 @@ mod tests {
             .map(|i| at(i as f64 * 0.1, vec![outside.clone()]))
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule == "out_of_frame" && i.severity == Severity::Error)
+        let error = issues
+            .iter()
+            .find(|i| i.rule == "out_of_frame" && i.severity == Severity::Error)
+            .unwrap();
+        // The right edge is at 960: 140 px to the left brings it in.
+        assert_eq!(
+            error.fix,
+            Some(Fix::Move {
+                dx: -140.0,
+                dy: 0.0
+            })
+        );
+        assert!(error.hint.contains("140 px to the left"), "{}", error.hint);
+    }
+
+    #[test]
+    fn a_node_larger_than_the_frame_is_told_to_shrink() {
+        let huge = node(1, "Rect", [-1200.0, -100.0, 1200.0, 100.0]);
+        let samples: Vec<_> = (0..8)
+            .map(|i| at(i as f64 * 0.1, vec![huge.clone()]))
+            .collect();
+        let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
+        let error = issues.iter().find(|i| i.rule == "out_of_frame").unwrap();
+        assert_eq!(
+            error.fix,
+            Some(Fix::Shrink {
+                width: 1920.0,
+                height: 200.0
+            })
         );
     }
 
@@ -946,7 +1158,10 @@ mod tests {
             .map(|i| at(i as f64 * 0.1, vec![a.clone(), b.clone()]))
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
-        assert!(issues.iter().any(|i| i.rule == "text_overlap"));
+        let overlap = issues.iter().find(|i| i.rule == "text_overlap").unwrap();
+        // The shortest way out is 20 px of height plus a gap, down.
+        assert_eq!(overlap.fix, Some(Fix::Move { dx: 0.0, dy: 28.0 }));
+        assert!(overlap.hint.contains("28 px down"), "{}", overlap.hint);
     }
 
     #[test]
@@ -957,7 +1172,15 @@ mod tests {
             .map(|i| at(i as f64 * 0.1, vec![n.clone()]))
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
-        assert!(issues.iter().any(|i| i.rule == "text_overflow"));
+        let overflow = issues.iter().find(|i| i.rule == "text_overflow").unwrap();
+        // 200 px of room for 340 px of text.
+        assert_eq!(
+            overflow.fix,
+            Some(Fix::Widen {
+                by: 140.0,
+                font_scale: 0.58
+            })
+        );
     }
 
     #[test]
@@ -972,7 +1195,25 @@ mod tests {
             .map(|i| at(i as f64 * 0.1, vec![bg.clone(), n.clone()]))
             .collect();
         let issues = lint(&samples, (1920, 1080), Color::WHITE, false, &limits());
-        assert!(issues.iter().any(|i| i.rule == "low_contrast"));
+        let low = issues.iter().find(|i| i.rule == "low_contrast").unwrap();
+        let Some(Fix::Color {
+            color,
+            contrast: reached,
+        }) = &low.fix
+        else {
+            panic!("no color fix: {:?}", low.fix);
+        };
+        // The nearest readable gray on white, and it is readable.
+        let c = Color::from_hex(color).unwrap();
+        assert!(
+            *reached >= 4.5 && contrast(c, Color::WHITE) >= 4.5,
+            "{color}"
+        );
+        assert!(
+            contrast(c, Color::WHITE) < 6.0,
+            "{color} is darker than it needs to be"
+        );
+        assert!(low.hint.contains(color.as_str()));
     }
 
     #[test]
@@ -990,10 +1231,37 @@ mod tests {
         let n = text(1, body, [-200.0, -20.0, 200.0, 20.0]);
         let samples = vec![at(0.0, vec![n.clone()]), at(0.2, vec![n])];
         let issues = lint(&samples, (1920, 1080), Color::BLACK, false, &limits());
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule == "too_fast" && i.severity == Severity::Error)
+        let fast = issues
+            .iter()
+            .find(|i| i.rule == "too_fast" && i.severity == Severity::Error)
+            .unwrap();
+        let Some(Fix::Hold { seconds }) = fast.fix else {
+            panic!("no hold: {:?}", fast.fix);
+        };
+        assert!(seconds > 0.3, "{seconds}");
+    }
+
+    #[test]
+    fn a_fix_is_in_the_json() {
+        let issue = Issue {
+            rule: "out_of_frame",
+            severity: Severity::Error,
+            time: [1.0, 2.0],
+            node: "title".into(),
+            source: None,
+            hint: String::new(),
+            aspect: None,
+            bounds: None,
+            crop: None,
+            fix: Some(Fix::Move {
+                dx: -140.0,
+                dy: 0.0,
+            }),
+        };
+        let json = serde_json::to_value(&issue).unwrap();
+        assert_eq!(
+            json["fix"],
+            serde_json::json!({"action": "move", "dx": -140.0, "dy": 0.0})
         );
     }
 
