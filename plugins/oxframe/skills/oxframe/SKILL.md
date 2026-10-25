@@ -2,7 +2,7 @@
 name: oxframe
 description: "Make videos from code with oxframe: explainers, code walkthroughs, charts, matrices, 3D, slides and release videos as Rust scenes, checked with `oxframe check` (storyboard and report) and rendered to MP4 without a browser. Use when the user asks for an animation, a motion graphic, a video from code, or changes to an oxframe project."
 ---
-<!-- oxframe-agents 0.23.4 -->
+<!-- oxframe-agents 0.23.5 -->
 # oxframe scenes
 
 The project is on oxframe 0.23.6: docs https://oxframe.dev/docs/0.23,
