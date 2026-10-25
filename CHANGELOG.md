@@ -8,6 +8,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.7 — 2026-10-25
+
 ### Added
 
 - Voice-overs you recorded yourself: `voice("…").recording("vo/intro.wav")`
