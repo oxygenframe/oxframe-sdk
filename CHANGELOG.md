@@ -8,6 +8,15 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+### Added
+
+- Voice-overs you recorded yourself: `voice("…").recording("vo/intro.wav")`
+  plays the file instead of calling a speech provider, and the line lasts as
+  long as the file. `oxframe transcribe vo/intro.wav` (oxframe-cli) times
+  its words with whisper.cpp on your machine and writes
+  `vo/intro.words.json`, so `line.at_word("…")` and `.caption()` follow the
+  recording. Without that file the words are spread over its length.
+
 ## 0.23.6 — 2026-10-25
 
 ### Fixed

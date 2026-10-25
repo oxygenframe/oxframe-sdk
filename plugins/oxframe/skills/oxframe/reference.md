@@ -1,4 +1,4 @@
-<!-- oxframe-agents 0.23.5 -->
+<!-- oxframe-agents 0.23.6 -->
 # oxframe API cheat sheet
 
 `use oxframe::prelude::*;` brings everything below into scope.
@@ -64,6 +64,8 @@ Project::new("explainer").tts(ElevenLabs).speaker("Rachel")
 ```
 
 The first render writes `tts/{hash}.wav` and `tts/{hash}.json`. The next render plays the file. Commit that folder so CI has the audio without a key. A missing key or a failed call falls back to a speech-rate estimate (2.5 words per second, at least 0.3s) and the scene still runs, with no speech audio. An estimate is not cached. With no provider, a committed cache is still found by the line text. The playground always estimates.
+
+A voice-over recorded by a person: `voice("…").recording("vo/intro.wav")` plays the file instead of calling the provider, and the line lasts as long as it. `oxframe transcribe vo/intro.wav` (needs whisper.cpp's `whisper-cli`; runs locally) writes `vo/intro.words.json` with the word times, so `.at_word()` and `.caption()` follow the recording; without that file the words are spread over its length. Write the line's text as spoken, since captions and subtitles show it.
 
 `oxframe render --subtitles out.srt` writes the lines. A path ending in `.vtt` writes WebVTT. `--no-audio` still writes them, and `--range` shifts the cues.
 

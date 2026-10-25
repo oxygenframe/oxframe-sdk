@@ -88,6 +88,12 @@ extension). `--no-audio` still writes them.
 `voice("…").caption()` also burns the line into the video at the bottom of
 the frame, a few words at a time, in step with the words.
 
+A voice-over recorded by a person: `voice("…").recording("vo/intro.wav")`
+plays the file (no provider call) and lasts as long as it. Run
+`oxframe transcribe vo/intro.wav` once (whisper.cpp, local) to write
+`vo/intro.words.json`; then `at_word` and `.caption()` follow the
+recording. Write the line's text as spoken: captions show it.
+
 ## Video
 
 With `oxframe = { ..., features = ["video"] }` and ffmpeg installed:
