@@ -38,6 +38,8 @@ pub enum Format {
     ProRes,
     /// Numbered PNG files in a directory.
     Png,
+    /// Animated GIF that loops, one palette for the whole clip, no audio.
+    Gif,
 }
 
 impl Format {
@@ -48,6 +50,7 @@ impl Format {
             "webm" => Some(Self::Webm),
             "prores" | "mov" => Some(Self::ProRes),
             "png" => Some(Self::Png),
+            "gif" => Some(Self::Gif),
             _ => None,
         }
     }
@@ -68,7 +71,13 @@ impl Format {
             Self::Webm => "webm",
             Self::ProRes => "mov",
             Self::Png => "",
+            Self::Gif => "gif",
         }
+    }
+
+    /// Whether the file can carry a soundtrack.
+    pub fn has_audio(self) -> bool {
+        matches!(self, Self::Mp4 | Self::Webm | Self::ProRes)
     }
 }
 
@@ -94,7 +103,7 @@ pub struct ExportOptions {
     pub height: u32,
     /// Frames per second.
     pub fps: u32,
-    /// Optional soundtrack (ignored for PNG).
+    /// Optional soundtrack (ignored for PNG and GIF).
     pub audio: Option<Audio>,
     /// Explicit ffmpeg binary; otherwise found in `PATH`.
     pub ffmpeg: Option<PathBuf>,
@@ -343,7 +352,8 @@ pub fn ffmpeg_args(o: &ExportOptions) -> Vec<String> {
     push(&[
         "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &size, "-r", &fps, "-i", "-",
     ]);
-    audio_input(&mut a, o.audio.as_ref());
+    let audio = o.audio.as_ref().filter(|_| o.format.has_audio());
+    audio_input(&mut a, audio);
     let mut push = |items: &[&str]| a.extend(items.iter().map(|s| s.to_string()));
     match o.format {
         Format::Mp4 => push(&[
@@ -380,9 +390,19 @@ pub fn ffmpeg_args(o: &ExportOptions) -> Vec<String> {
             "-vendor",
             "apl0",
         ]),
+        // One palette from every frame, then each frame mapped to it with an
+        // ordered dither: unlike error diffusion it does not shimmer between
+        // frames, and only the changed rectangle is stored.
+        Format::Gif => push(&[
+            "-vf",
+            "split[a][b];[a]palettegen=stats_mode=full[p];\
+             [b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle",
+            "-loop",
+            "0",
+        ]),
         Format::Png => {}
     }
-    audio_output(&mut a, o.audio.is_some(), o.format, o.duration);
+    audio_output(&mut a, audio.is_some(), o.format, o.duration);
     a.push(o.out.to_string_lossy().into_owned());
     a
 }
@@ -410,7 +430,7 @@ fn audio_output(a: &mut Vec<String>, audio: bool, format: Format, duration: Opti
         Format::Mp4 => push(&["-c:a", "aac", "-b:a", "192k"]),
         Format::Webm => push(&["-c:a", "libopus", "-b:a", "160k"]),
         Format::ProRes => push(&["-c:a", "pcm_s16le"]),
-        Format::Png => {}
+        Format::Png | Format::Gif => {}
     }
     // Pad audio with silence so `-shortest` never cuts the video.
     // `whole_dur` stops the pad at the last frame; an open-ended pad
@@ -608,6 +628,12 @@ mod tests {
         });
         let a = ffmpeg_args(&o).join(" ");
         assert!(a.contains("-ss 1.500000 -i a.wav") && a.contains("-c:a aac"));
+        // A GIF has no sound, even when given one.
+        o.format = Format::Gif;
+        o.out = "o.gif".into();
+        let a = ffmpeg_args(&o).join(" ");
+        assert!(a.contains("palettegen") && a.contains("-loop 0") && a.ends_with("o.gif"));
+        assert!(!a.contains("a.wav") && !a.contains("-c:a"));
     }
 
     #[test]
@@ -615,6 +641,35 @@ mod tests {
         assert_eq!(Format::from_path(Path::new("x.MP4")), Format::Mp4);
         assert_eq!(Format::from_path(Path::new("x.mov")), Format::ProRes);
         assert_eq!(Format::from_path(Path::new("frames")), Format::Png);
+        assert_eq!(Format::from_path(Path::new("x.gif")), Format::Gif);
+    }
+
+    #[test]
+    fn encodes_gif_when_ffmpeg_is_available() {
+        if find_ffmpeg(None).is_err() {
+            eprintln!("SKIPPED: no ffmpeg");
+            return;
+        }
+        let out =
+            std::env::temp_dir().join(format!("oxframe-export-test-{}.gif", std::process::id()));
+        let mut o = opts(Format::Gif, out.to_str().unwrap());
+        o.width = 63; // odd sizes are fine for GIF
+        o.fps = 15;
+        let mut ex = Exporter::start(&o).unwrap();
+        for i in 0..15u8 {
+            ex.push(Image {
+                width: 63,
+                height: 36,
+                data: vec![i * 16; 63 * 36 * 4],
+            })
+            .unwrap();
+        }
+        ex.finish().unwrap();
+        let bytes = std::fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"GIF89a"));
+        let d = media_duration(&out, None).unwrap();
+        assert!((d - 1.0).abs() < 0.15, "duration {d}");
+        let _ = std::fs::remove_file(out);
     }
 
     #[test]

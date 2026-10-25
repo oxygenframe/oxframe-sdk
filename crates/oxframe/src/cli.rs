@@ -21,12 +21,13 @@ usage: <project> <command> [options]
 commands:
   render   render the project to a video or PNG sequence
              --out <path>        output file or directory (default: out/<project>.mp4)
-             --format <f>        mp4 | webm | prores | png (default: from --out extension)
+             --format <f>        mp4 | webm | prores | png | gif (default: from --out extension)
              --scene <name>      render only this scene
              --range <a>..<b>    time range in seconds, e.g. 0.5..2 (either side optional)
              --at <seconds>      only this frame, as PNG (repeatable); with one --at and
                                  --out file.png writes that file, else out/snapshots/
-             --size <w>x<h>      output size (default: project size)
+             --size <w>x<h>      output size (default: project size; GIF: 720 wide at most)
+             --fps <n>           GIF frame rate (default 15, at most the project's)
              --aspect <shape>    16:9, 9:16, 1:1, or all (every Project::aspects format)
              --gpu               render on the GPU (vello); the default is the CPU (tiny-skia)
              --ffmpeg <path>     ffmpeg binary (default: from PATH)
@@ -135,6 +136,8 @@ struct RenderArgs {
     slides: Option<PathBuf>,
     /// Segments rendered at once.
     jobs: Option<usize>,
+    /// Frame rate of a GIF.
+    fps: Option<u32>,
     /// `--frames a..b`: global frames `a` to `b` (exclusive). Set by the
     /// parent process for one segment of a parallel render.
     frames: Option<(u32, u32)>,
@@ -157,7 +160,7 @@ impl RenderArgs {
                 "--format" => {
                     let f = value()?;
                     a.format = Some(Format::parse(&f).ok_or_else(|| {
-                        format!("unknown format `{f}`; use mp4, webm, prores or png")
+                        format!("unknown format `{f}`; use mp4, webm, prores, png or gif")
                     })?);
                 }
                 "--at" => {
@@ -213,6 +216,13 @@ impl RenderArgs {
                             format!("bad --jobs `{v}`, expected a positive number")
                         })?);
                 }
+                "--fps" => {
+                    let v = value()?;
+                    a.fps =
+                        Some(v.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                            format!("bad --fps `{v}`, expected a positive number")
+                        })?);
+                }
                 "--frames" => {
                     let v = value()?;
                     let (s, e) = v
@@ -232,6 +242,39 @@ impl RenderArgs {
 /// key frame, so shorter ones cost bitrate; longer ones leave cores idle on
 /// short videos.
 const SEGMENT_SECONDS: u32 = 2;
+
+/// Frame rate of a GIF unless `--fps` says otherwise: smooth enough for
+/// motion graphics, and half the file of 30 fps.
+const GIF_FPS: u32 = 15;
+
+/// Widest GIF unless `--size` says otherwise: sharp in a README or a pull
+/// request, small enough to load there.
+const GIF_WIDTH: u32 = 720;
+
+/// The project size scaled down to [`GIF_WIDTH`], keeping the aspect.
+fn gif_size((w, h): (u32, u32)) -> (u32, u32) {
+    if w <= GIF_WIDTH {
+        return (w, h);
+    }
+    let height = (f64::from(h) * f64::from(GIF_WIDTH) / f64::from(w)).round() as u32;
+    (GIF_WIDTH, height.max(1))
+}
+
+/// The frames to show at `out_fps`: for each output frame, the nearest
+/// frame of `frames` (rendered at `fps`).
+fn sample_frames(frames: &std::ops::Range<u32>, fps: u32, out_fps: u32) -> Vec<u32> {
+    if out_fps >= fps {
+        return frames.clone().collect();
+    }
+    let seconds = frames.len() as f64 / f64::from(fps);
+    let count = ((seconds * f64::from(out_fps)).round() as u32).max(1);
+    (0..count)
+        .map(|n| {
+            let k = (f64::from(n) * f64::from(fps) / f64::from(out_fps)).round() as u32;
+            (frames.start + k).min(frames.end - 1)
+        })
+        .collect()
+}
 
 /// Segments rendered at once by default: one per core, at most 8 (each
 /// process holds a full engine).
@@ -594,6 +637,10 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
             f => base.with_extension(f.extension()),
         }
     });
+    if args.fps.is_some() && format != Format::Gif {
+        eprintln!("error: --fps is for --format gif; other formats use the project's frame rate");
+        return EXIT_ERROR;
+    }
     if format != Format::Png
         && let Err(e) = oxframe_export::find_ffmpeg(args.ffmpeg.as_deref())
     {
@@ -638,7 +685,11 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         return EXIT_ERROR;
     }
 
-    let size = args.size.unwrap_or(engine.size());
+    let size = match (args.size, format) {
+        (Some(size), _) => size,
+        (None, Format::Gif) => gif_size(engine.size()),
+        (None, _) => engine.size(),
+    };
     let origin = f64::from(frames.start) / f64::from(fps);
     let seconds = frames.len() as f64 / f64::from(fps);
     if let Some(path) = &args.subtitles {
@@ -658,7 +709,7 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
             return EXIT_ERROR;
         }
     }
-    let mixed = if !args.no_audio && format != Format::Png {
+    let mixed = if !args.no_audio && format.has_audio() {
         match crate::audio::mix_range(&engine, origin, seconds) {
             Ok(mixed) => mixed,
             Err(e) => {
@@ -686,8 +737,9 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     });
     // A video longer than one segment is rendered in segments, whatever
     // `--jobs` is, so the file is the same for any number of jobs.
+    // A GIF is encoded in one piece: its palette comes from every frame.
     let segment = fps * SEGMENT_SECONDS;
-    if args.frames.is_none() && frames.len() > segment as usize {
+    if args.frames.is_none() && format != Format::Gif && frames.len() > segment as usize {
         let job = SegmentJob {
             frames: frames.clone(),
             segment,
@@ -702,12 +754,17 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
         };
         return render_segments(&job);
     }
+    let out_fps = match format {
+        Format::Gif => args.fps.unwrap_or(GIF_FPS).min(fps),
+        _ => fps,
+    };
+    let frames = sample_frames(&frames, fps, out_fps);
     let opts = ExportOptions {
         out: out.clone(),
         format,
         width: size.0,
         height: size.1,
-        fps,
+        fps: out_fps,
         audio,
         ffmpeg: args.ffmpeg.clone(),
         duration: Some(seconds),
@@ -723,7 +780,7 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     // From here on frames come through the generic `FrameSource`.
     let mut source = PreviewAdapter::new(engine, renderer);
     eprintln!(
-        "rendering {} frames at {}x{} @ {fps} fps with {backend} → {}",
+        "rendering {} frames at {}x{} @ {out_fps} fps with {backend} → {}",
         frames.len(),
         size.0,
         size.1,
@@ -734,7 +791,7 @@ fn render_video(project: Project, args: RenderArgs) -> i32 {
     let count = frames.len();
     let mut last_report = 0;
     let (mut t_render, mut t_queue) = (0.0, 0.0);
-    for (n, frame) in frames.enumerate() {
+    for (n, frame) in frames.into_iter().enumerate() {
         let t0 = Instant::now();
         let image = source.render(frame, size);
         let t1 = Instant::now();
@@ -877,4 +934,29 @@ fn snapshot(project: Project, args: &RenderArgs) -> i32 {
         println!("{} frame={frame} t={t:.3}", path.display());
     }
     EXIT_OK
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gif_is_at_most_720_wide() {
+        assert_eq!(gif_size((1920, 1080)), (720, 405));
+        assert_eq!(gif_size((1080, 1920)), (720, 1280));
+        assert_eq!(gif_size((640, 360)), (640, 360));
+    }
+
+    #[test]
+    fn gif_frames_are_sampled_from_the_project_rate() {
+        // 30 → 15 fps: every other frame.
+        assert_eq!(sample_frames(&(10..20), 30, 15), vec![10, 12, 14, 16, 18]);
+        // 24 → 15 fps: the nearest frame, never past the range.
+        let f = sample_frames(&(0..48), 24, 15);
+        assert_eq!(f.len(), 30);
+        assert_eq!(f[..4], [0, 2, 3, 5]);
+        assert!(f.iter().all(|&k| k < 48));
+        // No faster than the project.
+        assert_eq!(sample_frames(&(0..3), 30, 60), vec![0, 1, 2]);
+    }
 }

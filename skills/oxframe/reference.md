@@ -103,7 +103,7 @@ transition(Transition::shader(shaders::water_wipe().wave(0.04))).await;
 
 - `Video::new().file(path)` + `.width(px | pct())` / `.height()` (other side keeps the clip's aspect), `.radius(r)`, `.muted(true)`, `.playback_rate(r)`, `.start_at(seconds)`.
 - Handle: `play()` (returns at once, plays alongside the scene), `pause()`, `seek(seconds)`, `time() -> Signal<f64>` (seconds into the clip; animate it to scrub), `playback_rate() -> Signal<f64>`, `duration()`, `is_playing()`.
-- Deterministic: the frame comes from scene time. MP4 H.264, WebM VP9 and ProRes 4444 (alpha kept).
+- Deterministic: the frame comes from scene time. MP4 H.264, WebM VP9 and ProRes 4444 (alpha kept), GIF for a README or a pull request (720 wide, 15 fps, no sound).
 - Sound joins the mix only while playing at rate 1. A file that cannot be opened is a dark box plus `video_unavailable` in `check`. The playground always shows the box.
 
 ## 3D (feature `3d`)
@@ -324,5 +324,5 @@ x.to(1.0, 1.0).ease(ease!("slide"));     // curve editor; ease!("slide", presets
 
 `oxframe check [--frames] [--against <dir>]` — storyboard and `report.json` in `out/check/`. `--frames` also writes full-size PNGs. `--against out/before` (after `oxframe check --frames --out out/before`) lists the frames an edit changed, with `diff/` pictures, so you can confirm it changed only what you meant. Each issue on a node gets `bounds` and a `crop`: `out/check/issues/<n>-<rule>.png`, that part of the frame at full resolution with the node outlined. Thresholds live in `oxframe.toml` `[check]`. Errors exit 1.
 `oxframe inspect --at <seconds> [--scene s] [--graph]` — JSON scene tree at that time. `--graph` adds the render passes.
-`oxframe render [--out out.mp4|.webm|.mov|dir] [--format mp4|webm|prores|png] [--scene s] [--range 1..3] [--size 1280x720] [--cpu]`
+`oxframe render [--out out.mp4|.webm|.mov|.gif|dir] [--format mp4|webm|prores|png|gif] [--scene s] [--range 1..3] [--size 1280x720] [--fps 15] [--cpu]`
 `oxframe snapshot --at <seconds> [--at …] [--scene s] [--size WxH] [--out file.png]`
