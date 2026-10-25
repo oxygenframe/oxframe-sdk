@@ -8,8 +8,15 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.5 — 2026-10-25
+
 ### Added
 
+- No ffmpeg installed? `oxframe render` downloads a static build once into
+  the oxframe cache and uses it (oxframe-cli); `oxframe ffmpeg` does it
+  ahead of time.
+- Six more blocks for `oxframe add` (oxframe-cli), 24 in all: metric-row,
+  key-combo, steps, social-post, split-screen and search-bar.
 - `voice("…").caption()`: the line is shown at the bottom of the frame
   while it is spoken, up to seven words at a time, each part on screen
   while its words are said (word timings from the provider, or the
@@ -22,9 +29,9 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   The hints say the same in words ("Move it 140 px to the left"). `lint::Fix`
   in Rust.
 
-- `Project::loudness(-14.0)`: the rendered sound (music, voice and effects)
-  is brought to that integrated loudness (EBU R128) before the -1 dBFS
-  limiter, so a video plays as loud as others on YouTube or in a feed.
+- `Project::loudness`, say at -14 LUFS: the rendered sound (music, voice
+  and effects) is brought to that integrated loudness (EBU R128) before the
+  -1 dBFS limiter, so a video plays as loud as others on YouTube or in a feed.
   `render` prints the loudness of every mix; `oxframe_export::loudness`
   measures one.
 
