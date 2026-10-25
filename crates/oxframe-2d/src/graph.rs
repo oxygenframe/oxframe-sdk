@@ -1058,7 +1058,8 @@ pub struct InspectNode {
     /// Numeric shader parameters (`amp`, `wetness`, …), the strength and
     /// speed of an effect on the node (`effect.strength`), how much of it is
     /// drawn (`start` above 0, `end` below 1) and its glow or shadow
-    /// (`shadow`: blur times opacity). Empty otherwise.
+    /// (`shadow`: blur times opacity), and the clip frame a `Video` shows
+    /// (`frame`). Empty otherwise.
     pub params: Vec<(String, f64)>,
 }
 
@@ -1074,6 +1075,11 @@ fn params_of(n: &NodeData) -> Vec<(String, f64)> {
                 _ => {}
             }
         }
+    }
+    // A playing clip changes the picture every frame; a paused or finished
+    // one does not.
+    if let NodeKind::Video { data, time, .. } = &n.kind {
+        out.push(("frame".into(), data.index_at(time.get()) as f64));
     }
     if let Some(e) = &n.effect {
         out.push(("effect.strength".into(), e.strength.get()));

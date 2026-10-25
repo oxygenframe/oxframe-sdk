@@ -403,6 +403,32 @@ mod tests {
         }
     }
 
+    fn frame_param(engine: &mut Engine, frame: u32) -> f64 {
+        engine
+            .seek(frame)
+            .inspect_nodes()
+            .iter()
+            .find(|n| n.kind == "Video")
+            .and_then(|n| n.params.iter().find(|(k, _)| k == "frame"))
+            .map(|(_, v)| *v)
+            .unwrap()
+    }
+
+    #[test]
+    fn check_sees_a_playing_clip_change() {
+        if ffmpeg().is_none() {
+            return;
+        }
+        let dir = TempDir::new();
+        let path = make_clip(dir.path(), 30, 3.0, false);
+        CLIP.with(|c| *c.borrow_mut() = path.clone());
+        let mut e = engine(60);
+        // Playing: dead_time must not call this a still shot.
+        assert_ne!(frame_param(&mut e, 4), frame_param(&mut e, 20));
+        // Paused at 0.5 s: the picture holds.
+        assert_eq!(frame_param(&mut e, 31), frame_param(&mut e, 40));
+    }
+
     #[test]
     fn the_sound_follows_play_pause_and_seek() {
         if ffmpeg().is_none() {

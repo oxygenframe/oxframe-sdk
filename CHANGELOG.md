@@ -6,6 +6,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Fixed
+
+- `oxframe check` no longer reports `dead_time` while a `Video` plays: the
+  clip frame it shows counts as change (`inspect` lists it as the `frame`
+  param). A paused or finished clip still counts as a still shot.
+
 ## 0.23.3 — 2026-10-24
 
 ### Added
