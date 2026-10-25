@@ -10,6 +10,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ### Added
 
+- `oxframe check`: most issues carry `fix`, the change that clears them with
+  the numbers worked out — `move` by `dx`/`dy` pixels, `shrink` to a size,
+  a text `color` (the same hue, lightened or darkened) and the `contrast` it
+  reaches, `widen` by pixels or a `font_scale`, `hold` or `slow` in seconds.
+  The hints say the same in words ("Move it 140 px to the left"). `lint::Fix`
+  in Rust.
+
 - GIF export: `render --format gif` (or `--out demo.gif`) writes a looping
   GIF with one palette for the whole clip and an ordered dither that does
   not shimmer. It is 720 pixels wide and 15 fps unless `--size` and `--fps`
