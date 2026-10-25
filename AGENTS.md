@@ -81,6 +81,9 @@ playground always estimate and never open files.
 `oxframe render --subtitles out.srt` writes the lines (`.vtt` by
 extension). `--no-audio` still writes them.
 
+`voice("…").caption()` also burns the line into the video at the bottom of
+the frame, a few words at a time, in step with the words.
+
 ## Video
 
 With `oxframe = { ..., features = ["video"] }` and ffmpeg installed:
