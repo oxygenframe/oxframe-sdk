@@ -4,6 +4,10 @@
 # next to it. Prints the JSON; copy the fields you trust into that file.
 #
 #   ./scripts/measure.sh > /tmp/measurements.json
+#   RUNS=5 ./scripts/measure.sh     # each timing five times: median, min, max
+#
+# Runs on Linux and macOS (CI: .github/workflows/measure.yml on several
+# machines at every release).
 #
 # The scene is the one the site describes: a title card, a bullet list and
 # an end card, 30 seconds long. Needs ffmpeg for the render.
@@ -51,8 +55,18 @@ fn main() {
 }
 EOF
 
+runs=${RUNS:-1}
 seconds() { python3 -c 'import sys,time; print(f"{time.time():.3f}")'; }
 elapsed() { python3 -c "print(f'{$2 - $1:.2f}')"; }
+# `timed <command…>`: wall time of each of $runs runs, space-separated.
+timed() {
+  local all=() t0 t1
+  for _ in $(seq "$runs"); do
+    t0=$(seconds); "$@" >/dev/null 2>&1 || true; t1=$(seconds)
+    all+=("$(elapsed "$t0" "$t1")")
+  done
+  echo "${all[*]}"
+}
 
 # Warm everything once: dependencies, the project, and a check.
 cargo build -q 2>/dev/null
@@ -64,8 +78,7 @@ t0=$(seconds); cargo build -q 2>/dev/null; t1=$(seconds)
 edit=$(elapsed "$t0" "$t1")
 
 # check on that current build.
-t0=$(seconds); "$oxframe" check >/dev/null 2>&1 || true; t1=$(seconds)
-check_warm=$(elapsed "$t0" "$t1")
+check_warm=$(timed "$oxframe" check)
 
 # check right after another edit: includes cargo check and the build.
 sed -i 's/"Measured again"/"Measured"/' src/main.rs
@@ -76,26 +89,35 @@ check_after=$(elapsed "$t0" "$t1")
 # the CPU with the default jobs and with one.
 cargo build -q --release 2>/dev/null
 bin=target/release/talk
-t0=$(seconds); "$bin" render --cpu --out out/talk.mp4 >/dev/null 2>&1; t1=$(seconds)
-render=$(elapsed "$t0" "$t1")
-t0=$(seconds); "$bin" render --cpu --jobs 1 --out out/talk1.mp4 >/dev/null 2>&1; t1=$(seconds)
-render_one=$(elapsed "$t0" "$t1")
+render=$(timed "$bin" render --cpu --out out/talk.mp4)
+render_one=$(timed "$bin" render --cpu --jobs 1 --out out/talk1.mp4)
 duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 out/talk.mp4)
 jobs=$(python3 -c 'import os; print(min(os.cpu_count() or 1, 8))')
+os_name=$(uname -s)
 same=$(cmp -s out/talk.mp4 out/talk1.mp4 && echo true || echo false)
 
-cpu=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2 | sed 's/^ //' || uname -m)
-threads=$(nproc 2>/dev/null || echo "?")
+if [[ -r /proc/cpuinfo ]] && grep -q 'model name' /proc/cpuinfo; then
+  cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //')
+else
+  # macOS, and Linux on Arm (no "model name" line).
+  cpu=$(sysctl -n machdep.cpu.brand_string 2>/dev/null || lscpu 2>/dev/null | sed -n 's/^Model name: *//p' | head -1)
+  cpu=${cpu:-$(uname -m)}
+fi
+threads=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo "?")
 rustc=$(rustc --version | cut -d' ' -f2)
 
 python3 - "$version" "$cpu" "$threads" "$rustc" "$edit" "$check_warm" "$check_after" \
-  "$render" "$render_one" "$duration" "$jobs" "$same" <<'EOF'
-import json, sys, datetime
-(version, cpu, threads, rustc, edit, warm, after, render, one, duration, jobs, same) = sys.argv[1:]
+  "$render" "$render_one" "$duration" "$jobs" "$same" "$os_name" <<'EOF'
+import json, sys, datetime, statistics
+(version, cpu, threads, rustc, edit, warm, after, render, one, duration, jobs, same, os_name) = sys.argv[1:]
+runs = {name: [float(x) for x in v.split()] for name, v in
+        [("checkWarm", warm), ("render30", render), ("render30OneJob", one)]}
+warm, render, one = (round(statistics.median(runs[k]), 2) for k in ("checkWarm", "render30", "render30OneJob"))
+platform = {"Linux": "Linux", "Darwin": "macOS"}.get(os_name, os_name)
 print(json.dumps({
     "version": version,
     "date": datetime.date.today().isoformat(),
-    "machine": f"{cpu}, {threads} threads, rustc {rustc}, {sys.platform.capitalize()}",
+    "machine": f"{cpu}, {threads} threads, rustc {rustc}, {platform}",
     "scene": "One scene: a title card, a bullet list and an end card, 30 seconds. oxframe was already built in the same target directory.",
     "editSeconds": float(edit),
     "checkWarmSeconds": float(warm),
@@ -105,6 +127,8 @@ print(json.dumps({
     "render30Jobs": int(jobs),
     "render30VideoSeconds": round(float(duration), 2),
     "render30SameBytes": same == "true",
+    # Every run of each timing, when RUNS > 1; the fields above are medians.
+    "runs": runs,
     "commands": [
         f"cargo build (one-line change, warm dependencies): {float(edit):.2f}s",
         f"oxframe check with a current dev build: {float(warm):.2f}s",
