@@ -6,7 +6,12 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.23.4 — 2026-10-25
+
+### Added
+
+- `oxframe mcp --dir` (oxframe-cli): serve the project at a given path, not the
+  current directory, for MCP clients that start servers elsewhere.
 
 ### Fixed
 
