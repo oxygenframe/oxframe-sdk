@@ -65,9 +65,6 @@ pub struct MixRequest {
     pub master_fade_in: f64,
     /// Fade at the end of the whole mix.
     pub master_fade_out: f64,
-    /// Bring the whole mix to this integrated loudness (LUFS, EBU R128)
-    /// before the limiter. `None` leaves the levels as they are.
-    pub loudness: Option<f64>,
     /// Clips, in any order.
     pub clips: Vec<MixClip>,
 }
@@ -121,6 +118,19 @@ pub fn probe_duration(path: &Path) -> Result<f64, MixError> {
 ///
 /// If a clip's file cannot be decoded.
 pub fn mix(req: &MixRequest) -> Result<Mixed, MixError> {
+    mix_with_loudness(req, None)
+}
+
+/// [`mix`], then bring the whole mix to `loudness` (integrated LUFS, EBU
+/// R128) before the limiter. `None` leaves the levels as they are.
+///
+/// A function, not a field of [`MixRequest`]: a new field would break
+/// crates that build the request with a struct literal.
+///
+/// # Errors
+///
+/// If a clip's file cannot be decoded.
+pub fn mix_with_loudness(req: &MixRequest, loudness: Option<f64>) -> Result<Mixed, MixError> {
     let rate = SAMPLE_RATE;
     let n = (req.seconds.max(0.0) * f64::from(rate)).round() as usize;
     let mut loaded: Vec<Loaded> = Vec::with_capacity(req.clips.len());
@@ -155,7 +165,7 @@ pub fn mix(req: &MixRequest) -> Result<Mixed, MixError> {
         req.master_fade_in.max(EDGE),
         req.master_fade_out.max(EDGE),
     );
-    if let Some(target) = req.loudness
+    if let Some(target) = loudness
         && let Some(measured) = integrated_loudness(&acc, rate)
     {
         let gain = 10f64.powf((target - measured) / 20.0) as f32;
@@ -559,17 +569,15 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let quiet = dir.join("quiet.wav");
         tone(&quiet, 440.0, 4.0, 0.03);
-        let mut req = MixRequest {
+        let req = MixRequest {
             seconds: 4.0,
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
-            loudness: None,
             clips: vec![clip(&quiet, 0.0, false, false)],
         };
         let before = loudness(&mix(&req).unwrap()).unwrap();
-        req.loudness = Some(-14.0);
-        let after = loudness(&mix(&req).unwrap()).unwrap();
+        let after = loudness(&mix_with_loudness(&req, Some(-14.0)).unwrap()).unwrap();
         assert!(before < -25.0, "{before}");
         assert!((after + 14.0).abs() < 0.2, "{after} LUFS");
         let _ = std::fs::remove_dir_all(dir);
@@ -602,7 +610,6 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
-            loudness: None,
             clips: vec![clip(&a, 0.0, false, false), clip(&b, 0.0, false, false)],
         };
         let once = mix(&req).unwrap();
@@ -627,7 +634,6 @@ mod tests {
             duck: true,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
-            loudness: None,
             clips: vec![
                 clip(&music, 0.0, false, true),
                 clip(&voice, 0.3, true, false),
@@ -639,7 +645,6 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
-            loudness: None,
             clips: vec![clip(&music, 0.0, false, true)],
         })
         .unwrap();
@@ -670,7 +675,6 @@ mod tests {
             duck: false,
             master_fade_in: 0.0,
             master_fade_out: 0.0,
-            loudness: None,
             clips: vec![clip(&click, 0.2, false, false)],
         })
         .unwrap();

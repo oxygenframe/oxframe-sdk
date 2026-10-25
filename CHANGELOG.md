@@ -8,6 +8,15 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.6 — 2026-10-25
+
+### Fixed
+
+- Projects on oxframe 0.23.0–0.23.4 build again. 0.23.5 added a field to
+  `oxframe_export::MixRequest`, and since a project's `oxframe-export`
+  resolves to the newest 0.23.x, the older `oxframe` stopped compiling. The
+  target loudness is now an argument: `oxframe_export::mix_with_loudness`.
+  0.23.5 is yanked; `oxframe upgrade` moves a project to 0.23.6.
 ## 0.23.5 — 2026-10-25
 
 ### Added

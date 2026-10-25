@@ -283,14 +283,16 @@ pub(crate) fn mix_range(
         .track()
         .map(|t| (t.master_in, t.master_out))
         .unwrap_or((0.0, 0.0));
-    Ok(Some(oxframe_export::mix(&MixRequest {
-        seconds,
-        duck,
-        master_fade_in: master_in,
-        master_fade_out: master_out,
-        loudness: engine.loudness(),
-        clips,
-    })?))
+    Ok(Some(oxframe_export::mix_with_loudness(
+        &MixRequest {
+            seconds,
+            duck,
+            master_fade_in: master_in,
+            master_fade_out: master_out,
+            clips,
+        },
+        engine.loudness(),
+    )?))
 }
 
 #[cfg(test)]
