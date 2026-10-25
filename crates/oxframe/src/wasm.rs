@@ -54,6 +54,11 @@ pub struct WasmEngine {
 }
 
 fn project_engine(config_json: &str) -> Result<Engine, JsError> {
+    Engine::new(registered(config_json)?).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The registered project with the metas from `config_json`.
+fn registered(config_json: &str) -> Result<Project, JsError> {
     let project = PROJECT
         .with(|p| *p.borrow())
         .ok_or_else(|| JsError::new("no project registered: call oxframe::wasm::register()"))?;
@@ -62,7 +67,40 @@ fn project_engine(config_json: &str) -> Result<Engine, JsError> {
     } else {
         serde_json::from_str(config_json).map_err(|e| JsError::new(&format!("bad config: {e}")))?
     };
-    Engine::new(project().inline_meta(config.metas)).map_err(|e| JsError::new(&e.to_string()))
+    Ok(project().inline_meta(config.metas))
+}
+
+/// What [`check`] found: the report as JSON and the storyboard as PNG.
+#[wasm_bindgen(getter_with_clone)]
+pub struct CheckOutput {
+    /// `report.json` of `oxframe check`.
+    pub report: String,
+    /// `storyboard.png` of `oxframe check`.
+    pub storyboard: Vec<u8>,
+}
+
+/// `check(config_json)`: what `oxframe check` does, without files: samples
+/// every scene, lints the frames and draws the storyboard.
+#[wasm_bindgen]
+pub fn check(config_json: &str) -> Result<CheckOutput, JsError> {
+    let checked = crate::feedback::check(
+        registered(config_json)?,
+        &crate::feedback::Options::default(),
+    )
+    .map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(CheckOutput {
+        report: serde_json::to_string(&checked.report).expect("report json"),
+        storyboard: checked.storyboard.encode_png(),
+    })
+}
+
+/// `inspect(config_json, seconds)`: the scene tree at that time as JSON, as
+/// `oxframe inspect --at` prints it.
+#[wasm_bindgen]
+pub fn inspect(config_json: &str, seconds: f64) -> Result<String, JsError> {
+    let value = crate::feedback::inspect(registered(config_json)?, seconds)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(value.to_string())
 }
 
 /// `init(config_json)`: creates the engine for the registered project,
@@ -188,6 +226,12 @@ impl WasmEngine {
     pub fn render_frame(&mut self, frame: u32) -> Vec<u8> {
         let size = self.session.engine().size();
         self.session.engine().render(frame, size).data
+    }
+
+    /// Renders `frame` at project size as PNG (CPU path).
+    pub fn render_png(&mut self, frame: u32) -> Vec<u8> {
+        let size = self.session.engine().size();
+        self.session.engine().render(frame, size).encode_png()
     }
 
     /// `{"fps", "size": [w, h], "frames"}` as JSON (for in-browser export).

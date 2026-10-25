@@ -2,7 +2,9 @@
 //!
 //! The project binary serves these; `oxframe-cli` forwards to them.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 use oxframe_2d::InspectNode;
@@ -11,7 +13,9 @@ use oxframe_protocol::MarkerInfo;
 use oxframe_render::CpuRenderer;
 use serde::Serialize;
 
-use crate::lint::{self, Issue, Limits, Sample, Severity};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::lint::Severity;
+use crate::lint::{self, Issue, Limits, Sample};
 use crate::{Engine, EngineError, Project};
 
 /// What `check` writes and how strict it is.
@@ -807,6 +811,7 @@ pub fn compare(reference: &Image, current: &Image) -> Option<(f64, Image)> {
     Some((changed as f64 / total as f64, out))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Compares the full-size frames of `checked` with the PNGs of the same
 /// names under `reference`, and returns the comparison plus the diff images
 /// to write (`diff/<time>.png`).
@@ -1224,6 +1229,7 @@ fn frame_file(t: f64, marker: Option<&str>) -> String {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// `check` subcommand of a project binary.
 pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i32 {
     let opts = match parse_check(args) {
@@ -1297,6 +1303,7 @@ pub fn command_check(project: Project, args: impl Iterator<Item = String>) -> i3
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// `inspect` subcommand of a project binary.
 pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> i32 {
     let mut at = None;
@@ -1353,6 +1360,7 @@ pub fn command_inspect(project: Project, args: impl Iterator<Item = String>) -> 
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn inspect_engine(engine: Engine, seconds: f64, graph: bool) -> Result<String, EngineError> {
     let mut engine = engine;
     let frame = frame_at(seconds, engine.fps(), engine.total_frames());
@@ -1362,12 +1370,14 @@ fn inspect_engine(engine: Engine, seconds: f64, graph: bool) -> Result<String, E
     Ok(serde_json::to_string_pretty(&value).expect("json"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct CheckArgs {
     out: PathBuf,
     spec: Options,
     against: Option<PathBuf>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_check(mut args: impl Iterator<Item = String>) -> Result<CheckArgs, String> {
     let mut out = PathBuf::from("out/check");
     let mut spec = Options::default();
@@ -1400,10 +1410,12 @@ fn parse_check(mut args: impl Iterator<Item = String>) -> Result<CheckArgs, Stri
     Ok(CheckArgs { out, spec, against })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn num(v: &str, name: &str) -> Result<f64, String> {
     v.parse().map_err(|_| format!("bad {name} `{v}`"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn write_output(dir: &std::path::Path, checked: &Checked) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     std::fs::write(
@@ -1421,6 +1433,7 @@ fn write_output(dir: &std::path::Path, checked: &Checked) -> std::io::Result<()>
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn format_issue(issue: &Issue) -> String {
     let where_ = issue
         .source

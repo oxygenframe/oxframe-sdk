@@ -29,11 +29,8 @@ mod audio;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
 mod engine;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod feedback;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod lint;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod motion;
 mod parts;
 #[cfg(not(target_arch = "wasm32"))]
