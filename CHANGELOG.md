@@ -8,6 +8,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+### Added
+
+- The browser build of a project can run the checks: the wasm module exports
+  `check` (the report and the storyboard PNG), `inspect` and a frame as PNG.
+  The remote MCP server at mcp.oxframe.dev uses them to check a scene
+  without a local install.
+
 ## 0.23.7 — 2026-10-25
 
 ### Added

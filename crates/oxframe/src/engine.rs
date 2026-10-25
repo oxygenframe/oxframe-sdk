@@ -545,7 +545,6 @@ impl Engine {
     }
 
     /// Where `frame` sits in an incoming blend, if it does.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn transition_at(&self, frame: u32) -> Option<TransitionAt> {
         let (_i, rec, now) = self.blend_at(frame)?;
         Some(TransitionAt {
@@ -557,7 +556,6 @@ impl Engine {
     }
 
     /// One entry per scene that starts with a blend.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn transition_spans(&self) -> Vec<TransitionSpan> {
         self.scenes
             .iter()
@@ -719,7 +717,6 @@ impl Engine {
     /// Draws `frame` without the nodes in `hidden` (their children stay),
     /// on the project background. A frame inside a transition is drawn as
     /// the incoming scene alone.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn render_without(
         &mut self,
         frame: u32,
@@ -763,7 +760,6 @@ impl Engine {
 
 /// A scene's incoming blend, for `inspect`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct TransitionAt {
     /// `"fade"`, `"slide"`, `"wipe"`, `"zoom_in"`, `"zoom_out"` or `"custom"`.
     pub kind: &'static str,
@@ -777,7 +773,6 @@ pub(crate) struct TransitionAt {
 
 /// Frames a storyboard should sample inside a blend.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct TransitionSpan {
     /// Scene the blend belongs to.
     pub scene: String,
