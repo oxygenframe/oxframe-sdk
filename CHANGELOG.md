@@ -6,6 +6,17 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
+## Unreleased
+
+### Added
+
+- GIF export: `render --format gif` (or `--out demo.gif`) writes a looping
+  GIF with one palette for the whole clip and an ordered dither that does
+  not shimmer. It is 720 pixels wide and 15 fps unless `--size` and `--fps`
+  say otherwise; frames are taken from the project's rate, so only the
+  frames the GIF shows are rendered. No sound. `Format::Gif` in
+  `oxframe-export`.
+
 ## 0.23.4 — 2026-10-25
 
 ### Added
