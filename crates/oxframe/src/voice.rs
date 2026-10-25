@@ -119,6 +119,7 @@ pub struct Voice {
     text: String,
     voice: Option<String>,
     caption: bool,
+    recording: Option<String>,
     line: Option<Line>,
 }
 
@@ -141,6 +142,7 @@ pub fn voice(text: impl Into<String>) -> Voice {
         text: text.into(),
         voice: None,
         caption: false,
+        recording: None,
         line: None,
     }
 }
@@ -161,6 +163,21 @@ impl Voice {
         self
     }
 
+    /// Play a recording of the line instead of calling the speech provider.
+    ///
+    /// The words are timed by `<file stem>.words.json` next to the file, which
+    /// `oxframe transcribe` writes. Without it they are spread over the
+    /// file's length. `text` is still what captions and subtitles show.
+    ///
+    /// # Panics
+    ///
+    /// If the file cannot be read and has no words file. Wasm and the
+    /// playground estimate the length from the text and never open files.
+    pub fn recording(mut self, path: impl Into<String>) -> Self {
+        self.recording = Some(path.into());
+        self
+    }
+
     /// Start the line now and keep going. Await [`Line::at_word`] or the line itself.
     pub fn start(self) -> Line {
         self.begin()
@@ -175,7 +192,10 @@ impl Voice {
                     .unwrap_or_else(|| "default".into())
             })
         });
-        let spoken = resolve(&self.text, &voice_name);
+        let spoken = match &self.recording {
+            Some(path) => recorded(&self.text, path),
+            None => resolve(&self.text, &voice_name),
+        };
         let origin = time();
         record_voice(VoiceLine {
             text: self.text.clone(),
@@ -372,8 +392,60 @@ fn resolve(text: &str, voice: &str) -> Spoken {
     })
 }
 
+/// The words of a recording, as `oxframe transcribe` writes them.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Deserialize)]
+struct WordsFile {
+    seconds: f64,
+    words: Vec<TimedWord>,
+}
+
+/// A line spoken by a recorded file.
+fn recorded(text: &str, path: &str) -> Spoken {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = path;
+        estimate(text)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let words_path = Path::new(path).with_extension("words.json");
+        if let Ok(raw) = std::fs::read_to_string(&words_path) {
+            match serde_json::from_str::<WordsFile>(&raw) {
+                Ok(file) => {
+                    return Spoken {
+                        seconds: file.seconds.max(0.0),
+                        words: file.words,
+                        file: Some(path.to_owned()),
+                    };
+                }
+                Err(e) => eprintln!("warning: {}: {e}", words_path.display()),
+            }
+        }
+        let seconds = match oxframe_export::probe_duration(Path::new(path)) {
+            Ok(seconds) => seconds.max(0.0),
+            Err(e) => panic!("oxframe: voice(…).recording(\"{path}\") — {e}."),
+        };
+        let mut spoken = spread(text, seconds);
+        spoken.file = Some(path.to_owned());
+        spoken
+    }
+}
+
 /// Spread the words of `text` across [`WORDS_PER_SECOND`].
 fn estimate(text: &str) -> Spoken {
+    let n = text
+        .split_whitespace()
+        .filter(|w| !bare(w).is_empty())
+        .count();
+    if n == 0 {
+        return spread(text, 0.0);
+    }
+    spread(text, (n as f64 / WORDS_PER_SECOND).max(MIN_LINE))
+}
+
+/// Spread the words of `text` over `seconds`, each word by its length.
+fn spread(text: &str, seconds: f64) -> Spoken {
     let words: Vec<String> = text
         .split_whitespace()
         .map(bare)
@@ -381,12 +453,11 @@ fn estimate(text: &str) -> Spoken {
         .collect();
     if words.is_empty() {
         return Spoken {
-            seconds: 0.0,
+            seconds,
             words: Vec::new(),
             file: None,
         };
     }
-    let seconds = (words.len() as f64 / WORDS_PER_SECOND).max(MIN_LINE);
     let weight: usize = words.iter().map(|w| w.chars().count().max(1)).sum();
     let mut t = 0.0;
     let words = words
@@ -641,6 +712,32 @@ mod tests {
         assert_eq!(spoken.words.len(), 2);
         assert!((spoken.words[1].start - 0.4).abs() < 1e-9);
         assert!(spoken.file.is_none());
+    }
+
+    #[test]
+    fn a_recording_is_timed_by_its_words_file() {
+        let dir = std::env::temp_dir().join(format!("oxframe-rec-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let wav = dir.join("intro.wav");
+        std::fs::write(
+            dir.join("intro.words.json"),
+            r#"{"text":"Hello there.","seconds":1.75,"words":[{"text":"Hello","start":0.1,"end":0.5},{"text":"there","start":0.6,"end":1.2}]}"#,
+        )
+        .unwrap();
+        let spoken = recorded("Hello there.", wav.to_str().unwrap());
+        assert!((spoken.seconds - 1.75).abs() < 1e-9);
+        assert_eq!(spoken.words[1].text, "there");
+        assert!((spoken.words[1].start - 0.6).abs() < 1e-9);
+        assert_eq!(spoken.file.as_deref(), wav.to_str());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn spread_shares_the_given_length() {
+        let spoken = spread("ab abcd", 3.0);
+        assert!((spoken.seconds - 3.0).abs() < 1e-9);
+        assert!((spoken.words[1].start - 1.0).abs() < 1e-9);
+        assert!(estimate("").seconds.abs() < 1e-9);
     }
 
     #[test]
