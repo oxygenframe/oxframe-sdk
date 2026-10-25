@@ -15,7 +15,7 @@ mod mix;
 
 pub use mix::{
     MixClip, MixError, MixRequest, Mixed, PREVIEW_RATE, SAMPLE_RATE, downsample, envelope,
-    loudness, mix, probe_duration, write_wav,
+    loudness, mix, mix_with_loudness, probe_duration, write_wav,
 };
 
 use std::fmt;

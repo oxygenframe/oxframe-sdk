@@ -10,7 +10,11 @@ collects under `## Unreleased` in CHANGELOG.md until then. A
 breaking change (a removed or renamed API, a changed default) waits for
 the next minor version (0.21 → 0.22) and is listed under **Changed** or
 **Breaking** with a before → after example; additions and fixes may go
-out as a patch. An urgent fix (a crash, a wrong render, a broken install)
+out as a patch. A patch release must not add a public struct field,
+remove an item or change a signature in any crate: projects pin `oxframe`
+exactly, but its own dependencies take the newest patch, so the older
+`oxframe` must still build (`scripts/check-semver.sh`, in CI and
+release-check). An urgent fix (a crash, a wrong render, a broken install)
 ships on its own as a patch release. The policy for users is on
 https://oxframe.dev/docs/versions.
 

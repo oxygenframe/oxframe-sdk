@@ -28,6 +28,9 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 cargo build --target wasm32-unknown-unknown -p oxframe-core -p oxframe-2d -p oxframe-render -p oxframe-protocol -p oxframe
 cargo clippy --target wasm32-unknown-unknown -p oxframe --features wasm -- -D warnings
 
+step "Earlier releases of this minor still build with these crates"
+./scripts/check-semver.sh
+
 step "CLI: tests, and a new project built and previewed on this SDK"
 (cd "$cli" && env -u CARGO_TARGET_DIR cargo test && env -u CARGO_TARGET_DIR OXFRAME_SDK_PATH="$sdk" cargo test --test e2e -- --ignored)
 
