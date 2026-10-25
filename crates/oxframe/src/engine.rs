@@ -367,13 +367,13 @@ impl Engine {
     }
 
     /// Soundtrack settings from the project, plus the offset stored in meta.
-    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     /// Target loudness of the rendered sound, LUFS.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn loudness(&self) -> Option<f64> {
         self.project.loudness
     }
 
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn track(&self) -> Option<Track> {
         let audio = self.project.audio.as_ref()?;
         let offset = self
