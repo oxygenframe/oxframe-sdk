@@ -1,8 +1,8 @@
 //! Title card, end card, and a list whose items appear one by one.
 
 use oxframe_2d::{
-    Accent, BaseProps, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, RichSpan, SceneGraph,
-    Surface, TextAlign, Txt, TxtBuilder, pct, span,
+    Accent, BaseProps, Circle, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, RichSpan,
+    SceneGraph, Surface, Text, TextAlign, Txt, TxtBuilder, pct,
 };
 use oxframe_core::{Color, Tween};
 
@@ -16,6 +16,7 @@ fn plate(
     root: &Group,
     title: String,
     spans: Vec<RichSpan>,
+    made_by: bool,
     subtitle: Option<String>,
 ) -> Host {
     const HEIGHT: f64 = 260.0;
@@ -41,6 +42,10 @@ fn plate(
             .y(-28.0)
             .name("title"),
     );
+    if made_by {
+        // The credit next to the (empty) title, at the title's size.
+        credit(root, || Txt::new().h1()).y().set(-28.0);
+    }
     let mut reveals = Vec::new();
     let mut second = None;
     if let Some(text) = subtitle {
@@ -136,19 +141,109 @@ impl NodeBuilder for TitleCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> TitleCard {
         let root = host::root(parent, self.base);
         TitleCard {
-            host: plate(g, &root, self.title, Vec::new(), self.subtitle),
+            host: plate(g, &root, self.title, Vec::new(), false, self.subtitle),
         }
     }
 }
 
-/// "made by Oxframe", with Oxframe in the colors of its logo (Ox
-/// `#e13238`, frame `#68abdf`): `EndCard::new("").rich(made_by_oxframe())`.
-pub fn made_by_oxframe() -> [RichSpan; 3] {
-    [
-        span("made by "),
-        span("Ox").color(Color::from_hex("#e13238").expect("a color")),
-        span("frame").color(Color::from_hex("#68abdf").expect("a color")),
-    ]
+/// The oxframe logo, a rounded square and a circle that overlaps it, `height`
+/// tall, its left edge at `x`. Returns its width.
+fn logo(parent: &Group, x: f64, height: f64) -> f64 {
+    // The favicon's geometry: a 14-unit square at 3 and a 14-unit circle
+    // centered at 22, out of 32.
+    let unit = height / 14.0;
+    parent.add(
+        Rect::new()
+            .size(height)
+            .radius(3.0 * unit)
+            .fill(Color::from_hex("#e13238").expect("a color"))
+            .x(x + height / 2.0)
+            .name("logo-square"),
+    );
+    parent.add(
+        Circle::new()
+            .size(height)
+            .fill(Color::from_hex("#68abdf").expect("a color"))
+            .x(x + 19.0 * unit)
+            .name("logo-circle"),
+    );
+    26.0 * unit
+}
+
+/// "made by", the logo and "Oxframe" on one line, centered on a new group;
+/// `style` sets the size of the words.
+fn credit(parent: &Group, style: impl Fn() -> TxtBuilder) -> Group {
+    let row = parent.add(Group::new().name("made-by"));
+    let lead = row.add(style().text("made by").fill(Muted));
+    let name = row.add(style().text("Oxframe").weight(700.0).fill(Text));
+    // The line box is about 1.2 times the font size; the logo is a bit
+    // taller than a capital.
+    let line = lead.size().1;
+    let height = line * 0.6;
+    let gap = line * 0.26;
+    let (lw, nw) = (lead.size().0, name.size().0);
+    let mark = 26.0 / 14.0 * height;
+    let left = -(lw + gap + mark + gap + nw) / 2.0;
+    lead.x().set(left + lw / 2.0);
+    logo(&row, left + lw + gap, height);
+    name.x().set(left + lw + gap + mark + gap + nw / 2.0);
+    row
+}
+
+/// "made by", the oxframe logo, and "Oxframe" in the text color, on one line.
+/// `enter` fades it in.
+pub struct MadeBy {
+    host: Host,
+}
+
+impl MadeBy {
+    /// Starts the credit line. Default size: 48.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> MadeByBuilder {
+        MadeByBuilder {
+            base: BaseProps::default(),
+            size: 48.0,
+        }
+    }
+
+    /// Fades the line in.
+    pub fn enter(&self) -> Tween<f64> {
+        self.host.enter()
+    }
+    /// Fades the line out.
+    pub fn exit(&self) -> Tween<f64> {
+        self.host.exit()
+    }
+}
+
+/// Builder for [`MadeBy`].
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct MadeByBuilder {
+    base: BaseProps,
+    size: f64,
+}
+
+impl MadeByBuilder {
+    /// Font size of the words in pixels; the logo follows it.
+    pub fn font_size(mut self, size: impl Into<f64>) -> Self {
+        self.size = size.into();
+        self
+    }
+}
+
+impl NodeBuilder for MadeByBuilder {
+    type Handle = MadeBy;
+    fn base(&mut self) -> &mut BaseProps {
+        &mut self.base
+    }
+    fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> MadeBy {
+        let root = host::root(parent, self.base);
+        let size = self.size;
+        credit(&root, || Txt::new().font_size(size));
+        MadeBy {
+            host: Host::new(root.node(), Vec::new()),
+        }
+    }
 }
 
 /// Closing card. `next` reveals the note.
@@ -164,6 +259,7 @@ impl EndCard {
             base: BaseProps::default(),
             title: title.into(),
             spans: Vec::new(),
+            made_by: false,
             note: None,
         }
     }
@@ -188,12 +284,18 @@ pub struct EndCardBuilder {
     base: BaseProps,
     title: String,
     spans: Vec<RichSpan>,
+    made_by: bool,
     note: Option<String>,
 }
 
 impl EndCardBuilder {
-    /// Styled runs for the title instead of plain text, such as
-    /// [`made_by_oxframe`].
+    /// "made by Oxframe" with the logo, as [`MadeBy`] draws it, in place of
+    /// the title: `EndCard::new("").made_by()`.
+    pub fn made_by(mut self) -> Self {
+        self.made_by = true;
+        self
+    }
+    /// Styled runs for the title instead of plain text.
     pub fn rich(mut self, spans: impl IntoIterator<Item = RichSpan>) -> Self {
         self.spans = spans.into_iter().collect();
         self
@@ -213,7 +315,7 @@ impl NodeBuilder for EndCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> EndCard {
         let root = host::root(parent, self.base);
         EndCard {
-            host: plate(g, &root, self.title, self.spans, self.note),
+            host: plate(g, &root, self.title, self.spans, self.made_by, self.note),
         }
     }
 }

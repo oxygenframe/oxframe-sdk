@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: oxygenframe/release-video-action@v1.6.0
+      - uses: oxygenframe/release-video-action@v1.8.0
         with:
           # Claude designs the scene from the notes when the secret is set (an API
           # key, or a Claude Code token from `claude setup-token`);

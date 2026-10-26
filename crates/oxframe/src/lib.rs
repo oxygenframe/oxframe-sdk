@@ -79,8 +79,7 @@ pub use oxframe_2d::{Math, MathBuilder};
 pub use oxframe_3d::{Camera3d, Geometry, Light, Light3d, Mesh, Object3d, Quat, Scene3d, Vec3};
 pub use oxframe_components::{
     Axes, Bars, BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, Interval,
-    LowerThird, Mat2, Matrix, NumberLine, Plot, Series, Table, TableRow, TitleCard, Vector,
-    made_by_oxframe,
+    LowerThird, MadeBy, Mat2, Matrix, NumberLine, Plot, Series, Table, TableRow, TitleCard, Vector,
 };
 #[allow(deprecated)]
 pub use oxframe_core::all_vec;
@@ -141,13 +140,13 @@ pub mod prelude {
         Camera, ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,
         Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Icon,
         IconStyle, Img, Input, Interval, Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line,
-        LineCap, LineJoin, LowerThird, MONO, Mat2, Matrix, Md, Motion, Muted, Node, NodeBuilder,
-        Normal, NumberLine, OnAccent, Particles, Path, Point, Polygon, Project, Rect, RichSpan,
-        SANS, SafeArea, Shader, Side, Signal, Slow, Sm, Span, Star, Step, Success, Surface, Svg,
-        Table, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, Vector, Video, View,
-        Warning, Xl, Xs, all, any, color, ease, loop_while, made_by_oxframe, next_frame, pct,
-        presets, random, random_range, repeat, sequence, shaders, sound, span, spawn, stagger,
-        transition, tune, voice, wait_for, wait_until, waves,
+        LineCap, LineJoin, LowerThird, MONO, MadeBy, Mat2, Matrix, Md, Motion, Muted, Node,
+        NodeBuilder, Normal, NumberLine, OnAccent, Particles, Path, Point, Polygon, Project, Rect,
+        RichSpan, SANS, SafeArea, Shader, Side, Signal, Slow, Sm, Span, Star, Step, Success,
+        Surface, Svg, Table, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, Vector,
+        Video, View, Warning, Xl, Xs, all, any, color, ease, loop_while, next_frame, pct, presets,
+        random, random_range, repeat, sequence, shaders, sound, span, spawn, stagger, transition,
+        tune, voice, wait_for, wait_until, waves,
     };
     #[cfg(feature = "3d")]
     pub use crate::{Light, Mesh, Object3d, Quat, Scene3d, Vec3, View3d};
