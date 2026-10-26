@@ -1,4 +1,4 @@
-<!-- oxframe-agents 0.23.7 -->
+<!-- oxframe-agents 0.23.9 -->
 # oxframe API cheat sheet
 
 `use oxframe::prelude::*;` brings everything below into scope.
@@ -324,7 +324,7 @@ x.to(1.0, 1.0).ease(ease!("slide"));     // curve editor; ease!("slide", presets
 
 - `oxframe render` runs 2-second segments in parallel (`--jobs n`, default cores ≤ 8); output bytes do not depend on n.
 
-`oxframe check [--frames] [--against <dir>]` — storyboard and `report.json` in `out/check/`. `--frames` also writes full-size PNGs. `--against out/before` (after `oxframe check --frames --out out/before`) lists the frames an edit changed, with `diff/` pictures, so you can confirm it changed only what you meant. Each issue on a node gets `bounds` and a `crop`: `out/check/issues/<n>-<rule>.png`, that part of the frame at full resolution with the node outlined. Most issues also have `fix`: `{"action": "move", "dx": -140, "dy": 0}` (pixels, y down), `shrink` (`width`, `height`), `color` (`#rrggbb` and the `contrast` it reaches), `widen` (`by` px or `font_scale`), `hold` or `slow` (`seconds`). Thresholds live in `oxframe.toml` `[check]`. Errors exit 1.
+`oxframe check [--frames] [--against <dir>] [--out <dir>]` — storyboard and `report.json` in `out/check/` (or `--out`). `--frames` also writes full-size PNGs. `--against out/before` (after `oxframe check --frames --out out/before`) lists the frames an edit changed, with `diff/` pictures, so you can confirm it changed only what you meant. Each issue on a node gets `bounds` and a `crop`: `out/check/issues/<n>-<rule>.png`, that part of the frame at full resolution with the node outlined. Most issues also have `fix`: `{"action": "move", "dx": -140, "dy": 0}` (pixels, y down), `shrink` (`width`, `height`), `color` (`#rrggbb` and the `contrast` it reaches), `widen` (`by` px or `font_scale`), `hold` or `slow` (`seconds`). Thresholds live in `oxframe.toml` `[check]`. Errors exit 1.
 `oxframe inspect --at <seconds> [--scene s] [--graph]` — JSON scene tree at that time. `--graph` adds the render passes.
 `oxframe render [--out out.mp4|.webm|.mov|.gif|dir] [--format mp4|webm|prores|png|gif] [--scene s] [--range 1..3] [--size 1280x720] [--fps 15] [--cpu]`
 `oxframe snapshot --at <seconds> [--at …] [--scene s] [--size WxH] [--out file.png]`

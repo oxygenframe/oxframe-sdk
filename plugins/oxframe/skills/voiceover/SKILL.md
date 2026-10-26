@@ -28,5 +28,8 @@ async fn intro(view: View) {
   or key, timing is estimated and there is no audio.
 - The first render caches audio in `tts/`; commit that folder so CI renders
   the real voice without a key.
+- A recorded voice-over: `voice("…").recording("vo/intro.wav")` plays the file
+  instead of a provider. `oxframe transcribe vo/intro.wav` (local whisper.cpp)
+  writes the word times, so `.at_word()` and captions follow the recording.
 - Music: `Project::audio(Audio::track("assets/music.mp3").duck_under_voice())`.
 - Subtitles: `oxframe render --subtitles out.srt` (`.vtt` by extension).

@@ -8,6 +8,19 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.9 — 2026-10-26
+
+### Fixed
+
+- The preview (`oxframe dev`, `oxframe present`) read `--cpu` as "draw on
+  the GPU". It now takes `--gpu` for vello, as `render` does; the CPU stays
+  the default and `--cpu` is still accepted.
+- Skills: formulas are `Math::new` (feature `math`), not "not yet";
+  `oxframe-check` no longer lists `input_cycle` (gone since 0.21) and gives
+  `bounds` in scene units, as the report has them; a snapshot is 960×540
+  unless `--size` says otherwise; the voiceover skill covers recorded
+  voice-overs; the `oxframe mcp` tool list is complete.
+
 ## 0.23.8 — 2026-10-25
 
 ### Added

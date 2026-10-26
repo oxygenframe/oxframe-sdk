@@ -26,6 +26,7 @@ async fn derivative(view: View) {
   `row_frame`, `column_frame`, `cell(r, c)` to point at entries.
 - Number lines and bars: `NumberLine::new(0.0..10.0)`, `axes.bars([..])`.
 - 3D surfaces or solids: `Scene3d` + `View3d` (feature `3d`).
-- Formulas: there is no LaTeX/Typst yet. Write short expressions with Unicode
-  (`f′(x) = cos x`, `∑`, `√`, superscripts) in `Txt`, or as matrix cells.
+- Formulas: `Math::new("sum_(k=1)^n k = n(n+1)/2")`, Typst math syntax, with
+  `features = ["math"]` (native only; the browser playground does not have it).
+  Short expressions also work as Unicode in `Txt` (`f′(x) = cos x`, `√`, `x²`).
 - Pace like the classics: one idea, one motion, a pause (`wait_for`) to let it land.

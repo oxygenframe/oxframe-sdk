@@ -22,7 +22,7 @@ as an `async fn` where each `.await` takes time, and values are signals that
 | CSS / Tailwind styling | the theme: `Accent`, `Surface`, `.h1()`, `.radius(Lg)` |
 | `<TransitionSeries>` | `transition(Transition::fade()).await` at the start of the next scene |
 | `npx remotion render` | `oxframe render` (no browser; `--jobs` for parallel segments) |
-| Remotion Lambda | CI on a plain runner; `--cpu` needs no GPU |
+| Remotion Lambda | CI on a plain runner; rendering needs no GPU |
 
 Steps: list the compositions and their sequences, write one oxframe scene per
 composition (or per major sequence), port timings in seconds (frames / fps),
