@@ -350,6 +350,9 @@ impl<E: PreviewEngine> Session<E> {
                         ),
                     )];
                 }
+                // A new page (a reload) shows the player paused; it must
+                // not get the frames of a playback it did not start.
+                self.playing = None;
                 self.ready()
             }
             Command::Seek { frame } => {
@@ -618,6 +621,22 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn a_new_editor_stops_playback() {
+        let mut s = session();
+        s.handle(Command::Play, 10.0);
+        assert!(s.is_playing());
+        s.handle(
+            Command::Hello {
+                protocol_version: PROTOCOL_VERSION,
+                ui_version: "x".into(),
+            },
+            11.0,
+        );
+        assert!(!s.is_playing());
+        assert!(s.tick(12.0).is_empty());
     }
 
     #[test]
