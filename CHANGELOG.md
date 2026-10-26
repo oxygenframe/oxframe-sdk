@@ -8,16 +8,31 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.24.0 — 2026-10-26
+
 ### Added
 
 - Notes for the agent: under `oxframe dev`, Comment (or C) marks a node
   or an area of the frame at the playhead and takes a note. `oxframe
   check` reports open notes first, as `review_note` errors with the text,
-  time, node, `file:line` and a crop; `oxframe notes done <id> --reply
-  "…"` closes one (MCP: `notes`, `note_done`). See
+  time, node, `file:line` and a crop; `oxframe notes done <id>`
+  (with `--reply` for an answer) closes one (MCP: `notes`, `note_done`). See
   https://oxframe.dev/docs/editor#review-notes.
 - `NodeInfo::source`: the `file:line` of a node's `add`, in the editor's
   scene tree.
+
+### Breaking
+
+- `NodeInfo` has a new field, `source`, so code that builds one with a
+  struct literal must set it (the wire format is unchanged: the field is
+  optional, and the protocol version stays 1).
+
+  ```rust
+  // before
+  NodeInfo { id, parent, kind, name }
+  // after
+  NodeInfo { id, parent, kind, name, source: None }
+  ```
 
 ## 0.23.10 — 2026-10-26
 
