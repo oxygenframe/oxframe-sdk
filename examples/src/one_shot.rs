@@ -341,7 +341,7 @@ pub async fn finale(view: View) {
         EndCard::new("One scene. One camera.")
             .note(format!("{} lines of Rust · oxframe.dev", rust_lines())),
     );
-    let line = voice("Made with oxframe. One scene, one camera, no cuts.").start();
+    let line = voice("Made by Oxframe. One scene, one camera, no cuts.").start();
     card.enter().await;
     card.next().await;
     line.await;

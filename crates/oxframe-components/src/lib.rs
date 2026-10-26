@@ -47,4 +47,5 @@ pub use matrix::{Matrix, MatrixBuilder};
 pub use table::{Table, TableBuilder, TableRow};
 pub use title::{
     BulletList, BulletListBuilder, EndCard, EndCardBuilder, TitleCard, TitleCardBuilder,
+    made_by_oxframe,
 };

@@ -8,6 +8,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+### Added
+
+- `EndCard::rich`: styled runs for the card's title, like `Txt::rich`.
+- `made_by_oxframe()`: "made by Oxframe" with Oxframe in the colors of its
+  logo, for an end card or a `Txt`: `EndCard::new("").rich(made_by_oxframe())`.
+  The examples end on it.
+
 ## 0.24.0 — 2026-10-26
 
 ### Added
