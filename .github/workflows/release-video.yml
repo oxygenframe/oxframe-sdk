@@ -21,9 +21,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: oxygenframe/release-video-action@v1.4.0
+      - uses: oxygenframe/release-video-action@v1.5.0
         with:
-          # Claude designs the scene from the notes when the secret is set;
+          # Claude designs the scene from the notes when the secret is set (an API
+          # key, or a Claude Code token from `claude setup-token`);
           # without it the action renders its template.
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           tag: ${{ inputs.tag || github.event.workflow_run.head_branch }}
