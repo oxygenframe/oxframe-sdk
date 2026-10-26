@@ -1,4 +1,4 @@
-<!-- oxframe-agents 0.23.9 -->
+<!-- oxframe-agents 0.24.0 -->
 # oxframe API cheat sheet
 
 `use oxframe::prelude::*;` brings everything below into scope.

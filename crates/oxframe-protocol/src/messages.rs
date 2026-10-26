@@ -282,6 +282,11 @@ pub struct NodeInfo {
     pub kind: String,
     /// Name set with `.name(..)`.
     pub name: Option<String>,
+    /// `file:line` of the `add` call, as in `check` (an engine before 0.24
+    /// leaves it out).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub source: Option<String>,
 }
 
 /// A property value in [`Event::Signals`].
