@@ -44,7 +44,7 @@ pub async fn shore(view: View) {
             .to_edge(Edge::Bottom),
     );
     transition(Transition::shader(shaders::water_wipe()).duration(1.0)).await;
-    let end = view.add(EndCard::new("").rich(made_by_oxframe()));
+    let end = view.add(EndCard::new("").made_by());
     end.enter().await;
 }
 

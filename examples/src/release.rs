@@ -206,17 +206,10 @@ pub async fn credits(view: View) {
             .fill(rest())
             .opacity(0.0),
     );
-    let credit = view.add(
-        Txt::new()
-            .rich(made_by_oxframe())
-            .h2()
-            .fill(Muted)
-            .y(80.0)
-            .opacity(0.0),
-    );
+    let credit = view.add(MadeBy::new().font_size(40.0).y(80.0));
     version.fade_in().await;
     halo(version, oxframe::nodes::current_theme().ink(Accent)).await;
-    credit.fade_in().await;
+    credit.enter().await;
     wait_for(1.2).await;
 }
 

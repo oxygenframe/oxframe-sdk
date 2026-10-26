@@ -18,7 +18,7 @@ pub async fn opening(view: View) {
 #[oxframe::scene]
 pub async fn closing(view: View) {
     transition(Transition::fade()).await;
-    let end = view.add(EndCard::new("").rich(made_by_oxframe()).note("oxframe.dev"));
+    let end = view.add(EndCard::new("").made_by().note("oxframe.dev"));
     end.enter().await;
     end.next().await;
     wait_for(1.6).await;
