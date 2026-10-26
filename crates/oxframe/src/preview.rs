@@ -8,7 +8,7 @@ use crate::{Engine, PreviewAdapter, Project};
 
 pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
     let mut opts = ServerOptions::default();
-    let mut cpu = false;
+    let (mut gpu, mut cpu) = (false, false);
     let mut it = args.into_iter();
     while let Some(flag) = it.next() {
         match flag.as_str() {
@@ -16,6 +16,8 @@ pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
                 Some(p) => opts.port = p,
                 None => return usage_error("--port needs a number"),
             },
+            "--gpu" => gpu = true,
+            // The default since 0.21; still accepted, and wins over --gpu.
             "--cpu" => cpu = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
@@ -23,7 +25,7 @@ pub(crate) fn run(project: Project, args: Vec<String>) -> i32 {
     let result = serve(
         move || {
             let engine = Engine::new(project).map_err(|e| e.to_string())?;
-            let (renderer, backend) = make_renderer(cpu);
+            let (renderer, backend) = make_renderer(gpu && !cpu);
             eprintln!("preview: rendering with {backend}");
             Ok(PreviewAdapter::new(engine, renderer))
         },

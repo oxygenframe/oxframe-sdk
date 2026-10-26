@@ -16,7 +16,7 @@ Uses the `oxframe` skill (workflow, full API cheat sheet); install both with `np
 | `self.wait(1)` | `wait_for(1.0).await` |
 | `Transform(text_a, text_b)` | `txt.morph_to("new text", 1.0).await` |
 | `Text("Hi")` | `Txt::new().text("Hi").h1()` |
-| `MathTex(r"\frac{a}{b}")` | not yet: Unicode in `Txt` (`a/b`, `√x`, `x²`) |
+| `MathTex(r"\frac{a}{b}")` | `Math::new("a / b")` (Typst syntax, feature `math`, not in the playground) |
 | `Axes(x_range=[-3, 3])`, `axes.plot(lambda x: …)` | `Axes::new().x_range(-3.0..3.0)`, `axes.plot(|x| …)` |
 | `ValueTracker(0)`, `always_redraw` | `Signal::new(0.0)`, `.bind(move || …)` or `axes.point_on(&plot, x)` |
 | `NumberPlane()`, `apply_matrix(m)` | `Axes::new()`, `axes.apply_matrix([[a, b], [c, d]], secs)` |

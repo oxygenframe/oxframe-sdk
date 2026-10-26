@@ -13,7 +13,8 @@ warnings do not fail it. `oxframe --json check` prints the report on stdout.
 Each issue has `rule`, `severity`, a time range, a node, `file:line` and (from
 oxframe 0.20.1) `docs`, a link to the rule's section of
 https://oxframe.dev/docs/check-rules with a before and after picture. An issue
-tied to one node also has `bounds`, its pixel rect `[x0, y0, x1, y1]` at the
+tied to one node also has `bounds`, its rect `[x0, y0, x1, y1]` in scene units
+(origin at the frame center, y down, as in `inspect`) at the
 start of the range, and (from oxframe 0.21) `crop`, a full-resolution PNG of
 that part of the frame with the node outlined in red, relative to
 `out/check/` (for example `issues/01-out_of_frame.png`). Open the crop to see
@@ -31,7 +32,7 @@ storyboard before reporting: a clean report is necessary, not sufficient.
 | `too_fast` | Text not on screen long enough to read, or a large move too quick | `wait_for(…)` after it appears, a longer tween |
 | `dead_time` | Nothing changes for too long | Shorten the wait or animate something |
 | `voice_cut` / `voice_overlap` | A spoken line runs past the scene, or two lines overlap | `line.await` before the scene ends; start the next line after |
-| `shader_error`, `param_unknown`, `shader_slow`, `input_cycle` | Shader problems | See the Shaders section of the cheat sheet |
+| `shader_error`, `param_unknown`, `shader_slow` | Shader problems | See the Shaders section of the cheat sheet |
 | `nondeterministic` | Two paints of one frame differ | Draw only from signals and `ctx.time()`; randomness from `ctx.rng(seed)` |
 | `video_unavailable` | A clip cannot be opened | Check the path and the `video` feature; install ffmpeg |
 
@@ -51,5 +52,6 @@ the first of the next.
 
 `oxframe inspect --at <seconds>` prints the node tree (kind, name, bounds,
 text) when the picture is unclear; `--graph` adds the render passes.
-`oxframe snapshot --at <seconds>` writes one full-size frame. Thresholds live in
+`oxframe snapshot --at <seconds>` writes one frame (960×540; `--size` for
+another). Thresholds live in
 `oxframe.toml` under `[check]`; change them only when the user asks.

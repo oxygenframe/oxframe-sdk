@@ -222,7 +222,8 @@ A plot is a function of x, sampled every frame: it follows the ranges, and
 `tan` keeps its gaps. Bars: `axes.bars([0.0, 0.0]).labels(["a", "b"])`, then
 `bars.value(0).to(3.2, 1.0)`; set the x range to `-0.5..n - 0.5`.
 `axes.place(node, x, y)` keeps any node at a data point. `NumberLine::new(0.0..10.0)`
-is a single axis. There is no pie chart: draw slices with `Custom`.
+is a single axis. There is no pie-chart component: draw each slice with
+`Circle::new().pie(true).start_angle(a).end_angle(b)`.
 
 ## Shaders
 
