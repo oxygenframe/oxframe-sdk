@@ -1,6 +1,6 @@
 {
   "name": "oxframe",
-  "version": "0.23.9",
+  "version": "0.23.10",
   "description": "Make videos from code with oxframe: explainers, code walkthroughs, charts, 3D, slides and release videos as Rust scenes, checked with oxframe check and rendered to MP4 without a browser.",
   "author": {
     "name": "oxygenframe",

@@ -8,6 +8,22 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+## 0.23.10 — 2026-10-26
+
+### Fixed
+
+- Speech from a `TtsProvider` could crackle and skip in a render with
+  several jobs: every job called the provider for a line that was not
+  cached yet and wrote the same `tts/` file at once, splicing two takes
+  into one WAV. Now one process speaks the line and the others wait for its
+  cache entry, which is written whole (WAV first, then the JSON). Delete
+  the `tts/` files of a line that sounds broken and render again.
+- `oxframe dev`: reloading the page while the video played showed it
+  paused while frames kept moving, with no sound. A new page now stops
+  playback (and the editor, 0.1.7, asks for that itself).
+- A trimmed sound (or a recording that does not start at zero) no longer
+  clicks: every clip fades in and out over 2 ms.
+
 ## 0.23.9 — 2026-10-26
 
 ### Fixed
