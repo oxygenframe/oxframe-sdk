@@ -14,9 +14,9 @@ use crate::host::{self, Host};
 fn plate(
     g: &SceneGraph,
     root: &Group,
-    title: String,
+    mut title: String,
     spans: Vec<RichSpan>,
-    made_by: bool,
+    mark: Mark,
     subtitle: Option<String>,
 ) -> Host {
     const HEIGHT: f64 = 260.0;
@@ -32,6 +32,15 @@ fn plate(
             .elevation(Md)
             .name("plate"),
     );
+    // With the logo, the words go in a row with it and the title stays empty.
+    let words = match mark {
+        Mark::None => None,
+        Mark::Logo => Some((None, Txt::new().h1().text(std::mem::take(&mut title)))),
+        Mark::MadeBy => Some((
+            Some(Txt::new().h1().text("made by").fill(Muted)),
+            Txt::new().h1().text("Oxframe").weight(700.0).fill(Text),
+        )),
+    };
     let title = root.add(
         Txt::new()
             .text(title)
@@ -42,9 +51,8 @@ fn plate(
             .y(-28.0)
             .name("title"),
     );
-    if made_by {
-        // The credit next to the (empty) title, at the title's size.
-        credit(root, || Txt::new().h1()).y().set(-28.0);
+    if let Some((lead, name)) = words {
+        wordmark(root, lead, name).y().set(-28.0);
     }
     let mut reveals = Vec::new();
     let mut second = None;
@@ -99,6 +107,7 @@ impl TitleCard {
         TitleCardBuilder {
             base: BaseProps::default(),
             title: title.into(),
+            mark: Mark::None,
             subtitle: None,
         }
     }
@@ -122,10 +131,17 @@ impl TitleCard {
 pub struct TitleCardBuilder {
     base: BaseProps,
     title: String,
+    mark: Mark,
     subtitle: Option<String>,
 }
 
 impl TitleCardBuilder {
+    /// The oxframe [`Logo`] before the title, sized to it:
+    /// `TitleCard::new("oxframe").logo()`.
+    pub fn logo(mut self) -> Self {
+        self.mark = Mark::Logo;
+        self
+    }
     /// Second line, revealed by `next`.
     pub fn subtitle(mut self, text: impl Into<String>) -> Self {
         self.subtitle = Some(text.into());
@@ -141,7 +157,7 @@ impl NodeBuilder for TitleCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> TitleCard {
         let root = host::root(parent, self.base);
         TitleCard {
-            host: plate(g, &root, self.title, Vec::new(), false, self.subtitle),
+            host: plate(g, &root, self.title, Vec::new(), self.mark, self.subtitle),
         }
     }
 }
@@ -170,24 +186,92 @@ fn logo(parent: &Group, x: f64, height: f64) -> f64 {
     26.0 * unit
 }
 
-/// "made by", the logo and "Oxframe" on one line, centered on a new group;
-/// `style` sets the size of the words.
-fn credit(parent: &Group, style: impl Fn() -> TxtBuilder) -> Group {
-    let row = parent.add(Group::new().name("made-by"));
-    let lead = row.add(style().text("made by").fill(Muted));
-    let name = row.add(style().text("Oxframe").weight(700.0).fill(Text));
+/// What goes with a card's title.
+#[derive(Clone, Copy, PartialEq)]
+enum Mark {
+    None,
+    /// The logo before the title.
+    Logo,
+    /// "made by", the logo, "Oxframe" in place of the title.
+    MadeBy,
+}
+
+/// `lead`, the logo and `name` on one line, centered on a new group. The
+/// logo is sized to `name`'s line.
+fn wordmark(parent: &Group, lead: Option<TxtBuilder>, name: TxtBuilder) -> Group {
+    let row = parent.add(Group::new().name("wordmark"));
+    let lead = lead.map(|t| row.add(t));
+    let name = row.add(name);
     // The line box is about 1.2 times the font size; the logo is a bit
     // taller than a capital.
-    let line = lead.size().1;
+    let line = name.size().1;
     let height = line * 0.6;
     let gap = line * 0.26;
-    let (lw, nw) = (lead.size().0, name.size().0);
+    let lw = lead.as_ref().map_or(0.0, |l| l.size().0 + gap);
+    let nw = name.size().0;
     let mark = 26.0 / 14.0 * height;
-    let left = -(lw + gap + mark + gap + nw) / 2.0;
-    lead.x().set(left + lw / 2.0);
-    logo(&row, left + lw + gap, height);
-    name.x().set(left + lw + gap + mark + gap + nw / 2.0);
+    let left = -(lw + mark + gap + nw) / 2.0;
+    if let Some(l) = &lead {
+        l.x().set(left + (lw - gap) / 2.0);
+    }
+    logo(&row, left + lw, height);
+    name.x().set(left + lw + mark + gap + nw / 2.0);
     row
+}
+
+/// The oxframe logo: a red rounded square and a blue circle over its right
+/// edge, as in the favicon. `enter` fades it in.
+pub struct Logo {
+    host: Host,
+}
+
+impl Logo {
+    /// Starts a logo, 48 px tall.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> LogoBuilder {
+        LogoBuilder {
+            base: BaseProps::default(),
+            height: 48.0,
+        }
+    }
+
+    /// Fades the logo in.
+    pub fn enter(&self) -> Tween<f64> {
+        self.host.enter()
+    }
+    /// Fades the logo out.
+    pub fn exit(&self) -> Tween<f64> {
+        self.host.exit()
+    }
+}
+
+/// Builder for [`Logo`].
+#[must_use = "a builder does nothing until it is passed to `add`"]
+pub struct LogoBuilder {
+    base: BaseProps,
+    height: f64,
+}
+
+impl LogoBuilder {
+    /// Height in pixels; the logo is 26/14 as wide.
+    pub fn height(mut self, height: impl Into<f64>) -> Self {
+        self.height = height.into();
+        self
+    }
+}
+
+impl NodeBuilder for LogoBuilder {
+    type Handle = Logo;
+    fn base(&mut self) -> &mut BaseProps {
+        &mut self.base
+    }
+    fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> Logo {
+        let root = host::root(parent, self.base);
+        logo(&root, -13.0 / 14.0 * self.height, self.height);
+        Logo {
+            host: Host::new(root.node(), Vec::new()),
+        }
+    }
 }
 
 /// "made by", the oxframe logo, and "Oxframe" in the text color, on one line.
@@ -238,8 +322,15 @@ impl NodeBuilder for MadeByBuilder {
     }
     fn build(self, _: &oxframe_2d::SceneGraph, parent: NodeId) -> MadeBy {
         let root = host::root(parent, self.base);
-        let size = self.size;
-        credit(&root, || Txt::new().font_size(size));
+        wordmark(
+            &root,
+            Some(Txt::new().font_size(self.size).text("made by").fill(Muted)),
+            Txt::new()
+                .font_size(self.size)
+                .text("Oxframe")
+                .weight(700.0)
+                .fill(Text),
+        );
         MadeBy {
             host: Host::new(root.node(), Vec::new()),
         }
@@ -315,7 +406,18 @@ impl NodeBuilder for EndCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> EndCard {
         let root = host::root(parent, self.base);
         EndCard {
-            host: plate(g, &root, self.title, self.spans, self.made_by, self.note),
+            host: plate(
+                g,
+                &root,
+                self.title,
+                self.spans,
+                if self.made_by {
+                    Mark::MadeBy
+                } else {
+                    Mark::None
+                },
+                self.note,
+            ),
         }
     }
 }

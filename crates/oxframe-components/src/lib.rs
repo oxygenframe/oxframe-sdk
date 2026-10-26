@@ -46,6 +46,6 @@ pub use lower::{ChapterMarker, ChapterMarkerBuilder, LowerThird, LowerThirdBuild
 pub use matrix::{Matrix, MatrixBuilder};
 pub use table::{Table, TableBuilder, TableRow};
 pub use title::{
-    BulletList, BulletListBuilder, EndCard, EndCardBuilder, MadeBy, MadeByBuilder, TitleCard,
-    TitleCardBuilder,
+    BulletList, BulletListBuilder, EndCard, EndCardBuilder, Logo, LogoBuilder, MadeBy,
+    MadeByBuilder, TitleCard, TitleCardBuilder,
 };
