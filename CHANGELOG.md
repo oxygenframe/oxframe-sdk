@@ -14,6 +14,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - `MadeBy`: "made by", the oxframe logo and "Oxframe" on one line
   (`view.add(MadeBy::new().font_size(40))`), and `EndCard::made_by()` for an
   end card with it: `EndCard::new("").made_by()`. The examples end on it.
+- `Logo`: the oxframe logo as a node (`Logo::new().height(48)`), and
+  `TitleCard::logo()` to put it before a title.
 
 ## 0.24.0 — 2026-10-26
 

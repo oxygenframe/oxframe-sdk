@@ -79,7 +79,8 @@ pub use oxframe_2d::{Math, MathBuilder};
 pub use oxframe_3d::{Camera3d, Geometry, Light, Light3d, Mesh, Object3d, Quat, Scene3d, Vec3};
 pub use oxframe_components::{
     Axes, Bars, BulletList, Callout, ChapterMarker, CodeExplainer, EndCard, FlowDiagram, Interval,
-    LowerThird, MadeBy, Mat2, Matrix, NumberLine, Plot, Series, Table, TableRow, TitleCard, Vector,
+    Logo, LowerThird, MadeBy, Mat2, Matrix, NumberLine, Plot, Series, Table, TableRow, TitleCard,
+    Vector,
 };
 #[allow(deprecated)]
 pub use oxframe_core::all_vec;
@@ -140,7 +141,7 @@ pub mod prelude {
         Camera, ChapterMarker, Circle, Code, CodeExplainer, CodeTheme, Color, Custom, Danger, Dir,
         Direction, DrawCtx, Ease, Edge, EndCard, Fast, FlowDiagram, Gradient, Grid, Group, Icon,
         IconStyle, Img, Input, Interval, Justify, LayerPose, Layout, LayoutAlign, Lerp, Lg, Line,
-        LineCap, LineJoin, LowerThird, MONO, MadeBy, Mat2, Matrix, Md, Motion, Muted, Node,
+        LineCap, LineJoin, Logo, LowerThird, MONO, MadeBy, Mat2, Matrix, Md, Motion, Muted, Node,
         NodeBuilder, Normal, NumberLine, OnAccent, Particles, Path, Point, Polygon, Project, Rect,
         RichSpan, SANS, SafeArea, Shader, Side, Signal, Slow, Sm, Span, Star, Step, Success,
         Surface, Svg, Table, Text, TextAlign, Theme, TitleCard, Transition, Txt, Vec2, Vector,

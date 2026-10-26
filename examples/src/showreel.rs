@@ -7,8 +7,11 @@ use crate::{charts, cube_3d, linear_map, ocean};
 
 #[oxframe::scene]
 pub async fn opening(view: View) {
-    let title =
-        view.add(TitleCard::new("oxframe").subtitle("Motion graphics your AI agent can see"));
+    let title = view.add(
+        TitleCard::new("oxframe")
+            .logo()
+            .subtitle("Motion graphics your AI agent can see"),
+    );
     title.enter().await;
     title.next().await;
     wait_for(1.6).await;
