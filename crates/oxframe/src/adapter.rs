@@ -106,8 +106,8 @@ impl PreviewEngine for PreviewAdapter {
     }
 
     fn tree(&mut self, frame: u32) -> Vec<NodeInfo> {
-        self.engine
-            .seek(frame)
+        let graph = self.engine.seek(frame);
+        graph
             .tree()
             .into_iter()
             .map(|(id, parent, kind, name)| NodeInfo {
@@ -115,6 +115,7 @@ impl PreviewEngine for PreviewAdapter {
                 parent: parent.map(|p| p.0),
                 kind: kind.to_owned(),
                 name,
+                source: graph.node(id).source.clone(),
             })
             .collect()
     }
