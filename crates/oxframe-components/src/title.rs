@@ -1,17 +1,23 @@
 //! Title card, end card, and a list whose items appear one by one.
 
 use oxframe_2d::{
-    Accent, BaseProps, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, SceneGraph, Surface,
-    TextAlign, Txt, TxtBuilder, pct,
+    Accent, BaseProps, Group, Lg, Md, Muted, NodeBuilder, NodeId, Rect, RichSpan, SceneGraph,
+    Surface, TextAlign, Txt, TxtBuilder, pct, span,
 };
-use oxframe_core::Tween;
+use oxframe_core::{Color, Tween};
 
 use crate::host::{self, Host};
 
 /// The card behind a title and an optional second line. Both wrap inside
 /// the card, and a card whose text wraps grows to hold it; text that fits on
 /// one line keeps the usual layout.
-fn plate(g: &SceneGraph, root: &Group, title: String, subtitle: Option<String>) -> Host {
+fn plate(
+    g: &SceneGraph,
+    root: &Group,
+    title: String,
+    spans: Vec<RichSpan>,
+    subtitle: Option<String>,
+) -> Host {
     const HEIGHT: f64 = 260.0;
     const PAD: f64 = 48.0;
     const GAP: f64 = 20.0;
@@ -28,6 +34,7 @@ fn plate(g: &SceneGraph, root: &Group, title: String, subtitle: Option<String>) 
     let title = root.add(
         Txt::new()
             .text(title)
+            .rich(spans)
             .h1()
             .max_width(wrap)
             .align(TextAlign::Center)
@@ -129,9 +136,19 @@ impl NodeBuilder for TitleCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> TitleCard {
         let root = host::root(parent, self.base);
         TitleCard {
-            host: plate(g, &root, self.title, self.subtitle),
+            host: plate(g, &root, self.title, Vec::new(), self.subtitle),
         }
     }
+}
+
+/// "made by Oxframe", with Oxframe in the colors of its logo (Ox
+/// `#e13238`, frame `#68abdf`): `EndCard::new("").rich(made_by_oxframe())`.
+pub fn made_by_oxframe() -> [RichSpan; 3] {
+    [
+        span("made by "),
+        span("Ox").color(Color::from_hex("#e13238").expect("a color")),
+        span("frame").color(Color::from_hex("#68abdf").expect("a color")),
+    ]
 }
 
 /// Closing card. `next` reveals the note.
@@ -146,6 +163,7 @@ impl EndCard {
         EndCardBuilder {
             base: BaseProps::default(),
             title: title.into(),
+            spans: Vec::new(),
             note: None,
         }
     }
@@ -169,10 +187,17 @@ impl EndCard {
 pub struct EndCardBuilder {
     base: BaseProps,
     title: String,
+    spans: Vec<RichSpan>,
     note: Option<String>,
 }
 
 impl EndCardBuilder {
+    /// Styled runs for the title instead of plain text, such as
+    /// [`made_by_oxframe`].
+    pub fn rich(mut self, spans: impl IntoIterator<Item = RichSpan>) -> Self {
+        self.spans = spans.into_iter().collect();
+        self
+    }
     /// Second line, revealed by `next`.
     pub fn note(mut self, text: impl Into<String>) -> Self {
         self.note = Some(text.into());
@@ -188,7 +213,7 @@ impl NodeBuilder for EndCardBuilder {
     fn build(self, g: &oxframe_2d::SceneGraph, parent: NodeId) -> EndCard {
         let root = host::root(parent, self.base);
         EndCard {
-            host: plate(g, &root, self.title, self.note),
+            host: plate(g, &root, self.title, self.spans, self.note),
         }
     }
 }

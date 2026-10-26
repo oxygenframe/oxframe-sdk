@@ -44,7 +44,7 @@ async fn talk(view: View) {
         wait_for(4.0).await;
     }
     list.exit().await;
-    let end = view.add(EndCard::new("oxframe.dev").note("made with oxframe"));
+    let end = view.add(EndCard::new("oxframe.dev").note("made by Oxframe"));
     end.enter().await;
     end.next().await;
     wait_for(5.0).await;

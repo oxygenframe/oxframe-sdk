@@ -89,7 +89,7 @@ All of them need the CLI: `cargo install oxframe-cli` (or the
 [install script](https://github.com/oxygenframe/oxframe-cli)). Every release
 gets a video of its notes from
 [release-video-action](https://github.com/oxygenframe/release-video-action),
-made with oxframe.
+made by Oxframe.
 
 ## Crates
 

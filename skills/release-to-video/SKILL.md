@@ -25,7 +25,7 @@ The action turns headings into title cards and bullets into lists, runs
 `oxframe check`, renders with `--cpu` and attaches `release.mp4` to the release.
 A release created by a workflow with `GITHUB_TOKEN` does not trigger
 `on: release`: add the step to that job with `tag: ${{ github.ref_name }}`.
-`portrait: true` renders 9:16; `credit: false` drops "made with oxframe".
+`portrait: true` renders 9:16; `credit: false` drops "made by Oxframe".
 
 ## As a scene of your own
 

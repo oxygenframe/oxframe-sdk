@@ -208,7 +208,7 @@ pub async fn credits(view: View) {
     );
     let credit = view.add(
         Txt::new()
-            .text("made with oxframe")
+            .rich(made_by_oxframe())
             .h2()
             .fill(Muted)
             .y(80.0)
