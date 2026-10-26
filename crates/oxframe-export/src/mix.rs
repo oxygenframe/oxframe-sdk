@@ -5,7 +5,6 @@
 
 use std::fmt;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 
 use symphonia::core::audio::SampleBuffer;
@@ -28,7 +27,8 @@ const DUCK_RELEASE: f64 = 0.30;
 const CEILING: f32 = 0.89;
 const LOOKAHEAD: f64 = 0.005;
 const LIMIT_RELEASE: f64 = 0.05;
-/// Short fade on the ends of the whole mix, so a cut does not click.
+/// Short fade on the ends of the whole mix and of every clip, so a cut
+/// does not click.
 const EDGE: f64 = 0.002;
 
 /// One clip on the output timeline.
@@ -255,34 +255,37 @@ pub fn write_wav(path: &Path, mixed: &Mixed) -> Result<(), MixError> {
     let bits: u16 = 16;
     let block = channels * bits / 8;
     let data_len = (mixed.samples.len() * usize::from(block)) as u32;
-    let mut out = File::create(path).map_err(|e| MixError::Read {
-        file: path.display().to_string(),
-        message: e.to_string(),
-    })?;
-    let write = |f: &mut File, bytes: &[u8]| {
-        f.write_all(bytes).map_err(|e| MixError::Read {
-            file: path.display().to_string(),
-            message: e.to_string(),
-        })
-    };
-    write(&mut out, b"RIFF")?;
-    write(&mut out, &(36 + data_len).to_le_bytes())?;
-    write(&mut out, b"WAVEfmt ")?;
-    write(&mut out, &16u32.to_le_bytes())?;
-    write(&mut out, &1u16.to_le_bytes())?;
-    write(&mut out, &channels.to_le_bytes())?;
-    write(&mut out, &mixed.rate.to_le_bytes())?;
-    write(&mut out, &(mixed.rate * u32::from(block)).to_le_bytes())?;
-    write(&mut out, &block.to_le_bytes())?;
-    write(&mut out, &bits.to_le_bytes())?;
-    write(&mut out, b"data")?;
-    write(&mut out, &data_len.to_le_bytes())?;
+    let mut bytes = Vec::with_capacity(44 + data_len as usize);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16u32.to_le_bytes());
+    bytes.extend_from_slice(&1u16.to_le_bytes());
+    bytes.extend_from_slice(&channels.to_le_bytes());
+    bytes.extend_from_slice(&mixed.rate.to_le_bytes());
+    bytes.extend_from_slice(&(mixed.rate * u32::from(block)).to_le_bytes());
+    bytes.extend_from_slice(&block.to_le_bytes());
+    bytes.extend_from_slice(&bits.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&data_len.to_le_bytes());
     for s in &mixed.samples {
         let b = s.to_le_bytes();
-        write(&mut out, &b)?;
-        write(&mut out, &b)?;
+        bytes.extend_from_slice(&b);
+        bytes.extend_from_slice(&b);
     }
-    Ok(())
+    // Written next to the target and renamed over it: another process
+    // (a parallel render job) reading or writing the same path sees the old
+    // file or the new one, never a mix of both.
+    let tmp = path.with_extension(format!("wav.{}.tmp", std::process::id()));
+    let err = |e: std::io::Error| MixError::Read {
+        file: path.display().to_string(),
+        message: e.to_string(),
+    };
+    std::fs::write(&tmp, &bytes).map_err(err)?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        err(e)
+    })
 }
 
 /// Peak envelope in `0..=1`, one value per bucket.
@@ -472,6 +475,8 @@ fn add_clip(acc: &mut [f32], clip: &Loaded, rate: u32, duck: &[f32]) {
 }
 
 fn clip_fade(pos: f64, dur: f64, fade_in: f64, fade_out: f64) -> f32 {
+    // A clip cut by a trim, or a recording that starts off zero, would click.
+    let (fade_in, fade_out) = (fade_in.max(EDGE), fade_out.max(EDGE));
     let mut g = 1.0f32;
     if fade_in > 0.0 && pos < fade_in {
         g *= (pos / fade_in) as f32;

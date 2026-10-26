@@ -377,6 +377,12 @@ fn resolve(text: &str, voice: &str) -> Spoken {
             if let Some(hit) = read_cache(&ctx.dir, &key) {
                 return hit;
             }
+            // Parallel render jobs run the same scene at once: one of them
+            // calls the provider, the others wait for its cache entry.
+            let _lock = SynthLock::acquire(&ctx.dir, &key);
+            if let Some(hit) = read_cache(&ctx.dir, &key) {
+                return hit;
+            }
             match provider.0.synthesize(&TtsRequest { text, voice }) {
                 Ok(audio) => store(&ctx.dir, &key, provider.0.id(), voice, text, audio),
                 Err(e) => {
@@ -537,6 +543,57 @@ struct CacheFile {
     words: Vec<TimedWord>,
 }
 
+/// `<key>.lock` in the cache directory while a process synthesizes `key`;
+/// removed on drop.
+#[cfg(not(target_arch = "wasm32"))]
+struct SynthLock(std::path::PathBuf);
+
+#[cfg(not(target_arch = "wasm32"))]
+impl SynthLock {
+    /// A lock older than this is left over from a process that died.
+    const STALE: std::time::Duration = std::time::Duration::from_secs(120);
+
+    /// Takes the lock, or waits until the process holding it has written
+    /// the entry (then returns `None`; so does giving up after `STALE`).
+    fn acquire(dir: &Path, key: &str) -> Option<Self> {
+        let _ = std::fs::create_dir_all(dir);
+        let path = dir.join(format!("{key}.lock"));
+        let json = dir.join(format!("{key}.json"));
+        let since = std::time::Instant::now();
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return Some(Self(path)),
+                Err(e) if e.kind() != std::io::ErrorKind::AlreadyExists => return None,
+                Err(_) => {}
+            }
+            if json.is_file() || since.elapsed() > Self::STALE {
+                return None;
+            }
+            let stale = std::fs::metadata(&path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age > Self::STALE);
+            if stale {
+                let _ = std::fs::remove_file(&path);
+                continue;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for SynthLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn read_cache(dir: &Path, key: &str) -> Option<Spoken> {
     let json = std::fs::read_to_string(dir.join(format!("{key}.json"))).ok()?;
@@ -597,9 +654,6 @@ fn store(
         seconds,
         words: audio.words.clone(),
     };
-    if let Ok(body) = serde_json::to_string_pretty(&json) {
-        let _ = std::fs::write(dir.join(format!("{key}.json")), body);
-    }
     let wav = dir.join(format!("{key}.wav"));
     let file = if audio.samples.is_empty() {
         None
@@ -616,6 +670,15 @@ fn store(
     } else {
         None
     };
+    // The JSON marks the entry as complete, so it goes last, and whole:
+    // another process may be waiting for it (see `SynthLock`).
+    if let Ok(body) = serde_json::to_string_pretty(&json) {
+        let path = dir.join(format!("{key}.json"));
+        let tmp = dir.join(format!("{key}.json.{}.tmp", std::process::id()));
+        if std::fs::write(&tmp, body).is_ok() && std::fs::rename(&tmp, &path).is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+    }
     Spoken {
         seconds,
         words: audio.words,
@@ -795,6 +858,56 @@ mod tests {
         let _ = resolve("hello there", "default");
         let _ = resolve("hello again", "default");
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Like `Count`, but slow, as a real service is.
+    struct Slow(Arc<AtomicUsize>);
+
+    impl TtsProvider for Slow {
+        fn id(&self) -> &str {
+            "slow"
+        }
+        fn synthesize(&self, req: &TtsRequest<'_>) -> Result<Synthesis, String> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            Count(Arc::new(AtomicUsize::new(0))).synthesize(req)
+        }
+    }
+
+    #[test]
+    fn parallel_jobs_speak_a_line_once() {
+        // `render --jobs` runs the scene in several processes at once; each
+        // used to call the service and write the same cache file, which
+        // spliced two takes into one WAV.
+        let dir = std::env::temp_dir().join(format!("oxframe-tts-par-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let jobs: Vec<_> = (0..4)
+            .map(|_| {
+                let (dir, calls) = (dir.clone(), calls.clone());
+                std::thread::spawn(move || {
+                    CTX.with(|slot| {
+                        *slot.borrow_mut() = Some(Ctx {
+                            dir,
+                            voice: "default".into(),
+                            provider: Some(Provider(Arc::new(Slow(calls)))),
+                        });
+                    });
+                    resolve("hello there", "default")
+                })
+            })
+            .collect();
+        for job in jobs {
+            let spoken = job.join().unwrap();
+            assert!(spoken.file.is_some(), "every job plays the cached file");
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let names: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(names.len(), 2, "only the entry is left: {names:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
