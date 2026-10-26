@@ -21,8 +21,8 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 - `oxframe dev`: reloading the page while the video played showed it
   paused while frames kept moving, with no sound. A new page now stops
   playback (and the editor, 0.1.7, asks for that itself).
-- A sound cut by `.trim(..)` (or a recording that does not start at zero)
-  no longer clicks: every clip fades in and out over 2 ms.
+- A trimmed sound (or a recording that does not start at zero) no longer
+  clicks: every clip fades in and out over 2 ms.
 
 ## 0.23.9 — 2026-10-26
 
