@@ -2,13 +2,13 @@
 name: oxframe
 description: "Make videos from code with oxframe: explainers, code walkthroughs, charts, matrices, 3D, slides and release videos as Rust scenes, checked with `oxframe check` (storyboard and report) and rendered to MP4 without a browser. Use when the user asks for an animation, a motion graphic, a video from code, or changes to an oxframe project."
 ---
-<!-- oxframe-agents 0.24.1 -->
+<!-- oxframe-agents 0.24.2 -->
 # oxframe scenes
 
-The project is on oxframe 0.24.2: docs https://oxframe.dev/docs/0.24,
+The project is on oxframe 0.24.3: docs https://oxframe.dev/docs/0.24,
 model text https://oxframe.dev/docs/0.24/llms.txt
 (and https://oxframe.dev/docs/0.24/llms-full.txt),
-API https://docs.rs/oxframe/0.24.2/oxframe/.
+API https://docs.rs/oxframe/0.24.3/oxframe/.
 `oxframe mcp` exposes check, notes, note_take, note_done, storyboard, inspect, render_frame, render_graph, list_components, docs_search and render. `oxframe --json check` prints one JSON object.
 
 ## No project yet
@@ -51,8 +51,8 @@ Reach for the right node before writing the scene:
 - **Explaining code** (what an expression does, why a line matters, a bug fix):
   a `Code` node is the tool, not plain `Txt`. Show the source, then walk
   attention through it with `.focus(first, last)` or `.focus_lines(a, b, secs)`
-  and `.dim(0.3)` on the rest; to explain parts of one expression, focus each
-  column range in turn. Morph to the next version with `.code().to(next, secs)`,
+  and `.dim(0.3)` on the rest; to explain parts of one expression, light each
+  piece in turn with `.focus_text("(hi - lo)", secs)`, not one `Txt` per token. Morph to the next version with `.code().to(next, secs)`,
   or use `.insert`/`.remove`/`.replace`. For a line-by-line walkthrough with a
   note per step, `CodeExplainer::new(src).step(line, line, "note")`.
 - **Vertical (9:16) or square short:** `Project::new(..).size(1080, 1920)` for
