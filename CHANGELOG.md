@@ -8,6 +8,14 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 
 ## Unreleased
 
+### Added
+
+- `Code::focus_text("(hi - lo)", secs)`: lights one piece of the source and
+  dims the rest, as `focus_lines` does for lines; between two pieces the
+  highlight slides across, and `focus_text("", secs)` shows everything
+  again. Explaining one expression part by part no longer needs a `Txt`
+  per token.
+
 ## 0.24.2 — 2026-10-27
 
 The credit with the oxframe logo. (0.24.1 was a release of the CLI alone:

@@ -185,18 +185,45 @@ pub(crate) fn rich(spans: &[RichSpan], style: &TextStyle) -> Styled {
     }
 }
 
-/// Highlighted code; lines outside `focus` (1-based, inclusive; (0, 0) =
-/// all) get their alpha multiplied by `dim`.
+/// What a [`Code`](crate::Code) node shows at full strength.
+pub(crate) struct CodeFocus {
+    /// Lines, 1-based and inclusive; (0, 0) = all.
+    pub lines: Vec2,
+    /// Characters, 0-based, end excluded; (0, 0) = all.
+    pub span: Vec2,
+}
+
+/// Highlighted code; text outside the focus gets its alpha multiplied by
+/// `dim`.
 pub(crate) fn code(
     src: &str,
     lang: Lang,
     theme: &CodeTheme,
     style: &TextStyle,
-    focus: Vec2,
+    focus: CodeFocus,
     dim: f64,
 ) -> Styled {
-    let (a, b) = (focus.x.round(), focus.y.round());
+    rich(&code_spans(src, lang, theme, focus, dim), style)
+}
+
+/// The colored pieces of [`code`].
+fn code_spans(
+    src: &str,
+    lang: Lang,
+    theme: &CodeTheme,
+    focus: CodeFocus,
+    dim: f64,
+) -> Vec<RichSpan> {
+    let (a, b) = (focus.lines.x.round(), focus.lines.y.round());
     let focused = |line: usize| a <= 0.0 && b <= 0.0 || (line as f64 >= a && line as f64 <= b);
+    // The character focus as byte offsets; None focuses everything.
+    let (cs, ce) = (focus.span.x.round().max(0.0), focus.span.y.round().max(0.0));
+    let byte = |chars: f64| {
+        src.char_indices()
+            .nth(chars as usize)
+            .map_or(src.len(), |(i, _)| i)
+    };
+    let span = (cs > 0.0 || ce > 0.0).then(|| (byte(cs), byte(ce.max(cs))));
     let mut spans = Vec::new();
     for (range, tok) in oxframe_text::highlight(src, lang) {
         // Split tokens at newlines so each piece knows its line.
@@ -211,11 +238,30 @@ pub(crate) fn code(
             spans.push((start..range.end, tok));
         }
     }
+    // Split at the edges of the character focus, so each piece is in or out.
+    if let Some((s, e)) = span {
+        spans = spans
+            .into_iter()
+            .flat_map(|(r, tok)| {
+                let cuts = [
+                    r.start,
+                    s.clamp(r.start, r.end),
+                    e.clamp(r.start, r.end),
+                    r.end,
+                ];
+                cuts.windows(2)
+                    .filter(|w| w[0] < w[1])
+                    .map(|w| (w[0]..w[1], tok))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+    }
     let mut out = Vec::with_capacity(spans.len());
     for (r, tok) in spans {
         let line = src[..r.start].matches('\n').count() + 1;
+        let in_span = span.is_none_or(|(s, e)| r.start >= s && r.end <= e);
         let mut c = theme.color(tok);
-        if !focused(line) {
+        if !focused(line) || !in_span {
             c = c.with_alpha((f64::from(c.a) * dim.clamp(0.0, 1.0)) as f32);
         }
         out.push(RichSpan {
@@ -224,7 +270,7 @@ pub(crate) fn code(
             ..Default::default()
         });
     }
-    rich(&out, style)
+    out
 }
 
 /// One painted glyph of a code diff, in the layout box (origin top-left).
@@ -510,6 +556,31 @@ pub(crate) fn morph(
 
 #[cfg(test)]
 mod diff_tests {
+
+    #[test]
+    fn focus_text_dims_everything_but_the_piece() {
+        let src = "let mid = lo + (hi - lo) / 2;\nmid";
+        let start = src.find("(hi").unwrap() as f64;
+        let spans = super::code_spans(
+            src,
+            Lang::Rust,
+            &CodeTheme::dark(),
+            super::CodeFocus {
+                lines: Vec2::ZERO,
+                span: Vec2::new(start, start + 9.0),
+            },
+            0.3,
+        );
+        let lit: String = spans
+            .iter()
+            .filter(|s| s.color.is_some_and(|c| c.a > 0.9))
+            .map(|s| s.text.as_str())
+            .collect();
+        assert_eq!(lit, "(hi - lo)");
+        let all: String = spans.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(all, src);
+    }
+
     use super::{CodeTheme, DiffSlot, DiffView, layout_diff};
     use kurbo::Vec2;
     use oxframe_text::{Lang, MONO, TextStyle};
