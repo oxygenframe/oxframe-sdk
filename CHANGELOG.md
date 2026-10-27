@@ -6,14 +6,13 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
 (0.1.0 → 0.1.1). Breaking changes are listed separately with a
 "before → after" example.
 
-## Unreleased
+## 0.24.3 — 2026-10-27
 
 ### Added
 
-- `Code::focus_text("(hi - lo)", secs)`: lights one piece of the source and
-  dims the rest, as `focus_lines` does for lines; between two pieces the
-  highlight slides across, and `focus_text("", secs)` shows everything
-  again. Explaining one expression part by part no longer needs a `Txt`
+- `code.focus_text("main", 0.4)`: lights one piece of the source and dims
+  the rest, as `focus_lines` does for lines; between two pieces the
+  highlight slides across, and `focus_text("", 0.3)` shows everything again. Explaining one expression part by part no longer needs a `Txt`
   per token.
 
 ### Changed
