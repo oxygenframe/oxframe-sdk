@@ -16,6 +16,12 @@ change bumps the minor version (0.1 → 0.2) and a fix bumps the patch
   again. Explaining one expression part by part no longer needs a `Txt`
   per token.
 
+### Changed
+
+- `shaders::ripple()` also lights the slope of each ring, so the rings show
+  on a flat fill and on `shaders::waves()`, not only on text or an image.
+  Frames with a ripple render differently.
+
 ## 0.24.2 — 2026-10-27
 
 The credit with the oxframe logo. (0.24.1 was a release of the CLI alone:

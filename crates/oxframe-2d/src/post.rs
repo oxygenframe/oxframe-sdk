@@ -337,11 +337,16 @@ fn ripple(
                 continue;
             }
             let env = (-d / reach).exp() * (1.0 - (-d / (12.0 * k)).exp());
-            let shift = amp * (d / wavelength * std::f32::consts::TAU - phase).sin() * env;
-            if shift.abs() < 1.0e-3 {
+            let angle = d / wavelength * std::f32::consts::TAU - phase;
+            let shift = amp * angle.sin() * env;
+            // Light on the slope of the ring: the side facing the light is
+            // brighter, the other darker, so rings show on a flat fill too.
+            // It scales the color, so a dark background stays dark.
+            let light = 0.28 * strength * angle.cos() * env;
+            if shift.abs() < 1.0e-3 && light.abs() < 1.0e-3 {
                 continue;
             }
-            let px = sample(
+            let mut px = sample(
                 &src,
                 w,
                 h,
@@ -352,6 +357,9 @@ fn ripple(
             // would cut a hole in it, so the outline (alpha) stays.
             if px[3] < 1.0e-3 {
                 continue;
+            }
+            for v in px.iter_mut().take(3) {
+                *v = (*v * (1.0 + light)).min(1.0);
             }
             let i = (y * w + x) * 4;
             for (k, v) in px.iter().enumerate().take(3) {
@@ -556,6 +564,34 @@ mod tests {
         let at =
             |d: &[u8], x: usize, y: usize| d[(y * 200 + x) * 4..(y * 200 + x) * 4 + 3].to_vec();
         assert_ne!(at(&img.data, 130, 50), at(&before, 130, 50));
+    }
+
+    #[test]
+    fn ripple_rings_show_on_a_flat_fill() {
+        let mut img = Image {
+            width: 200,
+            height: 100,
+            data: [40u8, 90, 160, 255].repeat(200 * 100),
+        };
+        let shade = Shade {
+            op: ShadeOp::Ripple {
+                center: (0.0, 0.0),
+                strength: 1.0,
+                speed: 6.0,
+                time: 0.4,
+            },
+            opacity: 1.0,
+            area: None,
+        };
+        apply(&shade, &mut img, Affine::translate((100.0, 50.0)));
+        // Along a line from the center, some pixels are lit and some shaded.
+        let row: Vec<u8> = (100..200)
+            .map(|x| img.data[(50 * 200 + x) * 4 + 2])
+            .collect();
+        assert!(row.iter().any(|&b| b > 175), "no lit ring: {row:?}");
+        assert!(row.iter().any(|&b| b < 145), "no shaded ring: {row:?}");
+        // The outline stays: alpha is untouched.
+        assert!(img.data.chunks(4).all(|p| p[3] == 255));
     }
 
     #[test]
