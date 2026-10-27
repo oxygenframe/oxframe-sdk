@@ -1530,9 +1530,10 @@ impl EffectBuilder {
     }
 }
 
-/// Rings that push a node's colors out from its center, like a drop on
-/// water. The node's outline stays, so a flat fill shows no rings: use it
-/// on text, a gradient, an image or water. Put it on a node with
+/// Rings that spread from a node's center, like a drop on water: they push
+/// its colors outward and light one side of each ring, so they show on a
+/// flat fill as well as on text, an image or water. The node's outline
+/// stays. Put it on a node with
 /// [`Node::effect`](crate::Node::effect).
 pub fn ripple() -> EffectBuilder {
     EffectBuilder {

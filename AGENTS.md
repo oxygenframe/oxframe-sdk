@@ -270,8 +270,9 @@ Shaders that read drawn pixels:
   then `lens.wetness().to(1.0, 0.4).await` for a splash. `.seed()` moves
   the drops, `.drop_size()` scales them.
 - `node.effect(shaders::ripple())` rings a node from its center. It returns
-  an `Effect`; `.strength()` and `.speed()` are signals. Colors move, the
-  outline stays, so a flat fill shows nothing.
+  an `Effect`; `.strength()` and `.speed()` are signals. Colors move and
+  each ring is lit on one side, so it shows on water and flat fills; the
+  outline stays. For a drop on water: `water.effect(shaders::ripple())`.
 - `transition(Transition::shader(shaders::water_wipe())).await` raises
   water into the next scene. Add the next scene's background before it.
 
