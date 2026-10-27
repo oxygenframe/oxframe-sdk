@@ -134,6 +134,9 @@ pub enum NodeKind {
         style: TextStyle,
         /// Focused lines (1-based, inclusive); (0, 0) focuses all.
         focus: Signal<Vec2>,
+        /// Focused characters of the source, `x..y` (0-based); (0, 0)
+        /// focuses all.
+        focus_span: Signal<Vec2>,
         /// Alpha of unfocused lines.
         dim: Signal<f64>,
     },
@@ -368,6 +371,7 @@ impl NodeData {
                 font_size,
                 style,
                 focus,
+                focus_span,
                 dim,
             } => {
                 let style = TextStyle {
@@ -395,7 +399,10 @@ impl NodeData {
                     *lang,
                     theme,
                     &style,
-                    focus.get(),
+                    crate::text::CodeFocus {
+                        lines: focus.get(),
+                        span: focus_span.get(),
+                    },
                     dim.get(),
                 )))
             }

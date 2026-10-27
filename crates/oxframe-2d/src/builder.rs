@@ -826,6 +826,7 @@ impl NodeBuilder for CodeBuilder {
             font_size: sig(g, k, "font_size", self.style.size),
             style: self.style,
             focus: sig(g, k, "focus", self.focus),
+            focus_span: sig(g, k, "focus_span", Vec2::ZERO),
             dim: sig(g, k, "dim", self.dim),
         };
         Code::from_id(insert(g, parent, kind, self.base))

@@ -604,6 +604,9 @@ kind_signal!(Code::Code {
     font_size: f64,
     /// Focused lines as (first, last), 1-based; (0, 0) = all.
     focus: Vec2,
+    /// Focused characters as (start, end), 0-based, end excluded; (0, 0) =
+    /// all. [`Code::focus_text`] sets it from a piece of the source.
+    focus_span: Vec2,
     /// Alpha of unfocused lines.
     dim: f64,
 });
@@ -679,6 +682,36 @@ impl Code {
     ) -> oxframe_core::Tween<Vec2> {
         self.focus()
             .to(Vec2::new(first as f64, last as f64), duration)
+    }
+
+    /// Moves the focus to the first `text` in the source over `duration`:
+    /// the rest is dimmed, as lines outside [`focus_lines`](Self::focus_lines)
+    /// are. Between two pieces the highlight slides across. An empty `text`
+    /// focuses everything again.
+    ///
+    /// `code.focus_text("(hi - lo)", 0.4).await` lights one part of a line.
+    /// The focus is not drawn while a diff (`code().to(..)`) runs.
+    ///
+    /// # Panics
+    ///
+    /// If `text` is not in the source.
+    pub fn focus_text(self, text: &str, duration: f64) -> oxframe_core::Tween<Vec2> {
+        let target = if text.is_empty() {
+            Vec2::ZERO
+        } else {
+            let src = self.code().get();
+            let at = src
+                .find(text)
+                .unwrap_or_else(|| panic!("code.focus_text: {text:?} is not in the source"));
+            let start = src[..at].chars().count();
+            Vec2::new(start as f64, (start + text.chars().count()) as f64)
+        };
+        let span = self.focus_span();
+        // From everything, start on the target rather than sliding in from 0.
+        if span.get() == Vec2::ZERO && target != Vec2::ZERO {
+            span.set(Vec2::new(target.x, target.x));
+        }
+        span.to(target, duration)
     }
 
     /// Inserts `text` at `line` (1-based) and `col` (0-based characters).
